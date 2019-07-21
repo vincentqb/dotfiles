@@ -1,0 +1,52 @@
+" Load default Vim8 configuration
+source $VIMRUNTIME/defaults.vim
+
+call plug#begin('~/.vim/plugged')
+	Plug 'tpope/vim-sensible'
+        Plug 'thinca/vim-visualstar'
+        Plug 'tmhedberg/SimpylFold'
+        Plug 'endel/vim-github-colorscheme'
+        Plug 'w0rp/ale'
+        " Plug 'desmap/ale-sensible'
+        " Plug 'Valloric/YouCompleteMe'
+        " Plug 'Valloric/YouCompleteMe', { 'do': './install.py' }
+        " Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+        Plug 'Shougo/deoplete.nvim'
+        Plug 'roxma/nvim-yarp'
+        Plug 'roxma/vim-hug-neovim-rpc'
+        Plug 'Vimjas/vim-python-pep8-indent'
+        " Plug 'deoplete-plugins/deoplete-jedi'  " Python autocomplete
+        Plug 'AndrewRadev/linediff.vim'
+call plug#end()
+
+colorscheme github
+
+let g:deoplete#enable_at_startup = 1
+let b:ale_linters = ['flake8', 'pylint']
+let b:ale_fixers = ['autopep8', 'yapf']
+let g:ale_lint_on_text_changed = 'never'
+
+" Fold using indentation
+au FileType python set foldmethod = indent
+au FileType python set foldnestmax = 1
+" Open/close folds with space
+au FileType python nnoremap <space> za
+
+" Highlighting for search
+set hlsearch
+
+" Automatically turn on/off paste mode when pasting to avoid stacking indentation
+
+let &t_SI .= "\<Esc>[?2004h"
+let &t_EI .= "\<Esc>[?2004l"
+
+let &t_SI .= "\<Esc>[?2004h"
+let &t_EI .= "\<Esc>[?2004l"
+
+inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
+
+function! XTermPasteBegin()
+        set pastetoggle=<Esc>[201~
+        set paste
+        return ""
+endfunction
