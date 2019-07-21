@@ -3,12 +3,14 @@ source ~/.antigen.zsh
 antigen bundle mafredri/zsh-async
 antigen bundle sindresorhus/pure
 antigen bundle command-not-found
+antigen bundle zsh-users/zsh-completions
 # antigen bundle zsh-users/zsh-syntax-highlighting
 antigen bundle zsh-users/zsh-history-substring-search
 antigen bundle zsh-users/zsh-autosuggestions
 
 antigen apply
 
+# use vim keybinds
 export EDITOR="vim"
 bindkey -v
 
