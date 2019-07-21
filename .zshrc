@@ -1,4 +1,5 @@
-source ~/.antigen.zsh
+_ANTIGEN_INSTALL_DIR=~/.antigen/
+source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 
 antigen bundle mafredri/zsh-async
 antigen bundle sindresorhus/pure
