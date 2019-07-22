@@ -26,14 +26,22 @@ let b:ale_linters = ['flake8', 'pylint']
 let b:ale_fixers = ['autopep8', 'yapf']
 let g:ale_lint_on_text_changed = 'never'
 
+set smartindent
+
 " Fold using indentation
-au FileType python set foldmethod = indent
-au FileType python set foldnestmax = 1
+au FileType python set foldmethod=indent
+au FileType python set foldnestmax=1
+" au FileType python set foldminlines=20
 " Open/close folds with space
 au FileType python nnoremap <space> za
 
-" Highlighting for search
-set hlsearch
+""""" Search while typing while ignoring case (when only lower case used)
+set ignorecase
+set smartcase
+set incsearch
+
+""""" Press escape to clear previous search highlight
+" nnoremap <esc> :noh<return><esc>
 
 " Automatically turn on/off paste mode when pasting to avoid stacking indentation
 
