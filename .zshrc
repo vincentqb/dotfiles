@@ -1,6 +1,9 @@
+ZSH_TMUX_AUTOSTART="true"
+
 _ANTIGEN_INSTALL_DIR=~/.antigen/
 source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 
+antigen bundle tmux
 antigen bundle mafredri/zsh-async
 antigen bundle sindresorhus/pure
 antigen bundle command-not-found
