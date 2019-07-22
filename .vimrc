@@ -13,7 +13,7 @@ call plug#begin('~/.vim/plugged')
         " Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
         Plug 'Shougo/deoplete.nvim'
         Plug 'roxma/nvim-yarp'
-        Plug 'roxma/vim-hug-neovim-rpc'
+        Plug 'roxma/vim-hug-neovim-rpc'  " pip3 install neovim
         Plug 'Vimjas/vim-python-pep8-indent'
         " Plug 'deoplete-plugins/deoplete-jedi'  " Python autocomplete
         Plug 'AndrewRadev/linediff.vim'
