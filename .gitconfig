@@ -1,4 +1,5 @@
 [user]
+	name = Vincent QB
 	email = vincentqb@gmail.com
 [credential]
 	helper = cache --timeout 3600
@@ -8,3 +9,5 @@
 	tool = vimdiff
 [mergetool]
 	prompt = true
+[push]
+	default = simple
