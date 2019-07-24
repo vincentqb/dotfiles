@@ -5,7 +5,7 @@ call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-sensible'
 	Plug 'thinca/vim-visualstar'
 	Plug 'tmhedberg/SimpylFold'
-	Plug 'endel/vim-github-colorscheme'
+	Plug 'cormacrelf/vim-colors-github'
 	Plug 'ervandew/supertab'
 	Plug 'AndrewRadev/linediff.vim'
 
