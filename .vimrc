@@ -25,6 +25,7 @@ let g:deoplete#enable_at_startup = 1
 let b:ale_linters = ['flake8', 'pylint']
 let b:ale_fixers = ['autopep8', 'yapf']
 let g:ale_lint_on_text_changed = 'never'
+let g:ale_set_highlights = 0
 
 set smartindent
 
