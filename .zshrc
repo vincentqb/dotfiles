@@ -67,5 +67,6 @@ else
 fi
 unset __conda_setup
 # <<< conda initialize <<<
-#
+
+# zsh already shows environment
 conda config --set changeps1 False
