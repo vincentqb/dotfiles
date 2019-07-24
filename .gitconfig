@@ -1,8 +1,8 @@
 [user]
-	name = Vincent QB
+	name = Vincent Quenneville-Belair
 	email = vincentqb@gmail.com
 [credential]
-	helper = cache --timeout 3600
+	helper = cache --timeout=31536000
 [core]
 	editor = vim
 [merge]
