@@ -3,20 +3,23 @@ source $VIMRUNTIME/defaults.vim
 
 call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-sensible'
-        Plug 'thinca/vim-visualstar'
-        Plug 'tmhedberg/SimpylFold'
-        Plug 'endel/vim-github-colorscheme'
-        Plug 'w0rp/ale'
-        " Plug 'desmap/ale-sensible'
-        " Plug 'Valloric/YouCompleteMe'
-        " Plug 'Valloric/YouCompleteMe', { 'do': './install.py' }
-        " Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-        Plug 'Shougo/deoplete.nvim'
-        Plug 'roxma/nvim-yarp'
-        Plug 'roxma/vim-hug-neovim-rpc'  " pip3 install neovim
-        Plug 'Vimjas/vim-python-pep8-indent'
-        " Plug 'deoplete-plugins/deoplete-jedi'  " Python autocomplete
-        Plug 'AndrewRadev/linediff.vim'
+	Plug 'thinca/vim-visualstar'
+	Plug 'tmhedberg/SimpylFold'
+	Plug 'endel/vim-github-colorscheme'
+	Plug 'ervandew/supertab'
+	Plug 'AndrewRadev/linediff.vim'
+
+	Plug 'w0rp/ale'
+	" Plug 'desmap/ale-sensible'
+	" Plug 'Valloric/YouCompleteMe'
+	" Plug 'Valloric/YouCompleteMe', { 'do': './install.py' }
+	"
+	Plug 'shougo/deoplete.nvim'
+	Plug 'roxma/nvim-yarp'
+	Plug 'roxma/vim-hug-neovim-rpc'  " pip3 install neovim
+	" Plug 'deoplete-plugins/deoplete-jedi'  " Python autocomplete
+
+	Plug 'vimjas/vim-python-pep8-indent'
 call plug#end()
 
 colorscheme github
