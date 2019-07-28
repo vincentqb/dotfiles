@@ -1,0 +1,15 @@
+[submodule "bashdot"]
+	path = bashdot
+	url = https://github.com/bashdot/bashdot
+[submodule "vim-plug"]
+	path = default/vim/autoload
+	url = https://github.com/junegunn/vim-plug
+[submodule "tpm"]
+	path = default/tmux/plugins/tpm
+	url = https://github.com/tmux-plugins/tpm
+[submodule "bash-sensible"]
+	path = default/bash-sensible
+	url = https://github.com/mrzool/bash-sensible/
+[submodule "antigen"]
+	path = default/antigen
+	url = https://github.com/zsh-users/antigen.git
