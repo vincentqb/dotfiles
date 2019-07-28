@@ -9,8 +9,8 @@ case $- in
 esac
 
 # Load bash sensible
-if [ -f ~/.sensible.bash ]; then
-   source ~/.sensible.bash
+if [ -f ~/.bash-sensible/sensible.bash ]; then
+   source ~/.bash-sensible/sensible.bash
 fi
 
 export VISUAL=vim
