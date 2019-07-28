@@ -1,0 +1,1 @@
+machine github.com login $GITHUB_NETRC_LOGIN password $GITHUB_NETRC_PASSWORD
