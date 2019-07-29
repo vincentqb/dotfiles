@@ -1,5 +1,8 @@
 " Load default Vim8 configuration
-source $VIMRUNTIME/defaults.vim
+"
+if !has('nvim')
+	source $VIMRUNTIME/defaults.vim
+endif
 
 call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-sensible'
@@ -11,15 +14,24 @@ call plug#begin('~/.vim/plugged')
 
 	Plug 'w0rp/ale'
 	" Plug 'desmap/ale-sensible'
-	" Plug 'Valloric/YouCompleteMe'
-	" Plug 'Valloric/YouCompleteMe', { 'do': './install.py' }
 	"
-	Plug 'shougo/deoplete.nvim'
-	Plug 'roxma/nvim-yarp'
-	Plug 'roxma/vim-hug-neovim-rpc'  " pip3 install neovim
+	" Plug 'shougo/deoplete.nvim'
+	" Plug 'roxma/nvim-yarp'
+	" Plug 'roxma/vim-hug-neovim-rpc'  " pip3 install neovim
 	" Plug 'deoplete-plugins/deoplete-jedi'  " Python autocomplete
 
 	Plug 'vimjas/vim-python-pep8-indent'
+
+	if has('nvim')
+		Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+		" Plug 'Valloric/YouCompleteMe', { 'do': './install.py' }
+	else
+		Plug 'Shougo/deoplete.nvim'
+		Plug 'roxma/nvim-yarp'
+		Plug 'roxma/vim-hug-neovim-rpc'
+		" Plug 'Valloric/YouCompleteMe'
+	endif
+
 call plug#end()
 
 colorscheme github

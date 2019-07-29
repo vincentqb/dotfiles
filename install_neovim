@@ -18,3 +18,5 @@ else
 
  	mv ./nvim.appimage $BIN_DIR
 fi
+
+# Check :help nvim-from-vim
