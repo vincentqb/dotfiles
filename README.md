@@ -6,18 +6,6 @@ git submodule update --init --recursive
 env GITHUB_NETRC_LOGIN=github_login GITHUB_NETRC_PASSWORD=XXXX bashdot/bashdot install default
 ```
 
-Get NeoVim for linux
-```
-wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage
-chmod u+x nvim.appimage && ./nvim.appimage
-```
-for MacOS
-```
-wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
-tar xzvf nvim-macos.tar.gz
-./nvim-osx64/bin/nvim
-```
-
 Shell: You can add the following to the end of your shell rc file to enable overriding:
 ```
 if [ -f ~/.zshrc_local ]; then
