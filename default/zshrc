@@ -1,9 +1,11 @@
-ZSH_TMUX_AUTOSTART="true"
+source /etc/profile
+
+ZSH_TMUX_AUTOSTART="false"
 
 _ANTIGEN_INSTALL_DIR=~/.antigen/
 source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 
-antigen bundle tmux
+# antigen bundle tmux
 antigen bundle mafredri/zsh-async
 antigen bundle sindresorhus/pure
 antigen bundle command-not-found
@@ -62,7 +64,7 @@ then
         eval "$__conda_setup"
     else
         if [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
-            . "/private/home/vincentqb/anaconda3/etc/profile.d/conda.sh"
+            . "$HOME/anaconda3/etc/profile.d/conda.sh"
         else
             export PATH="$HOME/anaconda3/bin:$PATH"
         fi
