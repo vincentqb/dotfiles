@@ -3,7 +3,7 @@
 Install dotfiles with [bashdot](https://github.com/bashdot/bashdot):
 ```
 git submodule update --init --recursive
-env GITHUB_NETRC_LOGIN=github_login GITHUB_NETRC_PASSWORD=github_application_password bashdot/bashdot install default
+env GITHUB_NETRC_LOGIN=github_login GITHUB_NETRC_PASSWORD=github_application_password bashdot/bashdot install default netrc
 ```
 
 Shell: You can add the following to the end of your shell rc file to enable overriding:
