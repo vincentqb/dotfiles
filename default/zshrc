@@ -69,9 +69,9 @@ then
             export PATH="$HOME/anaconda3/bin:$PATH"
         fi
     fi
+
+    # zsh already shows environment
+    conda config --set changeps1 False
 fi
 unset __conda_setup
 # <<< conda initialize <<<
-
-# zsh already shows environment
-conda config --set changeps1 False
