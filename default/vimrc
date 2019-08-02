@@ -36,8 +36,13 @@ call plug#end()
 
 colorscheme github
 
+" TAB completion
+" inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
 let g:deoplete#enable_at_startup = 1
-let b:ale_linters = ['flake8', 'pylint']
+let b:ale_linters = {
+	\ '*': ['remove_trailing_lines', 'trim_whitespace'],
+	\ 'python': ['flake8', 'pylint'],
+\}
 let b:ale_fixers = ['autopep8', 'yapf']
 let g:ale_lint_on_text_changed = 'never'
 let g:ale_set_highlights = 0
