@@ -34,7 +34,10 @@ HISTSIZE=1000
 SAVEHIST=1000
 HISTFILE=~/.zsh_history
 
-setopt histignorealldups sharehistory
+setopt hist_ignore_all_dups  # remove older duplicate entries from history
+setopt hist_reduce_blanks  # remove superfluous blanks from history items
+setopt inc_append_history  # save history entries as soon as they are entered
+setopt share_history  # share history between different instances of the shell
 
 # enable color support of ls and also add handy aliases
 alias ls='ls --color=auto'
