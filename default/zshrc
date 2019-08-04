@@ -1,19 +1,11 @@
-source /etc/profile
-
-ZSH_TMUX_AUTOSTART="false"
-ZSH_AUTOSUGGEST_USE_ASYNC=0
+# source /etc/profile
+source "$HOME/.slimzsh/slim.zsh"
 
 _ANTIGEN_INSTALL_DIR=~/.antigen/
 source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 
-# antigen bundle tmux
-antigen bundle mafredri/zsh-async
-antigen bundle sindresorhus/pure
-antigen bundle command-not-found
-antigen bundle zsh-users/zsh-completions
-# antigen bundle zsh-users/zsh-syntax-highlighting
-antigen bundle zsh-users/zsh-history-substring-search
-antigen bundle zsh-users/zsh-autosuggestions
+# antigen bundle zsh-users/zsh-completions
+# antigen bundle zsh-users/zsh-autosuggestions
 antigen bundle common-aliases
 antigen bundle compleat
 
@@ -26,17 +18,6 @@ bindkey -v
 # history substring search
 bindkey "$terminfo[kcuu1]" history-substring-search-up
 bindkey "$terminfo[kcud1]" history-substring-search-down
-
-# Keep 1000 lines of history within the shell and save it to ~/.zsh_history:
-HISTSIZE=1000
-SAVEHIST=1000
-HISTFILE=~/.zsh_history
-
-setopt hist_ignore_all_dups  # remove older duplicate entries from history
-setopt hist_reduce_blanks  # remove superfluous blanks from history items
-setopt inc_append_history  # save history entries as soon as they are entered
-setopt share_history  # share history between different instances of the shell
-
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
