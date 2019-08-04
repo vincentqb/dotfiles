@@ -1,0 +1,11 @@
+#!/bin/bash
+
+BIN_DIR="$home/bin/"
+
+mkdir -p $BIN_DIR
+export PATH=$BIN_DIR:$PATH
+
+# Linux
+git clone https://github.com/zsh-users/fizsh.git
+cd fizsh
+export PATH=$PATH:$BIN_DIR && ./configure --prefix=$HOME && make && make install
