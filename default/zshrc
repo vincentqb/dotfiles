@@ -7,7 +7,6 @@ source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 # antigen bundle zsh-users/zsh-completions
 # antigen bundle zsh-users/zsh-autosuggestions
 antigen bundle common-aliases
-antigen bundle compleat
 
 antigen apply
 
