@@ -38,6 +38,7 @@ call plug#begin('~/.vim/plugged')
 call plug#end()
 
 colorscheme github
+set mouse=r
 
 " TAB completion
 " inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
