@@ -6,6 +6,7 @@ source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 
 # antigen bundle zsh-users/zsh-completions
 # antigen bundle zsh-users/zsh-autosuggestions
+antigen bundle zsh-users/zsh-history-substring-search
 antigen bundle common-aliases
 
 antigen apply
@@ -15,8 +16,12 @@ export EDITOR="vim"
 bindkey -v
 
 # history substring search
-bindkey "$terminfo[kcuu1]" history-substring-search-up
-bindkey "$terminfo[kcud1]" history-substring-search-down
+# bindkey "$terminfo[kcuu1]" history-substring-search-up
+# bindkey "$terminfo[kcud1]" history-substring-search-down
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
+bindkey -M vicmd 'k' history-substring-search-up
+bindkey -M vicmd 'j' history-substring-search-down
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
