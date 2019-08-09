@@ -13,6 +13,7 @@ antigen apply
 
 # use vim keybinds
 export EDITOR="vim"
+export GIT_EDITOR="vim"
 bindkey -v
 
 # history substring search
