@@ -1,6 +1,6 @@
 " Load default Vim8 configuration
 "
-if !has('nvim')
+if has('vim')
 	source $VIMRUNTIME/defaults.vim
 endif
 
