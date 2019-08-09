@@ -6,6 +6,7 @@ source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
 
 # antigen bundle zsh-users/zsh-completions
 # antigen bundle zsh-users/zsh-autosuggestions
+antigen bundle zsh-users/zsh-history-substring-search
 antigen bundle common-aliases
 
 antigen apply
@@ -15,8 +16,12 @@ export EDITOR="vim"
 bindkey -v
 
 # history substring search
-bindkey "$terminfo[kcuu1]" history-substring-search-up
-bindkey "$terminfo[kcud1]" history-substring-search-down
+# bindkey "$terminfo[kcuu1]" history-substring-search-up
+# bindkey "$terminfo[kcud1]" history-substring-search-down
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
+bindkey -M vicmd 'k' history-substring-search-up
+bindkey -M vicmd 'j' history-substring-search-down
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
@@ -27,23 +32,3 @@ __git_files () {
     _wanted files expl 'local files' _files
 }
 
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-if [ -d "$HOME/anaconda3" ]
-then
-    __conda_setup=$("$HOME/anaconda3/bin/conda" "shell.zsh" "hook" 2> /dev/null)
-    if [ $? -eq 0 ]; then
-        eval "$__conda_setup"
-    else
-        if [ -f "$HOME/anaconda3/etc/profile.d/conda.sh" ]; then
-            . "$HOME/anaconda3/etc/profile.d/conda.sh"
-        else
-            export PATH="$HOME/anaconda3/bin:$PATH"
-        fi
-    fi
-
-    # zsh already shows environment
-    conda config --set changeps1 False
-fi
-unset __conda_setup
-# <<< conda initialize <<<
