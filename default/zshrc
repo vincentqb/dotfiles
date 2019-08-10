@@ -4,15 +4,30 @@ alias ls="ls --color"
 
 ########## Configure editor
 
-# use vim keybinds
-export EDITOR="vim"
-export GIT_EDITOR="vim"
-# bindkey -v
+# Use vim keybinds
+bindkey -v
 
-if [ -f "$HOME/bin/nvim" ]
+# User-install bin
+PATH="$HOME/bin":$PATH
+
+if p=`command -v nvim`
 then
-	alias vim="$HOME/bin/nvim"
-	export EDITOR="$HOME/bin/nvim"
+	alias vi=$p
+	alias vim=$p
+	export EDITOR=$p
+	export GIT_EDITOR=$p
+else
+	export EDITOR="vim"
+	export GIT_EDITOR="vim"
+fi
+
+########## Open new terminal in current directory in MacOS
+
+if [[ "$TERM_PROGRAM" == "Apple_Terminal" ]]; then
+  function chpwd {
+    printf '\e]7;%s\a' "file://$HOSTNAME${PWD// /%20}"
+  }
+  chpwd
 fi
 
 ########### Load plugins
