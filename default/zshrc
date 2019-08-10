@@ -1,3 +1,22 @@
+########## Aliases
+
+alias ls="ls --color"
+
+########## Configure editor
+
+# use vim keybinds
+export EDITOR="vim"
+export GIT_EDITOR="vim"
+# bindkey -v
+
+if [ -f "$HOME/bin/nvim" ]
+then
+	alias vim="$HOME/bin/nvim"
+	export EDITOR="$HOME/bin/nvim"
+fi
+
+########### Load plugins
+
 # source /etc/profile
 source "$HOME/.slimzsh/slim.zsh"
 
@@ -11,10 +30,7 @@ antigen bundle common-aliases
 
 antigen apply
 
-# use vim keybinds
-export EDITOR="vim"
-export GIT_EDITOR="vim"
-bindkey -v
+########## Configure plugins
 
 # history substring search
 bindkey "$terminfo[kcuu1]" history-substring-search-up
