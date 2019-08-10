@@ -12,6 +12,7 @@ call plug#begin('~/.vim/plugged')
 	Plug 'endel/vim-github-colorscheme'
 	Plug 'ervandew/supertab'
 	Plug 'AndrewRadev/linediff.vim'
+	Plug 'tpope/vim-fugitive'
 
 	" Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
 
@@ -43,7 +44,6 @@ set mouse=r
 
 " TAB completion
 " inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
-let g:deoplete#enable_at_startup = 1
 " let g:deoplete#enable_at_startup = 1
 let g:ale_completion_enabled = 1
 let g:ale_lint_on_text_changed = 'never'
