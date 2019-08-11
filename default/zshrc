@@ -17,12 +17,13 @@ if p=`command -v nvim`
 then
 	alias vi=$p
 	alias vim=$p
-	export EDITOR=$p
-	export GIT_EDITOR=$p
+	export VISUAL="$p"
 else
-	export EDITOR="vim"
-	export GIT_EDITOR="vim"
+	export VISUAL="vim"
 fi
+
+export EDITOR="$VISUAL"
+export GIT_EDITOR="$VISUAL"
 
 ########## Open new terminal in current directory in MacOS
 
