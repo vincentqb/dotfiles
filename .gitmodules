@@ -10,9 +10,6 @@
 [submodule "bash-sensible"]
 	path = default/bash-sensible
 	url = https://github.com/mrzool/bash-sensible/
-[submodule "antigen"]
-	path = default/antigen
-	url = https://github.com/zsh-users/antigen.git
-[submodule "default/slimzsh"]
-	path = default/slimzsh
-	url = https://github.com/changs/slimzsh
+[submodule "default/zgen"]
+	path = default/zgen
+	url = https://github.com/tarjoilija/zgen.git

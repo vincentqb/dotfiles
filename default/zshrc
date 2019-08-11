@@ -37,17 +37,22 @@ fi
 ########### Load plugins
 
 # source /etc/profile
-source "$HOME/.slimzsh/slim.zsh"
 
-_ANTIGEN_INSTALL_DIR=~/.antigen/
-source $_ANTIGEN_INSTALL_DIR/bin/antigen.zsh
+# load zgen
+source "${HOME}/.zgen/zgen.zsh"
 
-antigen bundle common-aliases
-# antigen bundle zsh-users/zsh-completions
-# antigen bundle zsh-users/zsh-autosuggestions
-antigen bundle zsh-users/zsh-history-substring-search
+# if the init script doesn't exist
+if ! zgen saved; then
 
-antigen apply
+  # specify plugins here
+  zgen load changs/slimzsh
+  # antigen bundle zsh-users/zsh-completions
+  # antigen bundle zsh-users/zsh-autosuggestions
+  zgen load zsh-users/zsh-history-substring-search
+
+  # generate the init script from plugins above
+  zgen save
+fi
 
 ########## Configure plugins
 
