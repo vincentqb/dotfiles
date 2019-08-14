@@ -8,8 +8,8 @@ call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-sensible'
 	Plug 'thinca/vim-visualstar'
 	Plug 'tmhedberg/SimpylFold'
-	" Plug 'cormacrelf/vim-colors-github'
-	Plug 'endel/vim-github-colorscheme'
+	Plug 'cormacrelf/vim-colors-github'
+	" Plug 'endel/vim-github-colorscheme'
 	Plug 'ervandew/supertab'
 	Plug 'AndrewRadev/linediff.vim'
 	Plug 'tpope/vim-fugitive'
@@ -39,6 +39,13 @@ call plug#begin('~/.vim/plugged')
 	" endif
 
 call plug#end()
+
+" Enable true color
+if exists('+termguicolors')
+  let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
+  let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
+  set termguicolors
+endif
 
 colorscheme github
 set mouse=r
@@ -75,9 +82,6 @@ set incsearch
 " nnoremap <esc> :noh<return><esc>
 
 " Automatically turn on/off paste mode when pasting to avoid stacking indentation
-
-let &t_SI .= "\<Esc>[?2004h"
-let &t_EI .= "\<Esc>[?2004l"
 
 let &t_SI .= "\<Esc>[?2004h"
 let &t_EI .= "\<Esc>[?2004l"
