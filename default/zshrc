@@ -7,9 +7,6 @@ alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo
 
 ########## Configure editor
 
-# Use vim keybinds
-bindkey -v
-
 # User-install bin
 PATH="$HOME/bin":$PATH
 
@@ -63,6 +60,9 @@ bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
 bindkey -M vicmd 'k' history-substring-search-up
 bindkey -M vicmd 'j' history-substring-search-down
+
+# Use vim keybinds
+bindkey -v
 
 # Fix "git add" autocomplete hanging
 __git_files () {
