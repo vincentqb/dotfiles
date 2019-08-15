@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BIN_DIR="$home/bin/"
+BIN_DIR="$HOME/bin/"
 
 mkdir -p $BIN_DIR
 export PATH=$BIN_DIR:$PATH
@@ -10,13 +10,11 @@ if [ $1 = "mac" ]; then
 	wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
 	tar xzvf nvim-macos.tar.gz
 
-	mv ./nvim-osx64/bin/nvim $BIN_DIR
+	mv ./nvim-osx64/bin/nvim $BIN_DIR/nvim
 else
 	# Linux
-	wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage
-	chmod u+x nvim.appimage
-
- 	mv ./nvim.appimage $BIN_DIR
+	wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
+	chmod u+x $BIN_DIR/nvim
 fi
 
 # Check :help nvim-from-vim
