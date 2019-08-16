@@ -58,7 +58,7 @@ let g:ale_lint_on_text_changed = 'never'
 let g:ale_set_highlights = 0
 let g:ale_fixers = {
 \ '*': ['remove_trailing_lines', 'trim_whitespace'],
-\ 'python': ['isort', 'ale#fixers#generic_python#BreakUpLongLines', 'autopep8', 'yapf'],
+\ 'python': ['reorder-python-imports', 'isort', 'black'],
 \}
 let g:ale_linters = {
 \ 'python': ['flake8', 'pylint'],
