@@ -7,7 +7,7 @@ export PATH=$BIN_DIR:$PATH
 
 # PyPI dotfiles
 
-pip install dotfiles
+pip install --user dotfiles
 
 # Neovim
 # Check :help nvim-from-vim
@@ -26,4 +26,4 @@ fi
 
 # curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 
-pip install black pylint flake8 isort neovim
+pip install --user black pylint flake8 isort neovim
