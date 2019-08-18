@@ -5,6 +5,10 @@ BIN_DIR="$HOME/bin/"
 mkdir -p $BIN_DIR
 export PATH=$BIN_DIR:$PATH
 
+# PyPI dotfiles
+
+pip install dotfiles
+
 # Neovim
 # Check :help nvim-from-vim
 
