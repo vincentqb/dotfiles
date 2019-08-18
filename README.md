@@ -9,5 +9,5 @@ env GITHUB_NETRC_LOGIN=github_login GITHUB_NETRC_PASSWORD=github_application_pas
 Install dotfiles with [dotfiles](https://github.com/jbernard/dotfiles):
 ```
 git submodule update --init --recursive
-~/dotfiles/dotfiles/dotfiles --sync
+~/dotfiles/dotfiles/bin/dotfiles --sync
 ```
