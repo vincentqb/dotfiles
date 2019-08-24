@@ -15,6 +15,7 @@ call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-fugitive'
 	Plug 'tpope/vim-surround'
 	Plug 'airblade/vim-gitgutter'
+	Plug 'lervag/vimtex'
 
 	" Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
 
