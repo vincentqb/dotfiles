@@ -65,7 +65,7 @@ set smartcase
 set incsearch
 
 """"" Press escape to clear previous search highlight
-nnoremap <esc> :noh<return><esc>
+" nnoremap <esc> :noh<return><esc>
 
 " Automatically turn on/off paste mode when pasting to avoid stacking indentation
 
