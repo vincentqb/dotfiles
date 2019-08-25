@@ -39,6 +39,9 @@ if has('vim')
 	set mouse=r
 endif
 
+" https://github.com/lervag/vimtex/issues/1430
+let g:vimtex_indent_on_ampersands=0
+
 let g:ale_completion_enabled = 1
 " let g:ale_lint_on_text_changed = 'never'
 " let g:ale_set_highlights = 0
@@ -59,13 +62,14 @@ au FileType python set foldminlines=10
 " Open/close folds with space
 au FileType python nnoremap <space> za
 
-""""" Search while typing while ignoring case (when only lower case used)
+" Search while typing while ignoring case (when only lower case used)
 set ignorecase
 set smartcase
 set incsearch
 
-""""" Press escape to clear previous search highlight
-" nnoremap <esc> :noh<return><esc>
+" Press escape to clear previous search highlight
+" https://github.com/tpope/vim-pathogen/issues/102
+" nnoremap <silent> <leader>/ :nohlsearch <cr>
 
 " Automatically turn on/off paste mode when pasting to avoid stacking indentation
 
