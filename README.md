@@ -1,11 +1,5 @@
 # dotfiles
 
-Install dotfiles with [bashdot](https://github.com/bashdot/bashdot):
-```
-git submodule update --init --recursive
-env GITHUB_NETRC_LOGIN=github_login GITHUB_NETRC_PASSWORD=github_application_password ~/dotfiles/bashdot/bashdot install default netrc
-```
-
 Install dotfiles with [dotfiles](https://github.com/jbernard/dotfiles):
 ```
 git submodule update --init --recursive
@@ -13,16 +7,16 @@ git submodule update --init --recursive
 ```
 
 tmux:
--- uninstall plugins: prefix + alt + u
--- install new plugins: prefix + I
--- update plugins: prefix + u
+* uninstall plugins: prefix + alt + u
+* install new plugins: prefix + I
+* update plugins: prefix + u
 
 zsh:
--- zgen selfupdate
--- zgen update
--- zgen reset
+* zgen selfupdate
+* zgen update
+* zgen reset
 
 vim:
--- :PlugUpgrade
--- :PlugClean
--- :PlugUpdate
+* :PlugUpgrade
+* :PlugClean
+* :PlugUpdate
