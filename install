@@ -28,4 +28,5 @@ fi
 
 pip install --user black pylint flake8 isort neovim
 
-vim +'PlugInstall --sync' +qa
+vim +'PlugClean --sync' +qa
+vim +'PlugUpdate --sync' +qa
