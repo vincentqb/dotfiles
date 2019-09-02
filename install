@@ -28,5 +28,20 @@ fi
 
 pip install --user black pylint flake8 isort neovim
 
+# Update tpm
+
+~/.tmux/plugins/tpm/bin/clean_plugins
+~/.tmux/plugins/tpm/bin/install_plugins
+~/.tmux/plugins/tpm/bin/update_plugins all
+
+# Update vim
+
+vim +'PlugUpgrade --sync' +qa
 vim +'PlugClean --sync' +qa
 vim +'PlugUpdate --sync' +qa
+
+# Update zsh
+
+zgen selfupdate
+zgen update
+zgen reset
