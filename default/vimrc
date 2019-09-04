@@ -34,6 +34,16 @@ if exists('+termguicolors')
   set termguicolors
 endif
 
+set t_Co=256
+
+" https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
+if &term =~ '256color'
+    " disable Background Color Erase (BCE) so that color schemes
+    " render properly when inside 256-color tmux and GNU screen.
+    " see also http://snk.tuxfamily.org/log/vim-256color-bce.html
+    set t_ut=
+endif
+
 colorscheme github
 
 if has('vim')
