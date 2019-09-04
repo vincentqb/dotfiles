@@ -28,6 +28,9 @@ fi
 
 pip install --user black pylint flake8 isort neovim
 
+# Fix copy-paste in MacOS
+brew install reattach-to-user-namespace
+
 # Update tpm
 
 ~/.tmux/plugins/tpm/bin/clean_plugins
