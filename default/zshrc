@@ -15,13 +15,14 @@ PATH="$HOME/bin":$PATH
 
 if p=`command -v nvim`
 then
-	alias vi=$p
-	alias vim=$p
+	alias vim="$p"
+	alias vimdiff="$p -d"
 	export VISUAL="$p"
 else
 	export VISUAL="vim"
 fi
 
+alias v="$VISUAL"
 export EDITOR="$VISUAL"
 export GIT_EDITOR="$VISUAL"
 
