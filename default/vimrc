@@ -1,6 +1,43 @@
-" Load default Vim8 configuration
 if has('vim')
+
+	" Load default Vim8 configuration
 	source $VIMRUNTIME/defaults.vim
+
+	" Enable true color
+	if exists('+termguicolors')
+		let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
+		let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
+		set termguicolors
+	endif
+
+	set t_Co=256
+
+	" https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
+	if &term =~ '256color'
+		" disable Background Color Erase (BCE) so that color schemes
+		" render properly when inside 256-color tmux and GNU screen.
+		" see also http://snk.tuxfamily.org/log/vim-256color-bce.html
+		set t_ut=
+	endif
+
+	set mouse=r
+
+	" Press escape to clear previous search highlight
+	" https://github.com/tpope/vim-pathogen/issues/102
+	" nnoremap <silent> <leader>/ :nohlsearch <cr>
+
+	" Automatically turn on/off paste mode when pasting to avoid stacking indentation
+
+	let &t_SI .= "\<Esc>[?2004h"
+	let &t_EI .= "\<Esc>[?2004l"
+
+	inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
+
+	function! XTermPasteBegin()
+		set pastetoggle=<Esc>[201~
+		set paste
+		return ""
+		endfunction
 endif
 
 " NeoVim prefers ~/.local/share/nvim/plugged
@@ -27,28 +64,7 @@ call plug#begin('~/.vim/plugged')
 
 call plug#end()
 
-" Enable true color
-if exists('+termguicolors')
-  let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
-  let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
-  set termguicolors
-endif
-
-set t_Co=256
-
-" https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
-if &term =~ '256color'
-    " disable Background Color Erase (BCE) so that color schemes
-    " render properly when inside 256-color tmux and GNU screen.
-    " see also http://snk.tuxfamily.org/log/vim-256color-bce.html
-    set t_ut=
-endif
-
 colorscheme github
-
-if has('vim')
-	set mouse=r
-endif
 
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands=0
@@ -73,24 +89,7 @@ au FileType python set foldminlines=10
 " Open/close folds with space
 au FileType python nnoremap <space> za
 
-" Search while typing while ignoring case (when only lower case used)
+" Search while typing while ignoring case when only lower case used
 set ignorecase
 set smartcase
 set incsearch
-
-" Press escape to clear previous search highlight
-" https://github.com/tpope/vim-pathogen/issues/102
-" nnoremap <silent> <leader>/ :nohlsearch <cr>
-
-" Automatically turn on/off paste mode when pasting to avoid stacking indentation
-
-let &t_SI .= "\<Esc>[?2004h"
-let &t_EI .= "\<Esc>[?2004l"
-
-inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
-
-function! XTermPasteBegin()
-        set pastetoggle=<Esc>[201~
-        set paste
-        return ""
-endfunction
