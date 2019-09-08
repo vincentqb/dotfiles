@@ -81,7 +81,6 @@ let g:ale_linters = {
 \}
 
 set smartindent
-
 " Fold using indentation
 au FileType python set foldmethod=indent
 au FileType python set foldnestmax=1
