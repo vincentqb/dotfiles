@@ -45,8 +45,9 @@ call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-sensible'
 	Plug 'thinca/vim-visualstar'
 	Plug 'tmhedberg/SimpylFold'
-	Plug 'cormacrelf/vim-colors-github'
+	" Plug 'cormacrelf/vim-colors-github'
 	" Plug 'endel/vim-github-colorscheme'
+	Plug 'dracula/vim', { 'as': 'dracula' }
 	Plug 'ervandew/supertab'
 	Plug 'AndrewRadev/linediff.vim'
 	Plug 'tpope/vim-fugitive'
@@ -64,7 +65,7 @@ call plug#begin('~/.vim/plugged')
 
 call plug#end()
 
-colorscheme github
+colorscheme dracula
 
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands=0
