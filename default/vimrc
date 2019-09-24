@@ -93,3 +93,4 @@ au FileType python nnoremap <space> za
 set ignorecase
 set smartcase
 set incsearch
+set hlsearch
