@@ -13,3 +13,9 @@
 [submodule "dotfiles"]
 	path = pypi-dotfiles
 	url = https://github.com/jbernard/dotfiles
+[submodule "terminal-app"]
+	path = terminal-app
+	url = https://github.com/dracula/terminal-app.git
+[submodule "gnome-terminal-colors-dracula"]
+	path = gnome-terminal-colors-dracula
+	url = https://github.com/GalaticStryder/gnome-terminal-colors-dracula
