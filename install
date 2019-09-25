@@ -33,9 +33,9 @@ brew install reattach-to-user-namespace
 
 # Update tpm
 
-~/.tmux/plugins/tpm/bin/clean_plugins
-~/.tmux/plugins/tpm/bin/install_plugins
-~/.tmux/plugins/tpm/bin/update_plugins all
+~/.tmux/plugins/tpm/bin/clean_plugins  # prefix + alt + u
+~/.tmux/plugins/tpm/bin/install_plugins  # prefix + I
+~/.tmux/plugins/tpm/bin/update_plugins all  # prefix + U
 
 # Update vim
 
