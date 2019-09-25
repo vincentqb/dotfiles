@@ -89,7 +89,7 @@ au FileType python set foldminlines=10
 " Open/close folds with space
 au FileType python nnoremap <space> za
 
-" Search while typing while ignoring case when only lower case used
+" Search and highlight while typing while ignoring case when only lower case used
 set ignorecase
 set smartcase
 set incsearch
