@@ -79,7 +79,7 @@ __git_files () {
 }
 
 # https://github.com/conda/conda/issues/6826#issuecomment-397287212
-if `command -v conda`
+if `command -v conda &> /dev/null`
 then
 	[[ -z $TMUX ]] || conda deactivate; conda activate base
 fi
