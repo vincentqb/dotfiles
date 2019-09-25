@@ -9,7 +9,7 @@ git submodule update --init --recursive
 tmux:
 * uninstall plugins: prefix + alt + u
 * install new plugins: prefix + I
-* update plugins: prefix + u
+* update plugins: prefix + U
 
 zsh:
 * zgen selfupdate
