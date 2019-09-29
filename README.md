@@ -1,22 +1,27 @@
 # dotfiles
 
-Install dotfiles with [dotfiles](https://github.com/jbernard/dotfiles):
+Install dependencies
+```bash
+pip install --user dotfiles black pylint flake8 isort neovim
 ```
+
+Install dotfiles with [dotfiles](https://github.com/jbernard/dotfiles):
+```bash
 git submodule update --init --recursive
 ~/dotfiles/dotfiles/bin/dotfiles --sync
 ```
 
-tmux:
-* uninstall plugins: prefix + alt + u
-* install new plugins: prefix + I
+## tmux
 * update plugins: prefix + U
+* install new plugins: prefix + I
+* uninstall unused plugins: prefix + alt + u
 
-zsh:
+## zsh
 * zgen selfupdate
-* zgen update
 * zgen reset
+* zgen update
 
-vim:
+## vim
 * :PlugUpgrade
 * :PlugClean
 * :PlugUpdate
