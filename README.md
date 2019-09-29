@@ -1,4 +1,4 @@
-# dotfiles
+# Installation
 
 Install dependencies
 ```bash
@@ -11,17 +11,19 @@ git submodule update --init --recursive
 ~/dotfiles/dotfiles/bin/dotfiles --sync
 ```
 
-## tmux
+# Maintenance
+
+### tmux
 * update plugins: prefix + U
 * install new plugins: prefix + I
 * uninstall unused plugins: prefix + alt + u
 
-## zsh
+### zsh
 * zgen selfupdate
 * zgen reset
 * zgen update
 
-## vim
+### vim
 * :PlugUpgrade
 * :PlugClean
 * :PlugUpdate
