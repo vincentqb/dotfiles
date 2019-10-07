@@ -1,11 +1,8 @@
 ########## Aliases
 
-alias ls="ls --color"
 export GREP_OPTIONS='--color=always'
 
-# Add an "alert" alias for long running commands. Use like so: "sleep 10; alert"
-alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
-
+alias ls="ls --color"
 alias git="nocorrect git"
 
 ########## Configure editor
@@ -32,10 +29,10 @@ export GIT_EDITOR="$VISUAL"
 ########## Open new terminal in current directory in MacOS
 
 if [[ "$TERM_PROGRAM" == "Apple_Terminal" ]]; then
-  function chpwd {
-    printf '\e]7;%s\a' "file://$HOSTNAME${PWD// /%20}"
-  }
-  chpwd
+	function chpwd {
+		printf '\e]7;%s\a' "file://$HOSTNAME${PWD// /%20}"
+	}
+	chpwd
 fi
 
 ########### Load plugins
@@ -48,14 +45,14 @@ source "${HOME}/.zgen/zgen.zsh"
 # if the init script doesn't exist
 if ! zgen saved; then
 
-  # specify plugins here
-  zgen load changs/slimzsh
-  # antigen bundle zsh-users/zsh-completions
-  # antigen bundle zsh-users/zsh-autosuggestions
-  zgen load zsh-users/zsh-history-substring-search
+	# specify plugins here
+	zgen load changs/slimzsh
+	# antigen bundle zsh-users/zsh-completions
+	# antigen bundle zsh-users/zsh-autosuggestions
+	zgen load zsh-users/zsh-history-substring-search
 
-  # generate the init script from plugins above
-  zgen save
+	# generate the init script from plugins above
+	zgen save
 fi
 
 ########## Configure plugins
@@ -64,6 +61,11 @@ fi
 bindkey -v
 
 # history substring search
+# if { [ "$TERM" = "screen" ] && [ -n "$TMUX" ]; } then
+# 	bindkey "$terminfo[kcuu1]" history-substring-search-up
+# 	bindkey "$terminfo[kcud1]" history-substring-search-down
+# fi
+
 bindkey "$terminfo[kcuu1]" history-substring-search-up
 bindkey "$terminfo[kcud1]" history-substring-search-down
 bindkey '^[[A' history-substring-search-up
@@ -78,7 +80,7 @@ bindkey -M vicmd 'j' history-substring-search-down
 
 # Fix "git add" autocomplete hanging
 __git_files () {
-    _wanted files expl 'local files' _files
+	_wanted files expl 'local files' _files
 }
 
 # https://github.com/conda/conda/issues/6826#issuecomment-397287212
