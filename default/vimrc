@@ -40,6 +40,16 @@ if has('vim')
 		endfunction
 endif
 
+if has('nvim')
+
+	" Specify python to use in nvim
+	" Python 3
+	" let g:python3_host_prog='/usr/local/bin/python3'
+	" Python 2
+	" let g:python_host_prog='/usr/local/bin/python'
+
+endif
+
 " NeoVim prefers ~/.local/share/nvim/plugged
 call plug#begin('~/.vim/plugged')
 	Plug 'tpope/vim-sensible'
