@@ -66,7 +66,8 @@ call plug#begin('~/.vim/plugged')
 
 	" Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
 
-	Plug 'desmap/ale-sensible' | Plug 'w0rp/ale'
+	" Plug 'desmap/ale-sensible' | Plug 'w0rp/ale'
+	Plug 'w0rp/ale'
 
 	" Plug 'chiel92/vim-autoformat'
 	" Plug 'vimjas/vim-python-pep8-indent'
@@ -78,15 +79,29 @@ colorscheme dracula
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands=0
 
+" Lint always in Normal Mode
+let g:ale_lint_on_text_changed = 'normal'
+
+" Lint when leaving Insert Mode but don't lint when in Insert Mode
+let g:ale_lint_on_insert_leave = 1
+
+" Set ALE's 200ms delay to zero
+let g:ale_lint_delay = 0
+
+let g:ale_sign_column_always = 1
 let g:ale_completion_enabled = 1
+
+" let g:ale_set_signs = 1
+" let g:ale_sign_column_always = 1
 " let g:ale_lint_on_text_changed = 'never'
 " let g:ale_set_highlights = 0
+
 let g:ale_fixers = {
 \ '*': ['remove_trailing_lines', 'trim_whitespace'],
 \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'isort', 'black'],
 \}
 let g:ale_linters = {
-\ 'python': ['flake8', 'pylint'],
+\ 'python': ['pyflakes', 'flake8', 'pylint'],
 \}
 
 set smartindent
