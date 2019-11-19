@@ -99,6 +99,8 @@ let g:ale_completion_enabled = 1
 let g:ale_fixers = {
 \ '*': ['remove_trailing_lines', 'trim_whitespace'],
 \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'isort', 'black'],
+\ 'html': ['prettier'],
+\ 'css': ['prettier'],
 \}
 let g:ale_linters = {
 \ 'python': ['pyflakes', 'flake8', 'pylint'],
