@@ -1,9 +1,11 @@
 ########## Aliases
 
-export GREP_OPTIONS='--color=always'
+# export GREP_OPTIONS='--color=always'
 
 alias ls="ls --color"
 alias git="nocorrect git"
+alias grep="grep --color=always"
+alias fgrep="fgrep --color=always"
 
 ########## Configure editor
 
@@ -44,6 +46,9 @@ source "${HOME}/.zgen/zgen.zsh"
 
 # if the init script doesn't exist
 if ! zgen saved; then
+
+	zgen oh-my-zsh
+	zgen oh-my-zsh plugins/common-aliases
 
 	# specify plugins here
 	zgen load changs/slimzsh
