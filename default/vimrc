@@ -63,6 +63,7 @@ call plug#begin('~/.vim/plugged')
 	Plug 'airblade/vim-gitgutter'
 	Plug 'lervag/vimtex'
 	Plug 'mbbill/undotree'
+	Plug 'chrisbra/Recover.vim'
 
 	" Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
 
