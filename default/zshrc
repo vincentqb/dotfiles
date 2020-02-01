@@ -41,6 +41,9 @@ fi
 
 # source /etc/profile
 
+# disable oh my zsh autoupdate
+DISABLE_AUTO_UPDATE="true"
+
 # load zgen
 source "${HOME}/.zgen/zgen.zsh"
 
