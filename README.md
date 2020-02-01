@@ -8,7 +8,7 @@ pip install --user dotfiles black pylint flake8 isort neovim
 Install dotfiles with [dotfiles](https://github.com/jbernard/dotfiles):
 ```bash
 git submodule update --init --recursive
-~/dotfiles/dotfiles/bin/dotfiles --sync
+~/dotfiles/pypi-dotfiles/bin/dotfiles --sync
 ```
 
 # Maintenance
