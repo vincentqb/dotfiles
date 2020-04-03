@@ -73,6 +73,9 @@ fi
 # Use vim keybinds
 bindkey -v
 
+# activate bash-style comments
+setopt interactivecomments
+
 # history substring search
 # if { [ "$TERM" = "screen" ] && [ -n "$TMUX" ]; } then
 # 	bindkey "$terminfo[kcuu1]" history-substring-search-up
