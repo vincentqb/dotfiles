@@ -59,8 +59,16 @@ bindkey -v
 # User-install bin
 PATH="$HOME/bin":"$HOME/.local/bin":$PATH
 
+# if p=`command -v nvim`
+# then
+# 	alias vi=$p
+# 	alias vim=$p
+# 	export VISUAL="$p"
+# else
+# 	export VISUAL="vim"
+# fi
+
 export VISUAL="vim"
-alias v="$VISUAL"
 export EDITOR="$VISUAL"
 export GIT_EDITOR="$VISUAL"
 
