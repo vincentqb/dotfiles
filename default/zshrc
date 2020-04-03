@@ -49,6 +49,8 @@ function uploadfair {
     scp -o "ProxyCommand ssh $USERNAME@$JUMP_HOST -W %h:%p" $1 $USERNAME@$FAIR_HOST:/private/home/$USERNAME/
 }
 
+alias startnotebook="jupyter notebook --no-browser --ip 100.97.66.199 --port 9090"
+
 ########## Configure editor
 
 # Use vim keybinds
