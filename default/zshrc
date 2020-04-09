@@ -1,11 +1,16 @@
+source /etc/profile
+
 ########## Aliases
 
 # export GREP_OPTIONS='--color=always'
 
-alias ls="ls --color"
 alias git="nocorrect git"
+alias ls="ls --color=always"
 alias grep="grep --color=always"
 alias fgrep="fgrep --color=always"
+# alias ls="ls --color"
+# alias grep="grep --color"
+# alias fgrep="fgrep --color"
 
 ########## Configure editor
 
@@ -67,6 +72,9 @@ fi
 
 # Use vim keybinds
 bindkey -v
+
+# activate bash-style comments
+setopt interactivecomments
 
 # history substring search
 # if { [ "$TERM" = "screen" ] && [ -n "$TMUX" ]; } then
