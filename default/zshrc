@@ -5,12 +5,24 @@ source /etc/profile
 # export GREP_OPTIONS='--color=always'
 
 alias git="nocorrect git"
-alias ls="ls --color=always"
 alias grep="grep --color=always"
 alias fgrep="fgrep --color=always"
-# alias ls="ls --color"
-# alias grep="grep --color"
-# alias fgrep="fgrep --color"
+
+case "$(uname -s)" in
+
+    Darwin)
+        # Do something under Mac OS X platform
+        export PATH="$HOME/homebrew/bin:$HOME/homebrew/sbin:$PATH"
+        ;;
+
+    Linux)
+        alias ls="ls --color=always"
+        ;;
+
+    *)
+        # Do something under other platform
+        ;;
+esac
 
 ########## Configure editor
 
