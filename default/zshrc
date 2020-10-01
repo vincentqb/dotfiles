@@ -22,6 +22,7 @@ PATH="$HOME/bin":$PATH
 
 if p=`command -v nvim`
 then
+	alias vi="$p"
 	alias vim="$p"
 	alias vimdiff="$p -d"
 	export VISUAL="$p"
