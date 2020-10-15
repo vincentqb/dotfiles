@@ -1,1 +1,4 @@
+default/config/*
+default/tmux/*
+default/vim/*
 **/*.rendered
