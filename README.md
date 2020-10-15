@@ -5,10 +5,10 @@ Install dependencies
 pip install --user dotfiles black pylint flake8 isort neovim
 ```
 
-Install dotfiles with [dotfiles](https://github.com/jbernard/dotfiles):
-```bash
+Install dotfiles with [bashdot](https://github.com/bashdot/bashdot):
+```
 git submodule update --init --recursive
-~/dotfiles/pypi-dotfiles/bin/dotfiles --sync
+env GITHUB_NETRC_LOGIN=github_login GITHUB_NETRC_PASSWORD=github_application_password ~/dotfiles/bashdot/bashdot install default netrc
 ```
 
 # Maintenance
