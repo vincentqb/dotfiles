@@ -1,12 +1,22 @@
 source /etc/profile
 
-########## Aliases
+# Keep long command history
+HISTSIZE=1000000
+SAVEHIST=1000000
+setopt APPEND_HISTORY
 
-# export GREP_OPTIONS='--color=always'
+# Allow tab completion in the middle of a word.
+setopt COMPLETE_IN_WORD
+
+# Activate bash-style comments
+setopt interactivecomments
+
+########## Aliases
 
 alias git="nocorrect git"
 alias grep="grep --color=always"
 alias fgrep="fgrep --color=always"
+# export GREP_OPTIONS='--color=always'
 
 case "$(uname -s)" in
 
@@ -85,9 +95,6 @@ fi
 
 # Use vim keybinds
 bindkey -v
-
-# activate bash-style comments
-setopt interactivecomments
 
 # history substring search
 # if { [ "$TERM" = "screen" ] && [ -n "$TMUX" ]; } then
