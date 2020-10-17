@@ -1,7 +1,8 @@
 if has('vim')
 
 	" Load default Vim8 configuration
-	source $VIMRUNTIME/defaults.vim
+    unlet! skip_defaults_vim
+    source $VIMRUNTIME/defaults.vim
 
 	" Enable true color
 	if exists('+termguicolors')
@@ -78,6 +79,7 @@ call plug#end()
 colorscheme dracula
 
 let g:tex_flavor = 'latex'
+let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands=0
 
