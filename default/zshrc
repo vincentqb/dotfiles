@@ -110,10 +110,13 @@ bindkey '^[[B' history-substring-search-down
 bindkey -M vicmd 'k' history-substring-search-up
 bindkey -M vicmd 'j' history-substring-search-down
 
+# Show stash
+zstyle :prompt:pure:git:stash show yes
+
 # Improve autocompletion style
-# zstyle ':completion:*' menu select  # select completions with arrow keys
-# zstyle ':completion:*' group-name ''  # group results by category
-# zstyle ':completion:::::' completer _expand _complete _ignored _approximate  # enable approximate matches for completion
+zstyle ':completion:*' menu select  # select completions with arrow keys
+zstyle ':completion:*' group-name ''  # group results by category
+zstyle ':completion:::::' completer _expand _complete _ignored _approximate  # enable approximate matches for completion
 
 # Fix "git add" autocomplete hanging
 __git_files () {
