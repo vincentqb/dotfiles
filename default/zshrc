@@ -34,6 +34,21 @@ case "$(uname -s)" in
         ;;
 esac
 
+function sshtmux {
+    ssh $1 -t 'tmux a || tmux new'
+}
+
+alias sshserver="ssh $FB_HOST -t 'tmux a || tmux new'"
+alias sshfair="ssh -Y -C -t $FAIR_HOST_IP -J $USERNAME@$JUMP_HOST -L 9090:$FAIR_HOST_IP:9090 'tmux a || tmux new'"
+
+# http://mperdikeas.github.io/networking.html.files/scp-a-file-through-jump-host.html
+function downloadfair {
+    scp -o "ProxyCommand ssh $USERNAME@$JUMP_HOST -W %h:%p" $USERNAME@$FAIR_HOST_IP:$1 ./
+}
+function uploadfair {
+    scp -o "ProxyCommand ssh $USERNAME@$JUMP_HOST -W %h:%p" $1 $USERNAME@$FAIR_HOST_IP:/private/home/$USERNAME/
+}
+
 ########## Configure editor
 
 # Use vim keybinds
