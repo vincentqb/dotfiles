@@ -12,7 +12,7 @@ git submodule update --init --recursive
 
 # Install dependencies
 
-pip install --user black pylint flake8 isort neovim
+pip install --user black pylint flake8 isort
 
 # Neovim
 # Check out :help nvim-from-vim
@@ -20,19 +20,10 @@ pip install --user black pylint flake8 isort neovim
 if [ $1 = "mac" ]; then
     # MacOS
 
-    # Neovim
-    wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
-    tar xzvf nvim-macos.tar.gz
-    mv ./nvim-osx64/bin/nvim $BIN_DIR/nvim
-
     # Fix copy-paste in MacOS
     brew install reattach-to-user-namespace
 else
     # Linux
-
-    # Neovim
-    wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
-    chmod u+x $BIN_DIR/nvim
 fi
 
 # curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
