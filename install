@@ -48,9 +48,3 @@ fi
 zgen selfupdate
 zgen reset
 zgen update
-
-# Update vim
-
-vim +'PlugUpgrade --sync' +qa	# :PlugUpgrade
-vim +'PlugClean --sync' +qa	    # :PlugClean
-vim +'PlugUpdate --sync' +qa	# :PlugUpdate

@@ -51,32 +51,17 @@ if has('nvim')
 
 endif
 
-" NeoVim prefers ~/.local/share/nvim/plugged
-call plug#begin('~/.vim/plugged')
-	Plug 'tpope/vim-sensible'
-	Plug 'thinca/vim-visualstar'
-	Plug 'tmhedberg/SimpylFold'
-	Plug 'dracula/vim', { 'as': 'dracula' }
-	Plug 'ervandew/supertab'
-	Plug 'AndrewRadev/linediff.vim'
-	Plug 'tpope/vim-fugitive'
-	Plug 'tpope/vim-surround'
-	Plug 'airblade/vim-gitgutter'
-	Plug 'lervag/vimtex'
-	Plug 'mbbill/undotree'
-	Plug 'chrisbra/Recover.vim'
+runtime! plugin/sensible.vim
 
-	" Plug 'python-mode/python-mode', { 'for': 'python', 'branch': 'develop' }
-
-	" Plug 'desmap/ale-sensible' | Plug 'w0rp/ale'
-	Plug 'w0rp/ale'
-
-	" Plug 'chiel92/vim-autoformat'
-	" Plug 'vimjas/vim-python-pep8-indent'
-
-call plug#end()
-
+packadd! dracula
+syntax enable
 colorscheme dracula
+
+" F5 to show undo tree
+nnoremap <F5> :UndotreeToggle<CR>
+
+" show docstring
+let g:SimpylFold_docstring_preview = 1
 
 let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
