@@ -14,9 +14,6 @@ git submodule update --init --recursive
 
 pip install --user black pylint flake8 isort
 
-# Neovim
-# Check out :help nvim-from-vim
-
 if [ $1 = "mac" ]; then
     # MacOS
 
