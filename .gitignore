@@ -1,4 +1,8 @@
 default/config/*
 default/tmux/*
+default/vim/.netrwhist
 default/vim/plugged/*
+default/ssh/id_rsa
+default/ssh/id_rsa.pub
+default/ssh/known_hosts
 **/*.rendered
