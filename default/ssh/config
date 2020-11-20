@@ -1,8 +1,8 @@
 Host *
     # Keep connection alive longer
     TcpKeepAlive yes
-    ServerAliveInterval 20
-    ServerAliveCountMax 30
+    ServerAliveInterval 30
+    ServerAliveCountMax 120
     # Tunnel all connections through first opened
     ControlMaster auto
     ControlPath ~/.ssh/control:%h:%p:%r
