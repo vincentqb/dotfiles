@@ -99,6 +99,8 @@ let g:ale_fixers = {
 " \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'add_blank_lines_for_python_control_statements', 'isort', 'black'],
 let g:ale_linters = {
 \ 'python': ['pyls', 'pyflakes', 'flake8', 'pylint'],
+\ 'cpp': ['cquery', 'gcc'],
+\ 'c': ['gcc'],
 \}
 
 nmap <silent> <C-k> <Plug>(ale_previous_wrap)
