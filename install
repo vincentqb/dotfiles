@@ -12,7 +12,7 @@ git submodule update --init --recursive
 
 # Install dependencies
 
-pip install --user black pylint flake8 isort
+pip install --user black pylint flake8 pyls isort
 
 if [ $1 = "mac" ]; then
     # MacOS
