@@ -5,4 +5,5 @@ Host *
     ServerAliveCountMax 120
     # Tunnel all connections through first opened
     ControlMaster auto
-    ControlPath ~/.ssh/control:%h:%p:%r
+    # ControlPath ~/.ssh/control:%h:%p:%r
+    ControlPath ~/.ssh/control:%C
