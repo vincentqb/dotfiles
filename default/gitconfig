@@ -16,3 +16,13 @@
 	prompt = true
 [push]
 	default = simple
+[http]
+    proxy = https://fwdproxy:8082
+    proxySSLCert=/var/facebook/credentials/vincentqb/x509/vincentqb.pem
+    proxySSLKey=/var/facebook/credentials/vincentqb/x509/vincentqb.pem
+[https]
+    proxy = https://fwdproxy:8082
+    proxySSLCert=/var/facebook/credentials/vincentqb/x509/vincentqb.pem
+    proxySSLKey=/var/facebook/credentials/vincentqb/x509/vincentqb.pem
+[url "https://github.com/"]
+	insteadOf = git://github.com/

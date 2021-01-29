@@ -6,6 +6,7 @@
 [[ $- != *i* ]] && return
 
 source /etc/bashrc
+source /usr/facebook/ops/rc/master.bashrc
 
 # Keep lond command history
 HISTFILESIZE=-1

@@ -1,4 +1,5 @@
 source /etc/profile
+source /usr/facebook/ops/rc/master.zshrc
 
 # Keep long command history
 HISTSIZE=1000000
