@@ -22,9 +22,6 @@
 [submodule "default/vim/pack/vim-visualstar"]
 	path = default/vim/pack/plugins/start/vim-visualstar
 	url = https://github.com/thinca/vim-visualstar
-[submodule "default/vim/pack/SimpylFold"]
-	path = default/vim/pack/plugins/start/SimpylFold
-	url = https://github.com/tmhedberg/SimpylFold
 [submodule "default/vim/pack/themes/start/dracula"]
 	path = default/vim/pack/themes/start/dracula
 	url = https://github.com/dracula/vim.git

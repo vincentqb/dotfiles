@@ -60,9 +60,6 @@ colorscheme dracula
 " F5 to show undo tree
 nnoremap <F5> :UndotreeToggle<CR>
 
-" show docstring
-let g:SimpylFold_docstring_preview = 1
-
 let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
