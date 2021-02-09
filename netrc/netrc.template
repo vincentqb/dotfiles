@@ -1,7 +1,7 @@
 machine github.com
-login $GITHUB_LOGIN
-password $GITHUB_PASSWD
+login vincentqb
+password $PASSWD
 
 machine api.github.com
-login $GITHUB_LOGIN
-password $GITHUB_PASSWD
+login vincentqb
+password $PASSWD
