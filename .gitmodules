@@ -4,9 +4,6 @@
 [submodule "bash-sensible"]
 	path = default/bash-sensible
 	url = https://github.com/mrzool/bash-sensible/
-[submodule "default/zgen"]
-	path = default/zgen
-	url = https://github.com/tarjoilija/zgen.git
 [submodule "terminal-app"]
 	path = terminal-app
 	url = https://github.com/dracula/terminal-app.git
