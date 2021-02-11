@@ -12,7 +12,7 @@ git submodule update --init --recursive
 
 # Install dependencies
 
-pip install --user black pylint pyenchant flake8 pyls isort
+pip install --user -r requirements.txt
 
 if [ $1 = "mac" ]; then
     # MacOS

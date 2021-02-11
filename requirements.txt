@@ -1,0 +1,6 @@
+black
+pylint
+pyenchant
+flake8
+pyls
+isort
