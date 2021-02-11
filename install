@@ -12,13 +12,16 @@ git submodule update --init --recursive
 
 # Install dependencies
 
-pip install --user black pylint flake8 pyls isort
+pip install --user black pylint pyenchant flake8 pyls isort
 
 if [ $1 = "mac" ]; then
     # MacOS
 
     # Fix copy-paste in MacOS
     brew install reattach-to-user-namespace
+
+    # Spell checker for pylint
+    brew install enchant
 else
     # Linux
 fi
