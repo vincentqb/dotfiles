@@ -1,10 +1,5 @@
 #!/bin/bash
 
-BIN_DIR="$HOME/bin/"
-
-mkdir -p $BIN_DIR
-export PATH=$BIN_DIR:$PATH
-
 # Install dotfiles using bashdot
 
 git submodule update --init --recursive
