@@ -49,3 +49,7 @@
 [submodule "default/vim/pack/plugins/start/ale"]
 	path = default/vim/pack/plugins/start/ale
 	url = https://github.com/dense-analysis/ale
+[submodule "default/zgen"]
+	path = default/zgen
+	url = https://github.com/tarjoilija/zgen
+	branch = master
