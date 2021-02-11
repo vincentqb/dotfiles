@@ -1,6 +1,6 @@
 black
-pylint
-pyenchant
 flake8
-pyls
 isort
+pyenchant
+pylint
+pyls
