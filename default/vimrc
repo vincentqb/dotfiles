@@ -60,6 +60,12 @@ colorscheme dracula
 " F5 to show undo tree
 nnoremap <F5> :UndotreeToggle<CR>
 
+" Peristent undo tree
+if has("persistent_undo")
+    set undodir=$HOME."/.undodir"
+    set undofile
+endif
+
 let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
