@@ -137,4 +137,3 @@ __git_files () {
 # then
 # 	[[ -z $TMUX ]] || conda deactivate; conda activate base
 # fi
-fi
