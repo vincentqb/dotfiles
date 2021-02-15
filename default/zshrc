@@ -55,7 +55,7 @@ function uploadfair {
 bindkey -v
 
 # User-install bin
-PATH="$HOME/bin":$PATH
+PATH="$HOME/bin":"$HOME/.local/bin":$PATH
 
 export VISUAL="vim"
 alias v="$VISUAL"
