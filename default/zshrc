@@ -40,6 +40,7 @@ function sshtmux {
 
 alias sshserver="ssh $FB_HOST -t 'tmux a || tmux new'"
 alias sshfair="ssh -Y -C -t $FAIR_HOST -J $USERNAME@$JUMP_HOST -L 9090:$FAIR_HOST:9090 'tmux a || tmux new'"
+alias sshgpu="ssh $GPU_HOST -t 'tmux a || tmux new'"
 
 # http://mperdikeas.github.io/networking.html.files/scp-a-file-through-jump-host.html
 function downloadfair {
