@@ -17,6 +17,9 @@ if [ $1 = "mac" ]; then
 
     # Spell checker for pylint
     brew install enchant
+    # export PYENCHANT_LIBRARY_PATH=/Users/vincentqb/homebrew/lib/libenchant-2.dylib
+    # pylint --disable all --enable spelling --spelling-dict en_US file.py
+
 else
     # Linux
 fi

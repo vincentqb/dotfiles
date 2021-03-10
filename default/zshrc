@@ -22,7 +22,8 @@ case "$(uname -s)" in
 
     Darwin)
         # Do something under Mac OS X platform
-        export PATH="$HOME/homebrew/bin:$HOME/homebrew/sbin:$HOME/homebrew/lib:$PATH"
+        export PATH="$HOME/homebrew/bin:$HOME/homebrew/sbin:$PATH"
+        export PYENCHANT_LIBRARY_PATH="$HOME/homebrew/lib/libenchant-2.dylib"
         ;;
 
     Linux)
