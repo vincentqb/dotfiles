@@ -22,7 +22,7 @@ case "$(uname -s)" in
 
     Darwin)
         # Do something under Mac OS X platform
-        export PATH="$HOME/homebrew/bin:$HOME/homebrew/sbin:$PATH"
+        export PATH="$HOME/homebrew/bin:$HOME/homebrew/sbin:$HOME/homebrew/lib:$PATH"
         ;;
 
     Linux)
