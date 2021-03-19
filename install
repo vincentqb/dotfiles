@@ -9,7 +9,7 @@ git submodule update --init --recursive
 
 pip install --user -r requirements.txt
 
-if [ $1 = "mac" ]; then
+if [ "$1" = "mac" ]; then
     # MacOS
 
     # Fix copy-paste in MacOS
@@ -20,8 +20,11 @@ if [ $1 = "mac" ]; then
     # export PYENCHANT_LIBRARY_PATH=/Users/vincentqb/homebrew/lib/libenchant-2.dylib
     # pylint --disable all --enable spelling --spelling-dict en_US file.py
 
+    brew install shellcheck
+
 else
     # Linux
+    true
 fi
 
 # Update tpm
