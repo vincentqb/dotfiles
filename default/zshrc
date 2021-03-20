@@ -139,3 +139,8 @@ __git_files () {
 # then
 # 	[[ -z $TMUX ]] || conda deactivate; conda activate base
 # fi
+
+# install tmux plugins if not already installed
+if { [ ! -d "$HOME/.tmux/plugins/tmux-sensible" ] && [ -n "$TMUX" ]; } then
+    ~/.tmux/plugins/tpm/bin/install_plugins
+fi
