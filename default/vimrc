@@ -104,6 +104,7 @@ let g:ale_linters = {
 \ 'python': ['pyls', 'pyflakes', 'flake8', 'pylint'],
 \ 'cpp': ['cquery', 'gcc'],
 \ 'c': ['gcc'],
+\ 'sh': ['shellcheck'],
 \}
 let g:ale_python_pylint_options = '--enable spelling --spelling-dict en_US'
 
