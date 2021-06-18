@@ -44,6 +44,8 @@ function sshtmux {
 # alias sshgpu="ssh $GPU_HOST -t 'tmux a || tmux new'"
 # alias sshaws="ssh -Y -C -L 9090:${AIAWS}:9090 ${AIAWS} -t 'tmux a || tmux new'"
 
+alias nbaws="jupyter notebook --no-browser --ip ${AIAWS} --port 9090"
+
 # http://mperdikeas.github.io/networking.html.files/scp-a-file-through-jump-host.html
 function downloadfair {
     scp -o "ProxyCommand ssh $USERNAME@$JUMP_HOST -W %h:%p" $USERNAME@$FAIR_HOST:$1 ./
