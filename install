@@ -2,6 +2,7 @@
 
 # Install dotfiles using bashdot
 
+git submodule sync
 git submodule update --init --recursive
 ~/dotfiles/bashdot/bashdot install default
 
@@ -28,6 +29,7 @@ else
 fi
 
 # Instal miniconda
+
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 bash ~/miniconda.sh -b -p ~/miniconda
 eval "$(~/miniconda/bin/conda shell.bash hook)"
