@@ -53,3 +53,12 @@
 	path = default/zgen
 	url = https://github.com/tarjoilija/zgen
 	branch = master
+[submodule "default/vim/pack/plugins/start/nvim-lspconfig"]
+	path = default/vim/pack/plugins/start/nvim-lspconfig
+	url = https://github.com/neovim/nvim-lspconfig.git
+[submodule "default/vim/pack/plugins/start/vim-dadbod"]
+	path = default/vim/pack/plugins/start/vim-dadbod
+	url = https://github.com/tpope/vim-dadbod.git
+[submodule "default/vim/pack/plugins/start/black"]
+	path = default/vim/pack/plugins/start/black
+	url = https://github.com/psf/black.git
