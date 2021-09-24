@@ -13,6 +13,11 @@ pip install --user -r requirements.txt
 if [ "$1" = "mac" ]; then
     # MacOS
 
+    # Neovim
+    wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
+    tar xzvf nvim-macos.tar.gz
+    mv ./nvim-osx64/bin/nvim $BIN_DIR/nvim
+
     # Fix copy-paste in MacOS
     brew install reattach-to-user-namespace
 
@@ -25,7 +30,10 @@ if [ "$1" = "mac" ]; then
 
 else
     # Linux
-    true
+
+    # Neovim
+    wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
+    chmod u+x $BIN_DIR/nvim
 fi
 
 # Instal miniconda
