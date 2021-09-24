@@ -5,3 +5,7 @@ neovim
 pyenchant
 pylint
 pyls
+pyls-black
+pynvim
+python-lsp-black
+python-lsp-server[all]

@@ -43,6 +43,10 @@ else
     # Neovim
     wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
     chmod u+x $BIN_DIR/nvim
+
+    # Install pyright
+    nvm install node
+    npm install -g pyright
 fi
 
 # Instal miniconda
