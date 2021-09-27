@@ -8,5 +8,5 @@ git submodule update --init --recursive --remote --jobs 8
 env PASSWD=github_application_password \
     ~/dotfiles/bashdot/bashdot install default netrc
 
-pip install --user -r requirements.txt
+/usr/bin/python3 -m pip install --user -r ~/dotfiles/requirements.txt
 ```
