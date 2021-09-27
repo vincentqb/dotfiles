@@ -107,7 +107,7 @@ if ! zgen saved; then
 	# antigen bundle zsh-users/zsh-completions
 	# antigen bundle zsh-users/zsh-autosuggestions
 	zgen load zsh-users/zsh-history-substring-search
-    zgen load lukechilds/zsh-nvm
+    # zgen load lukechilds/zsh-nvm
 
 	# generate the init script from plugins above
 	zgen save
