@@ -16,5 +16,7 @@
 	prompt = true
 [push]
 	default = simple
+[pager]
+    branch = false
 [url "https://github.com/"]
     insteadOf = git://github.com/
