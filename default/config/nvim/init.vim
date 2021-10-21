@@ -13,7 +13,9 @@ let g:python_host_prog='/usr/bin/python'
 " Languange Server Protocol
 lua  << EOF
     require'lspconfig'.pylsp.setup{}
+    require'lspconfig'.bashls.setup{}
 EOF
+autocmd Filetype python setlocal omnifunc=v:lua.vim.lsp.omnifunc
 
 packadd! dracula
 syntax enable
