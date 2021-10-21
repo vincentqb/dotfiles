@@ -68,6 +68,7 @@ then
 	alias vim="$p"
 	alias view="$p -R"
 	alias vimdiff="$p -d"
+    alias view="$p -R"
 	export VISUAL="$p"
 else
 	export VISUAL="vim"
