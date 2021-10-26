@@ -17,6 +17,10 @@ lua  << EOF
 EOF
 autocmd Filetype python setlocal omnifunc=v:lua.vim.lsp.omnifunc
 
+let g:LanguageClient_serverCommands = {
+    \ 'python': ['pyls', '-vv', '--log-file', '~/pyls.log'],
+    \ }
+
 packadd! dracula
 syntax enable
 colorscheme dracula
