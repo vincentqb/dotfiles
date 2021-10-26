@@ -105,6 +105,9 @@ nmap <silent> <C-k> <Plug>(ale_previous_wrap)
 nmap <silent> <C-j> <Plug>(ale_next_wrap)
 
 set smartindent
+set breakindent
+set breakindentopt=shift:2,min:40,sbr
+set showbreak=>>
 " Fold using indentation
 au FileType python set foldmethod=indent
 au FileType python set foldnestmax=1

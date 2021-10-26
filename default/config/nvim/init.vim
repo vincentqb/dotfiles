@@ -36,6 +36,9 @@ if has("persistent_undo")
 endif
 
 set smartindent
+set breakindent
+set breakindentopt=shift:2,min:40,sbr
+set showbreak=>>
 " Fold using indentation
 au FileType python set foldmethod=indent
 au FileType python set foldnestmax=1
