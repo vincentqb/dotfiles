@@ -62,3 +62,7 @@
 [submodule "default/vim/pack/plugins/start/black"]
 	path = default/vim/pack/plugins/start/black
 	url = https://github.com/psf/black.git
+[submodule "default/local/share/fonts/source-code-pro"]
+	path = default/local/share/fonts/source-code-pro
+	url = https://github.com/adobe-fonts/source-code-pro.git
+	branch = release
