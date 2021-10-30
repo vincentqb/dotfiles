@@ -66,3 +66,6 @@
 	path = default/local/share/fonts/source-code-pro
 	url = https://github.com/adobe-fonts/source-code-pro.git
 	branch = release
+[submodule "default/vim/pack/plugins/start/vim-tmux-navigator"]
+	path = default/vim/pack/plugins/start/vim-tmux-navigator
+	url = https://github.com/christoomey/vim-tmux-navigator.git
