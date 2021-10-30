@@ -1,42 +1,92 @@
-" Load default Vim8 configuration
-unlet! skip_defaults_vim
-source $VIMRUNTIME/defaults.vim
+if has('vim')
 
-" Enable true color
-if exists('+termguicolors')
-    let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
-    let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
-    set termguicolors
+    " Load default Vim8 configuration
+    unlet! skip_defaults_vim
+    source $VIMRUNTIME/defaults.vim
+
+    " Enable true color
+    if exists('+termguicolors')
+        let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
+        let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
+        set termguicolors
+    endif
+
+    set t_Co=256
+
+    " https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
+    if &term =~ '256color'
+        " disable Background Color Erase (BCE) so that color schemes
+        " render properly when inside 256-color tmux and GNU screen.
+        " see also http://snk.tuxfamily.org/log/vim-256color-bce.html
+        set t_ut=
+    endif
+
+    set mouse=r
+
+    " Press escape to clear previous search highlight
+    " https://github.com/tpope/vim-pathogen/issues/102
+    " nnoremap <silent> <leader>/ :nohlsearch <cr>
+
+    " Automatically turn on/off paste mode when pasting to avoid stacking indentation
+
+    let &t_SI .= "\<Esc>[?2004h"
+    let &t_EI .= "\<Esc>[?2004l"
+
+    inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
+
+    function! XTermPasteBegin()
+        set pastetoggle=<Esc>[201~
+        set paste
+        return ""
+        endfunction
+
+    let g:ale_enabled = 0
+    let g:tex_flavor = 'latex'
+    let g:vimtex_compiler_progname = 'nvr'
+    " https://github.com/lervag/vimtex/issues/1430
+    let g:vimtex_indent_on_ampersands = 0
+
+    " Keep track of location list
+    " let g:ale_open_list = 1
+    let g:ale_set_loclist = 1
+    nmap <silent> <F7> :lopen<CR>
+
+    " Lint always in Normal Mode
+    let g:ale_lint_on_text_changed = 'normal'
+
+    " Lint when leaving Insert Mode but don't lint when in Insert Mode
+    let g:ale_lint_on_insert_leave = 1
+
+    " Set ALE's 200ms delay to zero
+    let g:ale_lint_delay = 0
+
+    let g:ale_sign_column_always = 1
+    let g:ale_completion_enabled = 1
+
+    " let g:ale_set_signs = 1
+    " let g:ale_sign_column_always = 1
+    " let g:ale_lint_on_text_changed = 'never'
+    " let g:ale_set_highlights = 0
+
+    let g:ale_fixers = {
+    \ '*': ['remove_trailing_lines', 'trim_whitespace'],
+    \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'isort', 'black'],
+    \ 'html': ['prettier'],
+    \ 'css': ['prettier'],
+    \}
+    " \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'add_blank_lines_for_python_control_statements', 'isort', 'black'],
+    let g:ale_linters = {
+    \ 'python': ['pyls', 'pyflakes', 'flake8', 'pylint'],
+    \ 'cpp': ['cquery', 'gcc'],
+    \ 'c': ['gcc'],
+    \ 'sh': ['shellcheck'],
+    \}
+    let g:ale_python_pylint_options = '--enable spelling --spelling-dict en_US'
+
+    nmap <silent> <C-k> <Plug>(ale_previous_wrap)
+    nmap <silent> <C-j> <Plug>(ale_next_wrap)
+
 endif
-
-set t_Co=256
-
-" https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
-if &term =~ '256color'
-    " disable Background Color Erase (BCE) so that color schemes
-    " render properly when inside 256-color tmux and GNU screen.
-    " see also http://snk.tuxfamily.org/log/vim-256color-bce.html
-    set t_ut=
-endif
-
-set mouse=r
-
-" Press escape to clear previous search highlight
-" https://github.com/tpope/vim-pathogen/issues/102
-" nnoremap <silent> <leader>/ :nohlsearch <cr>
-
-" Automatically turn on/off paste mode when pasting to avoid stacking indentation
-
-let &t_SI .= "\<Esc>[?2004h"
-let &t_EI .= "\<Esc>[?2004l"
-
-inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
-
-function! XTermPasteBegin()
-    set pastetoggle=<Esc>[201~
-    set paste
-    return ""
-    endfunction
 
 runtime! plugin/sensible.vim
 
@@ -50,59 +100,13 @@ nnoremap <F5> :UndotreeToggle<CR>
 " Peristent undo tree
 if has("persistent_undo")
     if has('vim')
-        set undodir=$HOME."/.undodir"
+        set undodir=$HOME."/.vim/undodir"
     endif
     if has('nvim')
-        set undodir=$HOME/.undodir
+        set undodir=$HOME/.vim/undodir
     endif
     set undofile
 endif
-
-let g:ale_enabled = 0
-let g:tex_flavor = 'latex'
-let g:vimtex_compiler_progname = 'nvr'
-" https://github.com/lervag/vimtex/issues/1430
-let g:vimtex_indent_on_ampersands = 0
-
-" Keep track of location list
-" let g:ale_open_list = 1
-let g:ale_set_loclist = 1
-nmap <silent> <F7> :lopen<CR>
-
-" Lint always in Normal Mode
-let g:ale_lint_on_text_changed = 'normal'
-
-" Lint when leaving Insert Mode but don't lint when in Insert Mode 
-let g:ale_lint_on_insert_leave = 1
-
-" Set ALE's 200ms delay to zero
-let g:ale_lint_delay = 0
-
-let g:ale_sign_column_always = 1
-let g:ale_completion_enabled = 1
-
-" let g:ale_set_signs = 1
-" let g:ale_sign_column_always = 1
-" let g:ale_lint_on_text_changed = 'never'
-" let g:ale_set_highlights = 0
-
-let g:ale_fixers = {
-\ '*': ['remove_trailing_lines', 'trim_whitespace'],
-\ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'isort', 'black'],
-\ 'html': ['prettier'],
-\ 'css': ['prettier'],
-\}
-" \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'add_blank_lines_for_python_control_statements', 'isort', 'black'],
-let g:ale_linters = {
-\ 'python': ['pyls', 'pyflakes', 'flake8', 'pylint'],
-\ 'cpp': ['cquery', 'gcc'],
-\ 'c': ['gcc'],
-\ 'sh': ['shellcheck'],
-\}
-let g:ale_python_pylint_options = '--enable spelling --spelling-dict en_US'
-
-nmap <silent> <C-k> <Plug>(ale_previous_wrap)
-nmap <silent> <C-j> <Plug>(ale_next_wrap)
 
 set smartindent
 set breakindent
@@ -133,4 +137,4 @@ set showcmd		" Show (partial) command in status line.
 set showmatch		" Show matching brackets.
 set autowrite		" Automatically save before commands like :next and :make
 set hidden		" Hide buffers when they are abandoned
-set mouse=a		" Enable mouse usage (all modes)
+" set mouse=a		" Enable mouse usage (all modes)
