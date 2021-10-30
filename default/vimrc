@@ -1,3 +1,38 @@
+function! PackInit() abort
+    packadd minpac
+
+    call minpac#init()
+    call minpac#add('k-takata/minpac', {'type': 'opt'})
+
+    call minpac#add('tpope/vim-sensible')
+    call minpac#add('thinca/vim-visualstar')
+    call minpac#add('tmhedberg/SimpylFold')
+    call minpac#add('dracula/vim', { 'name': 'dracula' })
+    call minpac#add('ervandew/supertab')
+    call minpac#add('AndrewRadev/linediff.vim')
+    call minpac#add('tpope/vim-fugitive')
+    call minpac#add('tpope/vim-surround')
+    call minpac#add('airblade/vim-gitgutter')
+    call minpac#add('lervag/vimtex')
+    call minpac#add('mbbill/undotree')
+    call minpac#add('chrisbra/Recover.vim')
+
+    if has('vim')
+        " call minpac#add('desmap/ale-sensible')
+        " call minpac#add('w0rp/ale')
+    endif
+
+    call minpac#add('psf/black')
+    call minpac#add('christoomey/vim-tmux-navigator')
+    call minpac#add('tpope/vim-dadbod')
+    call minpac#add('neovim/nvim-lspconfig')
+
+endfunction
+
+command! PackUpdate call PackInit() | call minpac#update()
+command! PackClean  call PackInit() | call minpac#clean()
+command! PackStatus packadd minpac | call minpac#status()
+
 if has('vim')
 
     " Load default Vim8 configuration
@@ -90,7 +125,6 @@ endif
 
 runtime! plugin/sensible.vim
 
-packadd! dracula
 syntax enable
 colorscheme dracula
 
