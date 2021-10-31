@@ -114,6 +114,10 @@ if ! zgen saved; then
 	# generate the init script from plugins above
 	zgen save
 
+    # update vim plugins
+    vim +'PackClean --sync' +qa
+    vim +'PackUpdate --sync' +qa
+
     # install tmux plugins if not already installed
     if { [ -n "$TMUX" ]; } then
         ~/.tmux/plugins/tpm/bin/install_plugins
