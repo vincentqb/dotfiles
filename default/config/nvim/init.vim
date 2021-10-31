@@ -1,12 +1,61 @@
-set runtimepath^=~/.vim runtimepath+=~/.vim/after
-let &packpath = &runtimepath
-source ~/.vimrc
+" set runtimepath^=~/.vim runtimepath+=~/.vim/after
+" let &packpath = &runtimepath
+" source ~/.vimrc
+
+if &compatible
+  " `:set nocp` has many side effects. Therefore this should be done
+  " only when 'compatible' is set.
+  set nocompatible
+endif
+
+runtime! common.vim
+runtime! plugin/sensible.vim
+
+function! PackInit() abort
+    packadd minpac
+
+    call minpac#init()
+    call minpac#add('k-takata/minpac', {'type': 'opt'})
+
+    call minpac#add('tpope/vim-sensible')
+    call minpac#add('thinca/vim-visualstar')
+    call minpac#add('tmhedberg/SimpylFold')
+    call minpac#add('dracula/vim', { 'name': 'dracula' })
+    call minpac#add('ervandew/supertab')
+    call minpac#add('AndrewRadev/linediff.vim')
+    call minpac#add('tpope/vim-fugitive')
+    call minpac#add('tpope/vim-surround')
+    call minpac#add('airblade/vim-gitgutter')
+    call minpac#add('lervag/vimtex')
+    call minpac#add('mbbill/undotree')
+    call minpac#add('chrisbra/Recover.vim')
+
+    call minpac#add('psf/black')
+    call minpac#add('christoomey/vim-tmux-navigator')
+    call minpac#add('tpope/vim-dadbod')
+
+    call minpac#add('neovim/nvim-lspconfig')
+    call minpac#add('williamboman/nvim-lsp-installer')
+
+endfunction
+
+command! PackUpdate call PackInit() | call minpac#update()
+command! PackClean  call PackInit() | call minpac#clean()
+command! PackStatus packadd minpac | call minpac#status()
+
+syntax enable
+colorscheme dracula
 
 " Specify python to use in nvim
 " Python 3
 let g:python3_host_prog='/usr/bin/python3'
 " Python 2
 let g:python_host_prog='/usr/bin/python'
+
+let g:tex_flavor = 'latex'
+let g:vimtex_compiler_progname = 'nvr'
+" https://github.com/lervag/vimtex/issues/1430
+let g:vimtex_indent_on_ampersands = 0
 
 " Languange Server Protocol
 lua << EOF

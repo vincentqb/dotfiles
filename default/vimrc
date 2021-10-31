@@ -1,175 +1,82 @@
-runtime! plugin/sensible.vim
+" Load default Vim8 configuration
+unlet! skip_defaults_vim
+source $VIMRUNTIME/defaults.vim
+runtime! ~/.config/nvim/common.vim
 
-function! PackInit() abort
-    packadd minpac
-
-    call minpac#init()
-    call minpac#add('k-takata/minpac', {'type': 'opt'})
-
-    call minpac#add('tpope/vim-sensible')
-    call minpac#add('thinca/vim-visualstar')
-    call minpac#add('tmhedberg/SimpylFold')
-    call minpac#add('dracula/vim', { 'name': 'dracula' })
-    call minpac#add('ervandew/supertab')
-    call minpac#add('AndrewRadev/linediff.vim')
-    call minpac#add('tpope/vim-fugitive')
-    call minpac#add('tpope/vim-surround')
-    call minpac#add('airblade/vim-gitgutter')
-    call minpac#add('lervag/vimtex')
-    call minpac#add('mbbill/undotree')
-    call minpac#add('chrisbra/Recover.vim')
-
-    if has('vim')
-        " call minpac#add('desmap/ale-sensible')
-        " call minpac#add('w0rp/ale')
-    endif
-
-    call minpac#add('psf/black')
-    call minpac#add('christoomey/vim-tmux-navigator')
-    call minpac#add('tpope/vim-dadbod')
-    call minpac#add('neovim/nvim-lspconfig')
-
-endfunction
-
-command! PackUpdate call PackInit() | call minpac#update()
-command! PackClean  call PackInit() | call minpac#clean()
-command! PackStatus packadd minpac | call minpac#status()
-
-if has('vim')
-
-    " Load default Vim8 configuration
-    unlet! skip_defaults_vim
-    source $VIMRUNTIME/defaults.vim
-
-    " Enable true color
-    if exists('+termguicolors')
-        let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
-        let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
-        set termguicolors
-    endif
-
-    set t_Co=256
-
-    " https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
-    if &term =~ '256color'
-        " disable Background Color Erase (BCE) so that color schemes
-        " render properly when inside 256-color tmux and GNU screen.
-        " see also http://snk.tuxfamily.org/log/vim-256color-bce.html
-        set t_ut=
-    endif
-
-    set mouse=r
-
-    " Press escape to clear previous search highlight
-    " https://github.com/tpope/vim-pathogen/issues/102
-    " nnoremap <silent> <leader>/ :nohlsearch <cr>
-
-    " Automatically turn on/off paste mode when pasting to avoid stacking indentation
-
-    let &t_SI .= "\<Esc>[?2004h"
-    let &t_EI .= "\<Esc>[?2004l"
-
-    inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
-
-    function! XTermPasteBegin()
-        set pastetoggle=<Esc>[201~
-        set paste
-        return ""
-        endfunction
-
-    let g:ale_enabled = 0
-
-    " Keep track of location list
-    " let g:ale_open_list = 1
-    let g:ale_set_loclist = 1
-    nmap <silent> <F7> :lopen<CR>
-
-    " Lint always in Normal Mode
-    let g:ale_lint_on_text_changed = 'normal'
-
-    " Lint when leaving Insert Mode but don't lint when in Insert Mode
-    let g:ale_lint_on_insert_leave = 1
-
-    " Set ALE's 200ms delay to zero
-    let g:ale_lint_delay = 0
-
-    let g:ale_sign_column_always = 1
-    let g:ale_completion_enabled = 1
-
-    " let g:ale_set_signs = 1
-    " let g:ale_sign_column_always = 1
-    " let g:ale_lint_on_text_changed = 'never'
-    " let g:ale_set_highlights = 0
-
-    let g:ale_fixers = {
-    \ '*': ['remove_trailing_lines', 'trim_whitespace'],
-    \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'isort', 'black'],
-    \ 'html': ['prettier'],
-    \ 'css': ['prettier'],
-    \}
-    " \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'add_blank_lines_for_python_control_statements', 'isort', 'black'],
-    let g:ale_linters = {
-    \ 'python': ['pyls', 'pyflakes', 'flake8', 'pylint'],
-    \ 'cpp': ['cquery', 'gcc'],
-    \ 'c': ['gcc'],
-    \ 'sh': ['shellcheck'],
-    \}
-    let g:ale_python_pylint_options = '--enable spelling --spelling-dict en_US'
-
-    nmap <silent> <C-k> <Plug>(ale_previous_wrap)
-    nmap <silent> <C-j> <Plug>(ale_next_wrap)
-
+" Enable true color
+if exists('+termguicolors')
+    let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
+    let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
+    set termguicolors
 endif
 
-let g:tex_flavor = 'latex'
-let g:vimtex_compiler_progname = 'nvr'
-" https://github.com/lervag/vimtex/issues/1430
-let g:vimtex_indent_on_ampersands = 0
+set t_Co=256
 
-syntax enable
-colorscheme dracula
-
-" F5 to show undo tree
-nnoremap <F5> :UndotreeToggle<CR>
-
-" Peristent undo tree
-if has("persistent_undo")
-    if has('vim')
-        set undodir=$HOME."/.vim/undodir"
-    endif
-    if has('nvim')
-        set undodir=$HOME/.vim/undodir
-    endif
-    set undofile
+" https://stackoverflow.com/questions/6427650/vim-in-tmux-background-color-changes-when-paging/15095377#15095377
+if &term =~ '256color'
+    " disable Background Color Erase (BCE) so that color schemes
+    " render properly when inside 256-color tmux and GNU screen.
+    " see also http://snk.tuxfamily.org/log/vim-256color-bce.html
+    set t_ut=
 endif
 
-set smartindent
-set breakindent
-set breakindentopt=shift:2,min:40,sbr
-set showbreak=>>
-" Fold using indentation
-au FileType python set foldmethod=indent
-au FileType python set foldnestmax=1
-au FileType python set foldminlines=10
-" Open/close folds with space
-au FileType python nnoremap <space> za
+set mouse=r
 
-" Search and highlight while typing while ignoring case when only lower case used
-set ignorecase
-set smartcase
-set incsearch
-set hlsearch
+" Press escape to clear previous search highlight
+" https://github.com/tpope/vim-pathogen/issues/102
+" nnoremap <silent> <leader>/ :nohlsearch <cr>
 
-" Use spaces for tabs
-set tabstop=4
-set softtabstop=4
-set shiftwidth=4
-set expandtab
+" Automatically turn on/off paste mode when pasting to avoid stacking indentation
 
-" The following are commented out as they cause vim to behave a lot
-" differently from regular Vi. They are highly recommended though.
-set showcmd		" Show (partial) command in status line.
-set showmatch		" Show matching brackets.
-set autowrite		" Automatically save before commands like :next and :make
-set hidden		" Hide buffers when they are abandoned
-" set mouse=a		" Enable mouse usage (all modes)
+let &t_SI .= "\<Esc>[?2004h"
+let &t_EI .= "\<Esc>[?2004l"
+
+inoremap <special> <expr> <Esc>[200~ XTermPasteBegin()
+
+function! XTermPasteBegin()
+    set pastetoggle=<Esc>[201~
+    set paste
+    return ""
+    endfunction
+
+let g:ale_enabled = 0
+
+" Keep track of location list
+" let g:ale_open_list = 1
+let g:ale_set_loclist = 1
+nmap <silent> <F7> :lopen<CR>
+
+" Lint always in Normal Mode
+let g:ale_lint_on_text_changed = 'normal'
+
+" Lint when leaving Insert Mode but don't lint when in Insert Mode
+let g:ale_lint_on_insert_leave = 1
+
+" Set ALE's 200ms delay to zero
+let g:ale_lint_delay = 0
+
+let g:ale_sign_column_always = 1
+let g:ale_completion_enabled = 1
+
+" let g:ale_set_signs = 1
+" let g:ale_sign_column_always = 1
+" let g:ale_lint_on_text_changed = 'never'
+" let g:ale_set_highlights = 0
+
+let g:ale_fixers = {
+\ '*': ['remove_trailing_lines', 'trim_whitespace'],
+\ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'isort', 'black'],
+\ 'html': ['prettier'],
+\ 'css': ['prettier'],
+\}
+" \ 'python': ['remove_trailing_lines', 'trim_whitespace', 'reorder-python-imports', 'add_blank_lines_for_python_control_statements', 'isort', 'black'],
+let g:ale_linters = {
+\ 'python': ['pyls', 'pyflakes', 'flake8', 'pylint'],
+\ 'cpp': ['cquery', 'gcc'],
+\ 'c': ['gcc'],
+\ 'sh': ['shellcheck'],
+\}
+let g:ale_python_pylint_options = '--enable spelling --spelling-dict en_US'
+
+nmap <silent> <C-k> <Plug>(ale_previous_wrap)
+nmap <silent> <C-j> <Plug>(ale_next_wrap)
