@@ -4,8 +4,11 @@ isort
 neovim
 pyenchant
 pylint
-pyls
-pyls-black
 pynvim
-python-lsp-black
 python-lsp-server[all]
+pyls
+pyls-flake8
+pylsp-mypy
+pyls-isort
+python-lsp-black
+pylsp-rope
