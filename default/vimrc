@@ -76,10 +76,6 @@ if has('vim')
         endfunction
 
     let g:ale_enabled = 0
-    let g:tex_flavor = 'latex'
-    let g:vimtex_compiler_progname = 'nvr'
-    " https://github.com/lervag/vimtex/issues/1430
-    let g:vimtex_indent_on_ampersands = 0
 
     " Keep track of location list
     " let g:ale_open_list = 1
@@ -124,6 +120,11 @@ if has('vim')
 endif
 
 runtime! plugin/sensible.vim
+
+let g:tex_flavor = 'latex'
+let g:vimtex_compiler_progname = 'nvr'
+" https://github.com/lervag/vimtex/issues/1430
+let g:vimtex_indent_on_ampersands = 0
 
 syntax enable
 colorscheme dracula
