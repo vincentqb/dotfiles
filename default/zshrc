@@ -64,14 +64,14 @@ PATH="$HOME/bin":"$HOME/.local/bin":$PATH
 
 if p=`command -v nvim`
 then
-	alias vi="$p"
-	alias vim="$p"
-	alias view="$p -R"
-	alias vimdiff="$p -d"
+    alias vi="$p"
+    alias vim="$p"
     alias view="$p -R"
-	export VISUAL="$p"
+    alias vimdiff="$p -d"
+    alias view="$p -R"
+    export VISUAL="$p"
 else
-	export VISUAL="vim"
+    export VISUAL="vim"
 fi
 
 alias v="$VISUAL"
@@ -81,10 +81,10 @@ export GIT_EDITOR="$VISUAL"
 ########## Open new terminal in current directory in MacOS
 
 if [[ "$TERM_PROGRAM" == "Apple_Terminal" ]]; then
-	function chpwd {
-		printf '\e]7;%s\a' "file://$HOSTNAME${PWD// /%20}"
-	}
-	chpwd
+    function chpwd {
+        printf '\e]7;%s\a' "file://$HOSTNAME${PWD// /%20}"
+    }
+    chpwd
 fi
 
 ########### Load plugins
@@ -101,18 +101,18 @@ source "${HOME}/.zgen/zgen.zsh"
 # if the init script doesn't exist
 if ! zgen saved; then
 
-	zgen oh-my-zsh
-	zgen oh-my-zsh plugins/common-aliases
+    zgen oh-my-zsh
+    zgen oh-my-zsh plugins/common-aliases
 
-	# specify plugins here
-	zgen load changs/slimzsh
-	# antigen bundle zsh-users/zsh-completions
-	# antigen bundle zsh-users/zsh-autosuggestions
-	zgen load zsh-users/zsh-history-substring-search
-    # zgen load lukechilds/zsh-nvm
+    # specify plugins here
+    zgen load changs/slimzsh
+    # antigen bundle zsh-users/zsh-completions
+    # antigen bundle zsh-users/zsh-autosuggestions
+    zgen load zsh-users/zsh-history-substring-search
+    zgen load lukechilds/zsh-nvm
 
-	# generate the init script from plugins above
-	zgen save
+    # generate the init script from plugins above
+    zgen save
 
     # update vim plugins
     vim +'PackClean --sync' +qa
@@ -158,7 +158,7 @@ fast-theme q-jmnemonic &> /dev/null
 
 # Fix "git add" autocomplete hanging
 __git_files () {
-	_wanted files expl 'local files' _files
+    _wanted files expl 'local files' _files
 }
 
 # https://github.com/conda/conda/issues/6826#issuecomment-397287212
