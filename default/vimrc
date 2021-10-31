@@ -1,3 +1,5 @@
+runtime! plugin/sensible.vim
+
 function! PackInit() abort
     packadd minpac
 
@@ -118,8 +120,6 @@ if has('vim')
     nmap <silent> <C-j> <Plug>(ale_next_wrap)
 
 endif
-
-runtime! plugin/sensible.vim
 
 let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
