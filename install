@@ -8,7 +8,7 @@ git submodule update --init --recursive
 
 # Install dependencies
 
-pip install --user -r requirements.txt
+/usr/bin/pip3 install --user -r requirements.txt
 
 if [ "$1" = "mac" ]; then
     # MacOS
