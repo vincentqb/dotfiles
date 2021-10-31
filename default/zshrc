@@ -87,6 +87,10 @@ if [[ "$TERM_PROGRAM" == "Apple_Terminal" ]]; then
     chpwd
 fi
 
+########### Configure plugins
+
+export NVM_COMPLETION=true
+
 ########### Load plugins
 
 # source /etc/profile
@@ -101,6 +105,8 @@ source "${HOME}/.zgen/zgen.zsh"
 # if the init script doesn't exist
 if ! zgen saved; then
 
+    zgen load lukechilds/zsh-nvm
+
     zgen oh-my-zsh
     zgen oh-my-zsh plugins/common-aliases
 
@@ -109,7 +115,6 @@ if ! zgen saved; then
     # antigen bundle zsh-users/zsh-completions
     # antigen bundle zsh-users/zsh-autosuggestions
     zgen load zsh-users/zsh-history-substring-search
-    zgen load lukechilds/zsh-nvm
 
     # generate the init script from plugins above
     zgen save
