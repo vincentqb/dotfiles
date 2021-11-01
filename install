@@ -48,6 +48,10 @@ else
     nvm install node
     npm install -g pyright
     npm install -g bash-language-server
+
+    # bashls
+    # sudo snap install bash-language-server
+
 fi
 
 # Instal miniconda
