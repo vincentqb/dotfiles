@@ -173,3 +173,4 @@ __git_files () {
 # 	[[ -z $TMUX ]] || conda deactivate; conda activate base
 # fi
 
+export PATH="$(yarn global bin):$PATH"

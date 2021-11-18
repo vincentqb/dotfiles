@@ -86,6 +86,7 @@ lspconfig.pylsp.setup{
 
 lspconfig.bashls.setup{}
 lspconfig.texlab.setup{}
+lspconfig.metals.setup{}
 
 local shfmt = require 'lsp.diagnosticls.formatters.shfmt'
 local shellcheck = require 'lsp.diagnosticls.linters.shellcheck'

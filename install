@@ -52,6 +52,16 @@ else
     # bashls
     # sudo snap install bash-language-server
 
+    # scala
+    curl -fLo cs https://git.io/coursier-cli-"$(uname | tr LD ld)"
+    chmod +x cs
+    ./cs install metals
+    export PATH="$PATH:/home/ubuntu/.local/share/coursier/bin"\
+
+    # diagnostic-language server
+    npm install --global yarn
+    export PATH="$(yarn global bin):$PATH"
+    yarn global add diagnostic-languageserver
 fi
 
 # Instal miniconda
