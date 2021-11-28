@@ -36,6 +36,7 @@ function! PackInit() abort
     call minpac#add('neovim/nvim-lspconfig')
     call minpac#add('williamboman/nvim-lsp-installer')
     call minpac#add('lervag/vimtex')
+    " call minpac#add('tmhedberg/SimpylFold')
 
 endfunction
 
