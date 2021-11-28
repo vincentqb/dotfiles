@@ -19,7 +19,6 @@ function! PackInit() abort
 
     call minpac#add('tpope/vim-sensible')
     call minpac#add('thinca/vim-visualstar')
-    " call minpac#add('tmhedberg/SimpylFold')
     call minpac#add('dracula/vim', { 'name': 'dracula' })
     call minpac#add('ervandew/supertab')
     call minpac#add('AndrewRadev/linediff.vim')
