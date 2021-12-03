@@ -16,25 +16,26 @@ function! PackInit() abort
 
     call minpac#init()
     call minpac#add('k-takata/minpac', {'type': 'opt'})
-
     call minpac#add('tpope/vim-sensible')
-    call minpac#add('thinca/vim-visualstar')
     call minpac#add('dracula/vim', { 'name': 'dracula' })
+
+    call minpac#add('thinca/vim-visualstar')
     call minpac#add('ervandew/supertab')
     call minpac#add('AndrewRadev/linediff.vim')
-    call minpac#add('tpope/vim-fugitive')
     call minpac#add('tpope/vim-surround')
-    call minpac#add('airblade/vim-gitgutter')
-    call minpac#add('lervag/vimtex')
     call minpac#add('mbbill/undotree')
     call minpac#add('chrisbra/Recover.vim')
-
-    call minpac#add('psf/black')
     call minpac#add('christoomey/vim-tmux-navigator')
+
     call minpac#add('tpope/vim-dadbod')
 
+    call minpac#add('tpope/vim-fugitive')
+    call minpac#add('airblade/vim-gitgutter')
+
+    call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
     call minpac#add('williamboman/nvim-lsp-installer')
+    call minpac#add('lervag/vimtex')
 
 endfunction
 
