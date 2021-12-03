@@ -72,12 +72,15 @@ local on_attach = function(_, bufnr)
 
 end
 
-lspconfig.pylsp.setup{
+lspconfig.pylsp.setup {
+    on_attach = on_attach,
+    filetypes = { 'py' },
     settings = {
         pylsp = {
             plugins = {
                 flake8 = {
-                    maxLineLength = 100
+                    maxLineLength = 100,
+                    builtin = breakpoint,
                 }
             }
         }
