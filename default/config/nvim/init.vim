@@ -62,7 +62,7 @@ let g:vimtex_indent_on_ampersands = 0
 lua << EOF
 
 
-local lspconfig = require 'lspconfig'
+local lspconfig = require('lspconfig')
 local on_attach = function(_, bufnr)
 
   local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
@@ -73,15 +73,15 @@ local on_attach = function(_, bufnr)
 
 end
 
-lspconfig.pylsp.setup {
-    on_attach = on_attach,
-    filetypes = { 'py' },
+local lsp_installer = require("nvim-lsp-installer")
+
+lspconfig.pylsp.setup{
     settings = {
         pylsp = {
             plugins = {
                 flake8 = {
+                    enabled = true,
                     maxLineLength = 100,
-                    builtin = breakpoint,
                 }
             }
         }
