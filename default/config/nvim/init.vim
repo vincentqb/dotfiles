@@ -75,10 +75,14 @@ end
 
 local lsp_installer = require("nvim-lsp-installer")
 
+-- https://github.com/python-lsp/python-lsp-server/blob/develop/CONFIGURATION.md
 lspconfig.pylsp.setup{
     settings = {
         pylsp = {
             plugins = {
+                -- pydocstyle = {
+                --     enabled = true
+                -- },
                 flake8 = {
                     enabled = true,
                     maxLineLength = 100,
