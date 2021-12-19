@@ -44,8 +44,11 @@ else
     wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
     chmod u+x $BIN_DIR/nvim
 
-    # Install pyright
+    # Install node.js
     nvm install node
+    npm install -g neovim
+
+    # Install language servers
     npm install -g pyright
     npm install -g bash-language-server
 
@@ -59,7 +62,7 @@ else
     export PATH="$PATH:/home/ubuntu/.local/share/coursier/bin"\
 
     # diagnostic-language server
-    npm install --global yarn
+    npm install -g yarn
     export PATH="$(yarn global bin):$PATH"
     yarn global add diagnostic-languageserver
 fi
