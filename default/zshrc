@@ -121,8 +121,8 @@ if ! zgen saved; then
     zgen save
 
     # update vim plugins
-    vim +'PackClean' +qa
-    vim +'PackUpdate' +qa
+    vim +PackClean +qa
+    vim +PackUpdate +qa
 
     # install tmux plugins if not already installed
     if { [ -n "$TMUX" ]; } then
