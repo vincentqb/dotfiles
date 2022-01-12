@@ -37,20 +37,17 @@ if [ "$1" = "mac" ]; then
     defaults write com.apple.terminal "Default Window Settings" -string "Dracula"
     defaults write com.apple.terminal "Startup Window Settings" -string "Dracula"
 
+    brew install fzf fasd
+
+    brew install texlab
+    brew install --cask mactex-no-gui
+
 else
     # Linux
 
     # Neovim
     wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
     chmod u+x $BIN_DIR/nvim
-
-    # Install node.js
-    nvm install node
-    npm install -g neovim
-
-    # Install language servers
-    npm install -g pyright
-    npm install -g bash-language-server
 
     # bashls
     # sudo snap install bash-language-server
@@ -61,11 +58,20 @@ else
     ./cs install metals
     export PATH="$PATH:/home/ubuntu/.local/share/coursier/bin"\
 
-    # diagnostic-language server
-    npm install -g yarn
-    export PATH="$(yarn global bin):$PATH"
-    yarn global add diagnostic-languageserver
 fi
+
+# Install node.js
+nvm install node
+npm install -g neovim
+
+# Install language servers
+npm install -g pyright
+npm install -g bash-language-server
+
+# diagnostic-language server
+npm install -g yarn
+# export PATH="$(yarn global bin):$PATH"
+yarn global add diagnostic-languageserver
 
 # Instal miniconda
 
