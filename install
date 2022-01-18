@@ -16,7 +16,7 @@ if [ "$1" = "mac" ]; then
     # Neovim
     wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
     tar xzvf nvim-macos.tar.gz
-    mv ./nvim-osx64/bin/nvim $BIN_DIR/nvim
+    mv ./nvim-osx64/bin/nvim "$BIN_DIR/nvim"
 
     # Fix copy-paste in MacOS
     brew install reattach-to-user-namespace
@@ -46,8 +46,8 @@ else
     # Linux
 
     # Neovim
-    wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O $BIN_DIR/nvim
-    chmod u+x $BIN_DIR/nvim
+    wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O "$BIN_DIR/nvim"
+    chmod u+x "$BIN_DIR/nvim"
 
     # bashls
     # sudo snap install bash-language-server
