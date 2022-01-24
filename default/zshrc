@@ -70,6 +70,7 @@ then
     alias vimdiff="$p -d"
     alias view="$p -R"
     export VISUAL="$p"
+    export TEXEDIT="$p %s"
 else
     export VISUAL="vim"
 fi
