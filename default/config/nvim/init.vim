@@ -81,10 +81,11 @@ lspconfig.pylsp.setup{
         pylsp = {
             plugins = {
                 -- pydocstyle = {
-                --     enabled = true
+                --     enabled = true,
                 -- },
                 flake8 = {
                     enabled = true,
+                    maxLineLength = 120,
                 }
             }
         }
