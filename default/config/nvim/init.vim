@@ -38,6 +38,8 @@ function! PackInit() abort
     call minpac#add('lervag/vimtex')
     " call minpac#add('tmhedberg/SimpylFold')
 
+    call minpac#add('vimwiki/vimwiki')
+
 endfunction
 
 command! PackUpdate call PackInit() | call minpac#update()
@@ -46,6 +48,17 @@ command! PackStatus packadd minpac | call minpac#status()
 
 syntax enable
 colorscheme dracula
+
+" Set default directory for vimwiki files
+let g:vimwiki_list = [{'path': "~/wiki"}]
+
+" Set vimwiki colors for each heading level: default is all same color
+hi VimwikiHeader1 ctermfg=Green
+hi VimwikiHeader2 ctermfg=Cyan
+hi VimwikiHeader3 ctermfg=Blue
+hi VimwikiHeader4 ctermfg=Yellow
+hi VimwikiHeader5 ctermfg=Red
+hi VimwikiHeader6 ctermfg=Brown
 
 " Specify python to use in nvim
 " Python 3
