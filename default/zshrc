@@ -118,8 +118,16 @@ if ! zgen saved; then
     # antigen bundle zsh-users/zsh-autosuggestions
     zgen load zsh-users/zsh-history-substring-search
 
+    # Load last
+    # zgen oh-my-zsh plugins/fzf
+    zgen load unixorn/fzf-zsh-plugin
+
     # generate the init script from plugins above
     zgen save
+
+    # mkdir "$HOME/bin"
+    # wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O "$HOME/bin/nvim"
+    # chmod u+x "$HOME/bin/nvim"
 
     # update vim plugins
     vim +PackClean +qa
