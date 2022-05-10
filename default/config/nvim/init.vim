@@ -60,6 +60,9 @@ hi VimwikiHeader4 ctermfg=Yellow
 hi VimwikiHeader5 ctermfg=Red
 hi VimwikiHeader6 ctermfg=Brown
 
+" Activate spellchecker
+set spell spelllang=en_us
+
 " Specify python to use in nvim
 " Python 3
 let g:python3_host_prog='/usr/bin/python3'
