@@ -1,0 +1,21 @@
+#!/usr/bin/fish
+
+# Install plugins
+curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher
+# fisher install dracula/fish
+fisher install pure-fish/pure
+fisher install jorgebucaran/nvm.fish
+nvm install latest
+
+# Choose prompt
+# fish_config prompt choose terlar
+fish_vi_key_bindings
+
+# Extend $PATH
+fish_add_path $HOME/bin $HOME/.local/bin
+
+# Set neovim as default editor
+set -U EDITOR nvim
+set -U VISUAL nvim
+set -U TEXEDIT "nvim %s"
+set -U GIT_EDITOR nvim
