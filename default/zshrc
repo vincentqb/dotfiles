@@ -114,8 +114,8 @@ if ! zgen saved; then
 
     # specify plugins here
     zgen load changs/slimzsh
-    # antigen bundle zsh-users/zsh-completions
-    # antigen bundle zsh-users/zsh-autosuggestions
+    zgen load zsh-users/zsh-completions
+    zgen load zsh-users/zsh-autosuggestions
     zgen load zsh-users/zsh-history-substring-search
 
     # Load last

@@ -49,10 +49,6 @@
 [submodule "default/vim/pack/plugins/start/ale"]
 	path = default/vim/pack/plugins/start/ale
 	url = https://github.com/dense-analysis/ale
-[submodule "default/zgen"]
-	path = default/zgen
-	url = https://github.com/tarjoilija/zgen
-	branch = master
 [submodule "default/vim/pack/plugins/start/nvim-lspconfig"]
 	path = default/vim/pack/plugins/start/nvim-lspconfig
 	url = https://github.com/neovim/nvim-lspconfig.git
@@ -75,3 +71,6 @@
 [submodule "/home/vincent/dotfiles/default/config/nvim/pack/minpac/opt/minpac"]
 	path = /home/vincent/dotfiles/default/config/nvim/pack/minpac/opt/minpac
 	url = https://github.com/k-takata/minpac.git
+[submodule "default/zgen"]
+	path = default/zgen
+	url = https://github.com/tarjoilija/zgen.git
