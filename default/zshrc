@@ -93,6 +93,8 @@ fi
 export NVM_COMPLETION=true
 # export NVM_LAZY_LOAD=true
 
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+
 ########### Load plugins
 
 # source /etc/profile
