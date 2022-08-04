@@ -1,7 +1,7 @@
 #!/opt/homebrew/bin/fish
 
 # Extend $PATH
-fish_add_path $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin
+fish_add_path $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin
 
 # Install plugin manager
 curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher
@@ -9,6 +9,8 @@ curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher
 # Configure nvm
 fisher install jorgebucaran/nvm.fish
 nvm install latest
+npm install -g neovim yarn
+yarn global add neovim
 
 # Configure prompt
 # fish_config prompt choose terlar
@@ -28,5 +30,6 @@ set -U VISUAL vim
 set -U TEXEDIT "vim %s"
 set -U GIT_EDITOR vim
 
-# conda init fish
-# conda config --set changeps1 False
+# Install anaconda for fish
+conda init fish
+conda config --set changeps1 False
