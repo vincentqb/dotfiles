@@ -20,15 +20,15 @@ fisher install pure-fish/pure
 # Set vim keybindings
 fish_vi_key_bindings
 
-# Point vim to nvim
-alias vim="nvim"
-funcsave vim
-
 # Set n/vim as default editor
 set -U EDITOR nvim
 set -U VISUAL nvim
 set -U TEXEDIT "nvim %s"
 set -U GIT_EDITOR nvim
+
+# Point vim to nvim in userspace
+alias vim="nvim"
+funcsave vim
 
 # Install anaconda for fish
 conda init fish
