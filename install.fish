@@ -25,10 +25,10 @@ alias vim="nvim"
 funcsave vim
 
 # Set n/vim as default editor
-set -U EDITOR vim
-set -U VISUAL vim
-set -U TEXEDIT "vim %s"
-set -U GIT_EDITOR vim
+set -U EDITOR nvim
+set -U VISUAL nvim
+set -U TEXEDIT "nvim %s"
+set -U GIT_EDITOR nvim
 
 # Install anaconda for fish
 conda init fish
