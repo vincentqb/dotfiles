@@ -1,4 +1,4 @@
-#!/usr/bin/fish
+#!/opt/homebrew/bin/fish
 
 # Extend $PATH
 fish_add_path $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin
@@ -27,3 +27,6 @@ set -U EDITOR vim
 set -U VISUAL vim
 set -U TEXEDIT "vim %s"
 set -U GIT_EDITOR vim
+
+# conda init fish
+# conda config --set changeps1 False

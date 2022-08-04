@@ -60,7 +60,7 @@ function uploadfair {
 bindkey -v
 
 # User-install bin
-PATH="$HOME/bin":"$HOME/.local/bin":$PATH
+PATH="/usr/local/bin/":"$HOME/bin":"$HOME/.local/bin":$PATH
 
 if p=`command -v nvim`
 then
@@ -170,6 +170,11 @@ zstyle ':completion:*' menu select  # select completions with arrow keys
 zstyle ':completion:*' group-name ''  # group results by category
 zstyle ':completion:::::' completer _expand _complete _ignored _approximate  # enable approximate matches for completion
 
+# https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-completion.html
+autoload bashcompinit && bashcompinit
+autoload -Uz compinit && compinit
+complete -C '/usr/local/bin/aws_completer' aws
+
 # https://github.com/zdharma/fast-syntax-highlighting/issues/217
 fast-theme q-jmnemonic &> /dev/null
 
@@ -184,4 +189,26 @@ __git_files () {
 # 	[[ -z $TMUX ]] || conda deactivate; conda activate base
 # fi
 
-export PATH="$(yarn global bin):$PATH"
+# export PATH="$(yarn global bin):$PATH"
+export PATH=$PATH:/Users/quennv/.toolbox/bin
+
+# install tmux plugins if not already installed
+if { [ ! -d "$HOME/.tmux/plugins/tmux-sensible" ] && [ -n "$TMUX" ]; } then
+    ~/.tmux/plugins/tpm/bin/install_plugins
+fi
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/Users/quennv/anaconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/Users/quennv/anaconda3/etc/profile.d/conda.sh" ]; then
+        . "/Users/quennv/anaconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/Users/quennv/anaconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+export JAVA_TOOLS_OPTIONS="-Dlog4j2.formatMsgNoLookups=true"

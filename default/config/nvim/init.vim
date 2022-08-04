@@ -9,14 +9,14 @@ if &compatible
 endif
 
 runtime! common.vim
-runtime! plugin/sensible.vim
+" runtime! plugin/sensible.vim
 
 function! PackInit() abort
     packadd minpac
 
     call minpac#init()
     call minpac#add('k-takata/minpac', {'type': 'opt'})
-    call minpac#add('tpope/vim-sensible')
+    " call minpac#add('tpope/vim-sensible')
     call minpac#add('dracula/vim', { 'name': 'dracula' })
 
     call minpac#add('thinca/vim-visualstar')
@@ -25,7 +25,7 @@ function! PackInit() abort
     call minpac#add('tpope/vim-surround')
     call minpac#add('mbbill/undotree')
     call minpac#add('chrisbra/Recover.vim')
-    call minpac#add('christoomey/vim-tmux-navigator')
+    " call minpac#add('christoomey/vim-tmux-navigator')
 
     call minpac#add('tpope/vim-dadbod')
 
@@ -111,6 +111,7 @@ lspconfig.pylsp.setup{
 lspconfig.bashls.setup{}
 lspconfig.texlab.setup{}
 lspconfig.metals.setup{}
+-- lspconfig.jdts.setup{}
 
 local shfmt = require 'lsp.diagnosticls.formatters.shfmt'
 local shellcheck = require 'lsp.diagnosticls.linters.shellcheck'
