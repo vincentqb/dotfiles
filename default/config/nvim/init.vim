@@ -1,26 +1,33 @@
-" set runtimepath^=~/.vim runtimepath+=~/.vim/after
-" let &packpath = &runtimepath
-" source ~/.vimrc
-
 if &compatible
   " `:set nocp` has many side effects. Therefore this should be done
   " only when 'compatible' is set.
   set nocompatible
 endif
 
-runtime! common.vim
-" runtime! plugin/sensible.vim
-
+" Enable true color
 if (has("termguicolors"))
   set termguicolors
 endif
+
+" Specify python to use in nvim
+" Python 3
+let g:python3_host_prog = '/usr/bin/python3'
+" Python 2
+let g:python_host_prog = '/usr/bin/python'
+
+" Activate spellchecker
+set spell spelllang=en_us
+
+" Enable syntax highlighting
+syntax enable
+
+runtime! common.vim
 
 function! PackInit() abort
     packadd minpac
 
     call minpac#init()
     call minpac#add('k-takata/minpac', {'type': 'opt'})
-    " call minpac#add('tpope/vim-sensible')
     call minpac#add('dracula/vim', { 'name': 'dracula' })
 
     call minpac#add('thinca/vim-visualstar')
@@ -50,7 +57,9 @@ command! PackUpdate call PackInit() | call minpac#update()
 command! PackClean  call PackInit() | call minpac#clean()
 command! PackStatus packadd minpac | call minpac#status()
 
-syntax enable
+" Enable theme
+let g:dracula_colorterm = 0
+let g:dracula_italic = 0
 colorscheme dracula
 
 " Set default directory for vimwiki files
@@ -64,21 +73,13 @@ hi VimwikiHeader4 ctermfg=Yellow
 hi VimwikiHeader5 ctermfg=Red
 hi VimwikiHeader6 ctermfg=Brown
 
-" Activate spellchecker
-set spell spelllang=en_us
-
-" Specify python to use in nvim
-" Python 3
-let g:python3_host_prog='/usr/bin/python3'
-" Python 2
-let g:python_host_prog='/usr/bin/python'
-
+" Set vimtex
 let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands = 0
 
-" Languange Server Protocol
+" Language Server Protocol
 lua << EOF
 
 
