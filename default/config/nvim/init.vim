@@ -11,6 +11,10 @@ endif
 runtime! common.vim
 " runtime! plugin/sensible.vim
 
+if (has("termguicolors"))
+  set termguicolors
+endif
+
 function! PackInit() abort
     packadd minpac
 
