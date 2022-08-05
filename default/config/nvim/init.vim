@@ -1,12 +1,14 @@
 if &compatible
-  " `:set nocp` has many side effects. Therefore this should be done
-  " only when 'compatible' is set.
-  set nocompatible
+    " `:set nocp` has many side effects. Therefore this should be done
+    " only when 'compatible' is set.
+    set nocompatible
 endif
 
 " Enable true color
 if (has("termguicolors"))
-  set termguicolors
+    if !$TERM_PROGRAM =~ "Apple_Terminal"
+        set termguicolors
+    endif
 endif
 
 " Specify python to use in nvim
@@ -82,7 +84,6 @@ let g:vimtex_indent_on_ampersands = 0
 
 " Language Server Protocol
 lua << EOF
-
 
 local lspconfig = require('lspconfig')
 local on_attach = function(_, bufnr)
