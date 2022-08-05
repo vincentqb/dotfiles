@@ -58,6 +58,7 @@ command! PackClean  call PackInit() | call minpac#clean()
 command! PackStatus packadd minpac | call minpac#status()
 
 " Enable theme
+" https://github.com/dracula/vim/issues/96
 let g:dracula_colorterm = 0
 let g:dracula_italic = 0
 colorscheme dracula
