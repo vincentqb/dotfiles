@@ -1,25 +1,25 @@
 " F5 to show undo tree
 nnoremap <F5> :UndotreeToggle<CR>
 
-" Peristent undo tree
-if has("persistent_undo")
-    if has('vim')
-        set undodir=$HOME."/.config/nvim/undodir"
-    endif
-    if has('nvim')
-        set undodir=$HOME/.config/nvim/undodir
-    endif
-    set undofile
-endif
+" Persistent undo tree, but careful about leaking sensitive information
+" set undofile
+" if has("persistent_undo")
+"     if has('vim')
+"         set undodir=~/.config/vim/undodir
+"     endif
+" endif
 
+" Automatic indentation
 set smartindent
 set breakindent
 set breakindentopt=shift:2,min:40,sbr
 set showbreak=>>
+
 " Fold using indentation
 au FileType python set foldmethod=indent
 au FileType python set foldnestmax=1
 au FileType python set foldminlines=10
+
 " Open/close folds with space
 au FileType python nnoremap <space> za
 
