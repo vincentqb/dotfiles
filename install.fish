@@ -10,6 +10,7 @@ curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher
 fisher install jorgebucaran/nvm.fish
 nvm install latest
 npm install -g neovim yarn
+npm install -g bash-language-server diagnostic-languageserver
 yarn global add neovim
 
 # Configure prompt
