@@ -11,10 +11,9 @@ if (has("termguicolors"))
     endif
 endif
 
-" Specify python to use in nvim
-" Python 3
+" Specify Python 3 to use
 let g:python3_host_prog = '/usr/bin/python3'
-" Python 2
+" Specify Python 2 to use
 let g:python_host_prog = '/usr/bin/python'
 
 " Activate spellchecker
