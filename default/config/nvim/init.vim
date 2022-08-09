@@ -64,8 +64,8 @@ command! PackStatus packadd minpac | call minpac#status()
 
 " Enable theme
 " https://github.com/dracula/vim/issues/96
-let g:dracula_colorterm = 0
 " let g:dracula_italic = 0
+let g:dracula_colorterm = 0
 colorscheme dracula
 
 " Set default directory for vimwiki files
@@ -147,4 +147,3 @@ lspconfig.diagnosticls.setup {
 }
 
 EOF
-
