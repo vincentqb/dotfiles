@@ -1,14 +1,6 @@
 " F5 to show undo tree
 nnoremap <F5> :UndotreeToggle<CR>
 
-" Persistent undo tree, but careful about leaking sensitive information
-" set undofile
-" if has("persistent_undo")
-"     if has('vim')
-"         set undodir=~/.config/vim/undodir
-"     endif
-" endif
-
 " Automatic indentation
 set smartindent
 set breakindent

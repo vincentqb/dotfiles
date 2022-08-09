@@ -23,6 +23,9 @@ set spell spelllang=en_us
 " Enable syntax highlighting
 syntax enable
 
+" Persistent undo tree, but careful about leaking sensitive information
+set undofile
+
 runtime! common.vim
 
 function! PackInit() abort
