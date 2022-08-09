@@ -16,6 +16,7 @@ yarn global add neovim
 # Configure prompt
 # fish_config prompt choose terlar
 # fisher install dracula/fish
+fisher install acomagu/fish-async-prompt
 fisher install pure-fish/pure
 
 # Set vim keybindings
@@ -26,6 +27,7 @@ set -U EDITOR nvim
 set -U VISUAL nvim
 set -U TEXEDIT "nvim %s"
 set -U GIT_EDITOR nvim
+set -U async_prompt_functions _pure_prompt_git
 
 # Point vim to nvim in userspace
 alias vim="nvim"
