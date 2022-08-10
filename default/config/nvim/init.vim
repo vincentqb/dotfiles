@@ -16,12 +16,6 @@ let g:python3_host_prog = '/usr/bin/python3'
 " Specify Python 2 to use
 let g:python_host_prog = '/usr/bin/python'
 
-" Activate spellchecker
-set spell spelllang=en_us
-
-" Enable syntax highlighting
-syntax enable
-
 " Persistent undo tree, but careful about leaking sensitive information
 set undofile
 
@@ -66,6 +60,9 @@ command! PackStatus packadd minpac | call minpac#status()
 " let g:dracula_italic = 0
 let g:dracula_colorterm = 0
 colorscheme dracula
+
+" Show undo tree with F5
+nnoremap <F5> :UndotreeToggle<CR>
 
 " Set default directory for vimwiki files
 let g:vimwiki_list = [{'path': "~/wiki"}]

@@ -1,5 +1,8 @@
-" F5 to show undo tree
-nnoremap <F5> :UndotreeToggle<CR>
+" Activate spellchecker
+set spell spelllang=en_us
+
+" Enable syntax highlighting
+syntax enable
 
 " Automatic indentation
 set smartindent
@@ -27,10 +30,8 @@ set softtabstop=4
 set shiftwidth=4
 set expandtab
 
-" The following are commented out as they cause vim to behave a lot
-" differently from regular Vi. They are highly recommended though.
-set showcmd		" Show (partial) command in status line.
-set showmatch		" Show matching brackets.
-set autowrite		" Automatically save before commands like :next and :make
-set hidden		" Hide buffers when they are abandoned
-" set mouse=a		" Enable mouse usage (all modes)
+" Show matching brackets.
+set showmatch
+
+" Automatically save before commands like :next and :make
+set autowrite
