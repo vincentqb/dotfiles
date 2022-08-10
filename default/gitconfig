@@ -9,9 +9,9 @@
 [credential]
 	helper = cache --timeout=31536000
 [core]
-	editor = vim
+	editor = nvim
 [merge]
-	tool = vimdiff
+	tool = nvim -d
 [mergetool]
 	prompt = true
 [push]
