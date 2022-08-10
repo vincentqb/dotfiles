@@ -13,4 +13,3 @@ pylsp-mypy
 pyls-isort
 python-lsp-black
 pylsp-rope
-virtualenv

@@ -34,7 +34,7 @@ function! PackInit() abort
     call minpac#add('tpope/vim-surround')
     call minpac#add('mbbill/undotree')
     call minpac#add('chrisbra/Recover.vim')
-    " call minpac#add('christoomey/vim-tmux-navigator')
+    call minpac#add('christoomey/vim-tmux-navigator')
 
     call minpac#add('tpope/vim-dadbod')
 
@@ -117,7 +117,6 @@ lspconfig.pylsp.setup{
 lspconfig.bashls.setup{}
 lspconfig.texlab.setup{}
 lspconfig.metals.setup{}
--- lspconfig.jdts.setup{}
 
 local shfmt = require 'lsp.diagnosticls.formatters.shfmt'
 local shellcheck = require 'lsp.diagnosticls.linters.shellcheck'

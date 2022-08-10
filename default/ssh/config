@@ -1,64 +1,9 @@
-# Amazon Security Bastions SSH Config
-Include ~/.ssh/bastions-config
-
 Host *
     # Keep connection alive longer
     TcpKeepAlive yes
     ServerAliveInterval 30
     ServerAliveCountMax 120
     # Tunnel all connections through first opened
-    # ControlMaster auto
+    ControlMaster auto
     # ControlPath ~/.ssh/control:%h:%p:%r
-    # ControlPath ~/.ssh/control:%C
-
-Host gpu1
-    User ubuntu
-    # HostName ec2-18-232-85-228.compute-1.amazonaws.com 
-    # HostName ec2-54-175-187-38.compute-1.amazonaws.com
-    # HostName ec2-3-231-223-250.compute-1.amazonaws.com
-    HostName ec2-18-213-150-110.compute-1.amazonaws.com
-    IdentityFile ~/.ssh/quennv_ec2.pem
-    LocalForward 5901 localhost:5901
-    RemoteForward 2222 git.amazon.com:22
-    RequestTTY force
-    RemoteCommand tmux attach || tmux new
-    # ForwardX11 yes
-    # GatewayPorts yes
-
-Host gpu2
-    User ubuntu
-    HostName ec2-44-201-3-39.compute-1.amazonaws.com
-    IdentityFile ~/.ssh/quennv_ec2.pem
-    LocalForward 5902 localhost:5902
-    RemoteForward 2222 git.amazon.com:22
-    RequestTTY force
-    RemoteCommand tmux attach || tmux new
-    ForwardX11 yes
-
-Host gpu3
-    User ubuntu
-    HostName ec2-18-215-124-99.compute-1.amazonaws.com
-    IdentityFile ~/.ssh/quennv_ec2.pem
-    LocalForward 5903 localhost:5903
-    RemoteForward 2222 git.amazon.com:22
-    RequestTTY force
-    RemoteCommand tmux attach || tmux new
-    ForwardX11 yes
-
-Host p2
-    User ubuntu
-    HostName ec2-3-86-189-36.compute-1.amazonaws.com
-    IdentityFile ~/.ssh/quennv_ec2.pem
-    LocalForward 5904 localhost:5904
-    RemoteForward 2222 git.amazon.com:22
-    RequestTTY force
-    RemoteCommand tmux attach || tmux new
-    ForwardX11 yes
-
-Host dev
-    User quennv
-    HostName dev-dsk-quennv-1e-8856274e.us-east-1.amazon.com 
-    IdentityFile ~/.ssh/id_rsa
-    CertificateFile ~/.ssh/id_rsa-cert.pub
-    # RequestTTY force
-    # RemoteCommand /apollo/env/envImprovement/bin/tmux attach || /apollo/env/envImprovement/bin/tmux new
+    ControlPath ~/.ssh/control:%C
