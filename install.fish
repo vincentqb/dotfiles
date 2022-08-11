@@ -16,6 +16,15 @@ set -U async_prompt_functions _pure_prompt_git
 # Set vim keybindings
 fish_vi_key_bindings
 
+# Enable CTRL+F to accept autocomplete
+# https://github.com/fish-shell/fish-shell/issues/3541
+function fish_user_key_bindings
+    for mode in insert default visual
+        bind -M $mode \cf forward-char
+    end
+end
+funcsave fish_user_key_bindings
+
 # Set n/vim as default editor
 set -U EDITOR nvim
 set -U VISUAL nvim
