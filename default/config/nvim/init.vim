@@ -34,12 +34,13 @@ function! PackInit() abort
     call minpac#add('tpope/vim-surround')
     call minpac#add('mbbill/undotree')
     call minpac#add('chrisbra/Recover.vim')
-    call minpac#add('christoomey/vim-tmux-navigator')
+    " call minpac#add('christoomey/vim-tmux-navigator')
 
     call minpac#add('tpope/vim-dadbod')
 
-    call minpac#add('tpope/vim-fugitive')
-    call minpac#add('airblade/vim-gitgutter')
+    " call minpac#add('tpope/vim-fugitive')
+    " call minpac#add('airblade/vim-gitgutter')
+    call minpac#add('lewis6991/gitsigns.nvim')
 
     call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
