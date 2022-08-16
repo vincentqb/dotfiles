@@ -8,11 +8,14 @@
     process = git-lfs filter-process
 [credential]
     helper = cache --timeout=31536000
-[core]
-    editor = nvim
 [merge]
-    tool = nvim -d
+    tool = vimdiff
+# [mergetool "vimdiff"]
+#     # https://www.reddit.com/r/neovim/comments/qatokl/using_nvim_as_mergetool_with_vimfugitive/
+#     # https://gist.github.com/dteoh/ef407dd059125731d4afde33e05a232f
+#     cmd = nvim -d $LOCAL $REMOTE $MERGED -c '$wincmd w' -c 'wincmd J'
 [mergetool]
+    # keepBackup = false
     prompt = true
 [push]
     default = simple

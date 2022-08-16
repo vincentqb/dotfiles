@@ -26,14 +26,16 @@ end
 funcsave fish_user_key_bindings
 
 # Set n/vim as default editor
-set -U EDITOR nvim
-set -U VISUAL nvim
-set -U TEXEDIT "nvim %s"
-set -U GIT_EDITOR nvim
+set -Ux EDITOR nvim
+set -Ux VISUAL nvim
+set -Ux TEXEDIT "nvim %s"
+set -Ux GIT_EDITOR nvim
 
 # Point vim to nvim in userspace
 alias vim="nvim"
 funcsave vim
+alias vimdiff="nvim -d"
+funcsave vimdiff
 
 # Configure node.js to use with language servers
 fisher install jorgebucaran/nvm.fish
