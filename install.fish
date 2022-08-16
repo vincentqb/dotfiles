@@ -25,7 +25,7 @@ function fish_user_key_bindings
 end
 funcsave fish_user_key_bindings
 
-# Set n/vim as default editor
+# Set nvim as default editor
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
 set -Ux TEXEDIT "nvim %s"
@@ -40,8 +40,8 @@ funcsave vimdiff
 # Configure node.js to use with language servers
 fisher install jorgebucaran/nvm.fish
 nvm install latest
-npm install -g neovim yarn
 npm install -g bash-language-server diagnostic-languageserver
+npm install -g neovim yarn
 yarn global add neovim
 
 # Install anaconda for fish
