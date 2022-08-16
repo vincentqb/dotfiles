@@ -32,10 +32,14 @@ set -Ux TEXEDIT "nvim %s"
 set -Ux GIT_EDITOR nvim
 
 # Point vim to nvim in userspace
-alias vim="nvim"
+alias vi = "nvim"
+alias vim = "nvim"
+alias vimdiff = "nvim -d"
+alias view = "nvim -R"
+funcsave vi
 funcsave vim
-alias vimdiff="nvim -d"
 funcsave vimdiff
+funcsave view
 
 # Configure node.js to use with language servers
 fisher install jorgebucaran/nvm.fish
