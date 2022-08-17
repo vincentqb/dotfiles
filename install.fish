@@ -32,10 +32,10 @@ set -Ux TEXEDIT "nvim %s"
 set -Ux GIT_EDITOR nvim
 
 # Point vim to nvim in userspace
-alias vi = "nvim"
-alias vim = "nvim"
-alias vimdiff = "nvim -d"
-alias view = "nvim -R"
+alias vi="nvim"
+alias vim="nvim"
+alias vimdiff="nvim -d"
+alias view="nvim -R"
 funcsave vi
 funcsave vim
 funcsave vimdiff
