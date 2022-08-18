@@ -7,10 +7,44 @@
 " Load default Vim8 configuration
 unlet! skip_defaults_vim
 source $VIMRUNTIME/defaults.vim
-runtime! common.vim
 
 " Enable syntax highlighting
 syntax enable
+
+" Activate spellchecker
+set spell spelllang=en_us
+
+" Automatic indentation
+set smartindent
+set breakindent
+set breakindentopt=shift:2,min:40,sbr
+set showbreak=>>
+
+" Fold using indentation
+au FileType python set foldmethod=indent
+au FileType python set foldnestmax=1
+au FileType python set foldminlines=10
+
+" Open/close folds with space
+au FileType python nnoremap <space> za
+
+" Search and highlight while typing while ignoring case when only lower case used
+set ignorecase
+set smartcase
+set incsearch
+set hlsearch
+
+" Use spaces for tabs
+set tabstop=4
+set softtabstop=4
+set shiftwidth=4
+set expandtab
+
+" Show matching brackets.
+set showmatch
+
+" Automatically save before commands like :next and :make
+set autowrite
 
 " Defaults settings from nvim
 set showcmd " Show (partial) command in status line.
