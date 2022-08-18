@@ -1,9 +1,6 @@
 " Activate spellchecker
 set spell spelllang=en_us
 
-" Enable syntax highlighting
-syntax enable
-
 " Automatic indentation
 set smartindent
 set breakindent

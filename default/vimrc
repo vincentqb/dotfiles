@@ -1,7 +1,16 @@
+" if &compatible
+"     " `:set nocp` has many side effects. Therefore this should be done
+"     " only when 'compatible' is set.
+"     set nocompatible
+" endif
+
 " Load default Vim8 configuration
 unlet! skip_defaults_vim
 source $VIMRUNTIME/defaults.vim
 runtime! common.vim
+
+" Enable syntax highlighting
+syntax enable
 
 " Defaults settings from nvim
 set showcmd " Show (partial) command in status line.

@@ -1,16 +1,3 @@
-if &compatible
-    " `:set nocp` has many side effects. Therefore this should be done
-    " only when 'compatible' is set.
-    set nocompatible
-endif
-
-" Enable true color
-if (has("termguicolors"))
-    if !$TERM_PROGRAM =~ "Apple_Terminal"
-        set termguicolors
-    endif
-endif
-
 " Specify Python 3 to use
 let g:python3_host_prog = '/usr/bin/python3'
 " Specify Python 2 to use
