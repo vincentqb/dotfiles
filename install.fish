@@ -41,7 +41,7 @@ funcsave vim
 funcsave vimdiff
 funcsave view
 
-# Configure node.js to use with language servers
+# Configure node.js to launch language servers
 fisher install jorgebucaran/nvm.fish
 nvm install latest
 npm install -g bash-language-server diagnostic-languageserver
