@@ -148,25 +148,25 @@ lspconfig.bashls.setup{on_attach = on_attach}
 lspconfig.texlab.setup{on_attach = on_attach}
 lspconfig.metals.setup{on_attach = on_attach}
 
-local shfmt = require('lsp.diagnosticls.formatters.shfmt')
-local shellcheck = require('lsp.diagnosticls.linters.shellcheck')
+-- local shfmt = require('lsp.diagnosticls.formatters.shfmt')
+-- local shellcheck = require('lsp.diagnosticls.linters.shellcheck')
 
-lspconfig.diagnosticls.setup {
-  on_attach = on_attach,
-  filetypes = { 'sh', 'yaml', 'lua' },
-  init_options = {
-    filetypes = {
-      sh = 'shellcheck',
-      yaml = 'yamllint',
-    },
-    formatFiletypes = {
-      sh = 'shfmt',
-    },
-    formatters = {
-      shfmt = shfmt,
-    },
-    linters = {
-      shellcheck = shellcheck,
-    },
-  },
-}
+-- lspconfig.diagnosticls.setup {
+--   on_attach = on_attach,
+--   filetypes = { 'sh', 'yaml', 'lua' },
+--   init_options = {
+--     filetypes = {
+--       sh = 'shellcheck',
+--       yaml = 'yamllint',
+--     },
+--     formatFiletypes = {
+--       sh = 'shfmt',
+--     },
+--     formatters = {
+--       shfmt = shfmt,
+--     },
+--     linters = {
+--       shellcheck = shellcheck,
+--     },
+--   },
+-- }
