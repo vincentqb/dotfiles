@@ -5,7 +5,7 @@ vim.opt.spelllang = { 'en_us' }
 -- Specify Python 3 to use
 vim.g.python3_host_prog = '/usr/bin/python3'
 -- Specify Python 2 to use
-vim.g.python_host_prog = '/usr/bin/python'
+-- vim.g.python_host_prog = '/usr/bin/python'
 
 -- Fold using indentation
 vim.cmd([[
@@ -83,7 +83,7 @@ vim.cmd [[
 
 -- Enable theme
 -- https://github.com/dracula/vim/issues/96
-vim.g.dracula_italic = 0
+-- vim.g.dracula_italic = 0
 vim.g.dracula_colorterm = 0
 vim.cmd([[colorscheme dracula]])
 
@@ -91,7 +91,7 @@ vim.cmd([[colorscheme dracula]])
 vim.api.nvim_set_keymap("n", "<F5>", ":UndotreeToggle<CR>", { noremap = true })
 
 -- Set default directory for vimwiki files
-vim.g.vimwiki_list = {{path = '~/Docs/Mywiki', syntax = 'markdown', ext = '.md'}}
+vim.g.vimwiki_list = {{path = '~/wiki', syntax = 'markdown', ext = '.md'}}
 
 -- Set vimwiki colors for each heading level: default is all same color
 vim.highlight.create('ColorColumn', {ctermfg='Green'}, false)
