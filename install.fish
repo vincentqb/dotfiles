@@ -47,7 +47,7 @@ funcsave view
 
 # Configure node.js to launch language servers
 fisher install jorgebucaran/nvm.fish
-nvm install latest
+nvm install lts
 npm install -g bash-language-server
 # npm install -g diagnostic-languageserver
 npm install -g neovim yarn
