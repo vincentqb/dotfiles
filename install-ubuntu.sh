@@ -7,9 +7,9 @@ git submodule update --init --recursive
 /usr/bin/pip3 install --user -r requirements.txt
 
 # Install latest neovim
-wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
-tar xzvf nvim-macos.tar.gz
-mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
+wget https://github.com/neovim/neovim/releases/download/stable/nvim-linux64.tar.gz
+tar xzvf nvim-linux64.tar.gz
+mv ./nvim-linux64/bin/nvim ~/.local/bin/nvim
 
 # https://launchpad.net/~fish-shell/+archive/ubuntu/release-3
 sudo apt-add-repository ppa:fish-shell/release-3
