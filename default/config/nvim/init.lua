@@ -47,8 +47,8 @@ function PackInit()
     vim.call('minpac#init')
     local add = vim.fn['minpac#add']
 
-    add('k-takata/minpac', {type = 'opt'})
-    add('dracula/vim', {name = 'dracula' })
+    add('k-takata/minpac', {type='opt'})
+    add('dracula/vim', {name='dracula' })
 
     add('thinca/vim-visualstar')
     add('ervandew/supertab')
@@ -88,10 +88,10 @@ vim.g.dracula_colorterm = 0
 vim.cmd([[colorscheme dracula]])
 
 -- Show undo tree with F5
-vim.api.nvim_set_keymap("n", "<F5>", ":UndotreeToggle<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<F5>", ":UndotreeToggle<CR>", { noremap=true })
 
 -- Set default directory for vimwiki files
-vim.g.vimwiki_list = {{path = '~/wiki', syntax = 'markdown', ext = '.md'}}
+vim.g.vimwiki_list = {{path='~/wiki', syntax='markdown', ext='.md'}}
 
 -- Set vimwiki colors for each heading level: default is all same color
 vim.highlight.create('ColorColumn', {ctermfg='Green'}, false)
@@ -125,16 +125,16 @@ local lspconfig = require('lspconfig')
 
 -- https://github.com/python-lsp/python-lsp-server/blob/develop/CONFIGURATION.md
 lspconfig.pylsp.setup{
-    on_attach = on_attach,
-    settings = {
-        pylsp = {
-            plugins = {
-                -- pydocstyle = {
-                --     enabled = true,
+    on_attach=on_attach,
+    settings={
+        pylsp={
+            plugins={
+                -- pydocstyle={
+                --     enabled=true,
                 -- },
-                flake8 = {
-                    enabled = true,
-                    maxLineLength = 120,
+                flake8={
+                    enabled=true,
+                    maxLineLength=120,
                 }
             }
         }
@@ -144,29 +144,29 @@ lspconfig.pylsp.setup{
 -- https://github.com/neovim/nvim-lspconfig
 -- require('lspconfig').pyright.setup{}
 
-lspconfig.bashls.setup{on_attach = on_attach}
-lspconfig.texlab.setup{on_attach = on_attach}
-lspconfig.metals.setup{on_attach = on_attach}
+lspconfig.bashls.setup{on_attach=on_attach}
+lspconfig.texlab.setup{on_attach=on_attach}
+lspconfig.metals.setup{on_attach=on_attach}
 
 -- local shfmt = require('lsp.diagnosticls.formatters.shfmt')
 -- local shellcheck = require('lsp.diagnosticls.linters.shellcheck')
 
 -- lspconfig.diagnosticls.setup {
---   on_attach = on_attach,
---   filetypes = { 'sh', 'yaml', 'lua' },
---   init_options = {
---     filetypes = {
---       sh = 'shellcheck',
---       yaml = 'yamllint',
+--   on_attach=on_attach,
+--   filetypes={ 'sh', 'yaml', 'lua' },
+--   init_options={
+--     filetypes={
+--       sh='shellcheck',
+--       yaml='yamllint',
 --     },
---     formatFiletypes = {
---       sh = 'shfmt',
+--     formatFiletypes={
+--       sh='shfmt',
 --     },
---     formatters = {
---       shfmt = shfmt,
+--     formatters={
+--       shfmt=shfmt,
 --     },
---     linters = {
---       shellcheck = shellcheck,
+--     linters={
+--       shellcheck=shellcheck,
 --     },
 --   },
 -- }

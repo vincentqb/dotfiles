@@ -60,7 +60,7 @@ function uploadfair {
 bindkey -v
 
 # User-install bin
-PATH="$HOME/bin":"$HOME/.local/bin":$PATH
+PATH="/usr/local/bin/":"$HOME/bin":"$HOME/.local/bin":$PATH
 
 if p=`command -v nvim`
 then
