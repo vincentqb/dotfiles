@@ -11,6 +11,10 @@ wget https://github.com/neovim/neovim/releases/download/stable/nvim-linux64.tar.
 tar xzvf nvim-linux64.tar.gz
 mv ./nvim-linux64/bin/nvim ~/.local/bin/nvim
 
+# Update vim plugins
+~/.local/bin/nvim +PackClean +qa
+~/.local/bin/nvim +PackUpdate +qa
+
 # https://launchpad.net/~fish-shell/+archive/ubuntu/release-3
 sudo apt-add-repository ppa:fish-shell/release-3
 sudo apt update

@@ -11,6 +11,10 @@ wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
 tar xzvf nvim-macos.tar.gz
 mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
 
+# Update vim plugins
+~/.local/bin/nvim +PackClean +qa
+~/.local/bin/nvim +PackUpdate +qa
+
 brew install fish
 brew install tmux
 brew install shellcheck
