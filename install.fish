@@ -4,7 +4,7 @@
 fish_add_path $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin $HOME/.toolbox/bin
 
 # Install plugin manager
-curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher
+curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
 
 # Configure prompt
 # fish_config prompt choose terlar
