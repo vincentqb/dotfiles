@@ -25,10 +25,6 @@ function fish_user_key_bindings
 end
 funcsave fish_user_key_bindings
 
-# Get Neovim
-# wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
-# chmod u+x ~/.local/bin/nvim
-
 # Set nvim as default editor
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
@@ -53,10 +49,6 @@ npm install -g bash-language-server
 npm install -g neovim yarn
 yarn global add neovim
 
-# Install anaconda for fish
-# wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-# bash ~/miniconda.sh -b -p ~/miniconda
-# eval (~/miniconda/bin/conda shell.bash hook)
-# source ~/miniconda/bin/activate
+# Set up anaconda in fish
 conda init fish
 conda config --set changeps1 False
