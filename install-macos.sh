@@ -7,14 +7,11 @@ git submodule update --init --recursive
 /usr/bin/pip3 install --user -r requirements.txt
 
 # Install latest neovim
-wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
-tar xzvf nvim-macos.tar.gz
-mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
+# wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
+# tar xzvf nvim-macos.tar.gz
+# mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
 
-# Update vim plugins
-~/.local/bin/nvim +PackClean +qa
-~/.local/bin/nvim +PackUpdate +qa
-
+brew install nvim
 brew install fish
 brew install tmux
 brew install shellcheck
@@ -22,6 +19,10 @@ brew install reattach-to-user-namespace
 brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd
+
+# Update vim plugins
+nvim +PackClean +qa
+nvim +PackUpdate +qa
 
 # Spell checker for pylint
 # brew install enchant
