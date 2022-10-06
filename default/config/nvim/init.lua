@@ -94,13 +94,13 @@ vim.api.nvim_set_keymap("n", "<F5>", ":UndotreeToggle<CR>", { noremap=true })
 vim.g.vimwiki_list = {{path='~/wiki', syntax='markdown', ext='.md'}}
 
 -- Set vimwiki colors for each heading level: default is all same color
-vim.highlight.create('ColorColumn', {ctermfg='Green'}, false)
-vim.highlight.create('VimwikiHeader1', {ctermfg='Green'}, false)
-vim.highlight.create('VimwikiHeader2', {ctermfg='Cyan'}, false)
-vim.highlight.create('VimwikiHeader3', {ctermfg='Blue'}, false)
-vim.highlight.create('VimwikiHeader4', {ctermfg='Yellow'}, false)
-vim.highlight.create('VimwikiHeader5', {ctermfg='Red'}, false)
-vim.highlight.create('VimwikiHeader6', {ctermfg='Brown'}, false)
+vim.api.nvim_set_hl(0, 'ColorColumn', {ctermfg='Green'})
+vim.api.nvim_set_hl(0, 'VimwikiHeader1', {ctermfg='Green'})
+vim.api.nvim_set_hl(0, 'VimwikiHeader2', {ctermfg='Cyan'})
+vim.api.nvim_set_hl(0, 'VimwikiHeader3', {ctermfg='Blue'})
+vim.api.nvim_set_hl(0, 'VimwikiHeader4', {ctermfg='Yellow'})
+vim.api.nvim_set_hl(0, 'VimwikiHeader5', {ctermfg='Red'})
+vim.api.nvim_set_hl(0, 'VimwikiHeader6', {ctermfg='Brown'})
 
 -- Set vimtex
 vim.g.tex_flavor = 'latex'
