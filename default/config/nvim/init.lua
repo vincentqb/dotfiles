@@ -25,8 +25,6 @@ vim.opt.undofile = true
 -- Search and highlight while typing while ignoring case when only lower case used
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
-vim.opt.incsearch = true
-vim.opt.hlsearch = true
 
 -- Use spaces for tabs
 vim.opt.tabstop = 4
