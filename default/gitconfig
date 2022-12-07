@@ -8,6 +8,10 @@
     process = git-lfs filter-process
 [credential]
     helper = cache --timeout=31536000
+# [core]
+#     editor = nvim
+# [merge]
+#     tool = nvim -d
 [merge]
     tool = vimdiff
 # [mergetool "vimdiff"]
@@ -23,3 +27,9 @@
     branch = false
 [url "https://github.com/"]
     insteadOf = git://github.com/
+[color]
+	ui = auto
+[core]
+	pager = less -FMRiX
+[alias]
+	dag = log --graph --format='format:%C(yellow)%h%C(reset) %C(blue)%an <%ae>%C(reset) %C(magenta)%cr%C(reset)%C(auto)%d%C(reset)%n%s' --date-order
