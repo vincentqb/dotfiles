@@ -13,17 +13,21 @@ fisher install acomagu/fish-async-prompt
 fisher install pure-fish/pure
 set -U async_prompt_functions _pure_prompt_git
 
+# Return to default keybindings
+fish_default_key_bindings
+rm -f ~/.config/fish/functions/fish_user_key_bindings.fish
+
 # Set vim keybindings
-fish_vi_key_bindings
+# fish_vi_key_bindings
 
 # Enable CTRL+F to accept autocomplete
 # https://github.com/fish-shell/fish-shell/issues/3541
-function fish_user_key_bindings
-    for mode in insert default visual
-        bind -M $mode \cf forward-char
-    end
-end
-funcsave fish_user_key_bindings
+# function fish_user_key_bindings
+#     for mode in insert default visual
+#         bind -M $mode \cf forward-char
+#     end
+# end
+# funcsave fish_user_key_bindings
 
 # Set nvim as default editor
 set -Ux EDITOR nvim
