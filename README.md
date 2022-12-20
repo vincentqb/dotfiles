@@ -11,5 +11,3 @@ PASSWD=github_application_password \
 
 /usr/bin/python3 -m pip install --user -r ~/dotfiles/requirements.txt
 ```
-
-To switch CAPS-LOCK and CTRL in Ubuntu, install `gnome-tweaks`.
