@@ -9,8 +9,10 @@ git submodule update --init --recursive
 # Install latest neovim
 wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage
 mv ./nvim.appimage ~/.local/bin/nvim
+chmod +x ~/.local/bin/nvim
 
 # Update vim plugins
+mkdir -p ~/.local/bin
 ~/.local/bin/nvim +PackClean +qa
 ~/.local/bin/nvim +PackUpdate +qa
 
