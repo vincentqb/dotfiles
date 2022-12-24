@@ -30,6 +30,9 @@ set smartcase
 " Show matching brackets.
 set showmatch
 
+" Add vertical line to highlight column were row is too long
+set colorcolumn=120
+
 " Automatically save before commands like :next and :make
 set autowrite
 
