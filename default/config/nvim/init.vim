@@ -125,7 +125,7 @@ lspconfig.pylsp.setup{
                 flake8={
                     enabled=true,
                     maxLineLength=120,
-                    ignore={'E203'}
+                    ignore={'E203','W503'}
                 }
             }
         }
