@@ -125,7 +125,9 @@ lspconfig.pylsp.setup{
                 flake8={
                     enabled=true,
                     maxLineLength=120,
-                    extend_ignore={'E203'}
+                    -- see documentation for defaults
+                    ignore={'E24', 'W503', 'E226', 'E126', 'E704', 'E121', 'E123', 'W504', 'E203'}
+                    -- TODO find a way to use extend-ignore instead
                 }
             }
         }
