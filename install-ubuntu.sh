@@ -42,3 +42,4 @@ eval "$(~/miniconda/bin/conda shell.bash hook)"
 source ~/miniconda/bin/activate
 conda init zsh
 conda init fish
+conda config --set auto_activate_base true
