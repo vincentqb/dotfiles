@@ -32,4 +32,44 @@
 [core]
 	pager = less -FMRiX
 [alias]
-	dog = log --graph --abbrev-commit --decorate --date-order --format=format:'%C(blue)%h%C(reset) - %C(green)(%cr)%C(reset) %s%C(reset) %C(dim)- %an%C(reset)%C(auto)%d%C(reset)'
+	dog = log --graph --abbrev-commit --decorate --date-order --format=format:'%C(blue)%h%C(reset) - %C(cyan)(%cr)%C(reset) %s%C(reset) %C(dim)- %an%C(auto)%d%C(reset)'
+
+# Dracula Dark Theme
+# https://github.com/dracula/git/blob/master/config/gitconfig
+[color "branch"]
+  current = cyan bold reverse
+  local = white
+  plain =
+  remote = cyan
+[color "diff"]
+  commit =
+  func = cyan
+  plain =
+  whitespace = magenta reverse
+  meta = white
+  frag = cyan bold reverse
+  old = red
+  new = green
+[color "grep"]
+  context =
+  filename =
+  function =
+  linenumber = white
+  match =
+  selected =
+  separator =
+[color "interactive"]
+  error =
+  header =
+  help =
+  prompt =
+[color "status"]
+  added = green
+  changed = yellow
+  header =
+  localBranch =
+  nobranch =
+  remoteBranch = cyan bold
+  unmerged = magenta bold reverse
+  untracked = red
+  updated = green bold
