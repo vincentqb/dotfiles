@@ -32,7 +32,7 @@
 [core]
 	pager = less -FMRiX
 [alias]
-	dog = log --graph --abbrev-commit --decorate --date-order --format='%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset) %s%C(reset)%C(dim) %an%C(reset)%C(auto)%d'
+	dog = log -40 --graph --abbrev-commit --decorate --date-order --format='%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset) %s%C(reset)%C(dim) %an%C(reset)%C(auto)%d'
 
 # Dracula Dark Theme
 # https://github.com/dracula/git/blob/master/config/gitconfig
