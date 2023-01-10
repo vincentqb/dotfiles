@@ -43,3 +43,4 @@ source ~/miniconda/bin/activate
 conda init zsh
 conda init fish
 conda config --set auto_activate_base true
+conda update -n base -c conda-forge conda
