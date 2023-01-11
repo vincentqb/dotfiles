@@ -46,6 +46,15 @@ funcsave vim
 funcsave vimdiff
 funcsave view
 
+# Combine autossh with tmux to get a persistent ssh connection
+# https://jeffmcneill.com/autossh/
+# https://pempek.net/articles/2013/04/24/vpn-less-persistent-ssh-sessions/
+# https://derpops.bike/computers/2014/09/05/persistent-ssh-connections-with-context.html
+# https://coderwall.com/p/aohfrg/smux-ssh-with-auto-reconnect-tmux-a-mosh-replacement
+# alias ssa="AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M $(awk 'BEGIN { srand(); do r = rand()*32000; while ( r < 20000 ); printf("%d\n",r)  }' < /dev/null)"
+alias ssa='AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M $(/usr/bin/python3 -c "import random; print(random.randrange(20_000, 30_000));")'
+funcsave ssa
+
 # Configure node.js to launch language servers
 fisher install jorgebucaran/nvm.fish
 nvm install lts
