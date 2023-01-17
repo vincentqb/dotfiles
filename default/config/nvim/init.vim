@@ -78,6 +78,11 @@ command! PackStatus packadd minpac | call minpac#status()
 let g:dracula_colorterm = 0
 colorscheme dracula
 
+" Add horizontal line
+" set cursorline
+" highlight CursorLine ctermbg=lightgrey guibg=lightgrey
+" highlight CursorLine ctermbg=black guibg=black
+
 " Show undo tree with F5
 nnoremap <F5> :UndotreeToggle<CR>
 
