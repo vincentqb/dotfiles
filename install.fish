@@ -55,6 +55,10 @@ funcsave view
 alias ssa='AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M $(/usr/bin/python3 -c "import random; print(random.randrange(20_000, 30_000));")'
 funcsave ssa
 
+# cp with progress bar
+alias pcp="rsync -av --info=progress2"
+funcsave pcp
+
 # Configure node.js to launch language servers
 fisher install jorgebucaran/nvm.fish
 nvm install lts
