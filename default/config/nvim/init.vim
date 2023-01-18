@@ -85,7 +85,7 @@ colorscheme dracula
 
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
-map <space>e :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Show undo tree with F5
 nnoremap <F5> :UndotreeToggle<CR>
