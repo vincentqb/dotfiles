@@ -135,7 +135,7 @@ lspconfig.pylsp.setup{
                     enabled=true,
                     maxLineLength=120,
                     -- see documentation for defaults
-                    ignore={'E24', 'W503', 'E226', 'E126', 'E704', 'E121', 'E123', 'W504', 'E203'}
+                    ignore={'E24', 'W503', 'E226', 'E126', 'E704', 'E121', 'E123', 'W504', 'E203', 'E501'}
                     -- TODO find a way to use extend-ignore instead
                 }
             }
