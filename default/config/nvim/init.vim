@@ -38,6 +38,22 @@ set autowrite
 
 " Activate spellchecker
 set spell spelllang=en_us
+" Spell-check Markdown files and Git Commit Messages
+" autocmd FileType markdown setlocal spell
+" autocmd FileType gitcommit setlocal spell
+" Disable spellcheck in python by default
+autocmd FileType python setlocal nospell
+
+" Toggle spellchecking with \s
+function! ToggleSpellCheck()
+  set spell!
+  if &spell
+    echo "Spellcheck ON"
+  else
+    echo "Spellcheck OFF"
+  endif
+endfunction
+nnoremap <silent> <Leader>s :call ToggleSpellCheck()<CR>
 
 function! PackInit() abort
     packadd minpac
@@ -85,7 +101,7 @@ colorscheme dracula
 
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
-map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Show undo tree with F5
 nnoremap <F5> :UndotreeToggle<CR>
