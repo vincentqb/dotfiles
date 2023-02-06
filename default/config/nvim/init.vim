@@ -37,7 +37,7 @@ set colorcolumn=120
 set autowrite
 
 " Activate spellchecker
-set spell spelllang=en_us
+set spell spelllang=en_us,programming
 " Spell-check Markdown files and Git Commit Messages
 " autocmd FileType markdown setlocal spell
 " autocmd FileType gitcommit setlocal spell
@@ -81,6 +81,7 @@ function! PackInit() abort
     call minpac#add('lervag/vimtex')
 
     call minpac#add('vimwiki/vimwiki')
+    call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
 
 endfunction
 
@@ -101,7 +102,7 @@ colorscheme dracula
 
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
-map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Show undo tree with F5
 nnoremap <F5> :UndotreeToggle<CR>
