@@ -81,7 +81,8 @@ function! PackInit() abort
     " call minpac#add('lervag/vimtex')
 
     call minpac#add('vimwiki/vimwiki')
-    call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
+    " Run manually :DirtytalkUpdate if error when opening nvim
+    call minpac#add('psliwka/vim-dirtytalk', {'do': ':DirtytalkUpdate'})
 
 endfunction
 
