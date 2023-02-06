@@ -78,7 +78,7 @@ function! PackInit() abort
 
     call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
-    call minpac#add('lervag/vimtex')
+    " call minpac#add('lervag/vimtex')
 
     call minpac#add('vimwiki/vimwiki')
     call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
