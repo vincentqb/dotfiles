@@ -36,15 +36,11 @@ set -Ux TEXEDIT "nvim %s"
 set -Ux GIT_EDITOR nvim
 
 # Point vim to nvim in userspace
-alias v="nvim"
-alias vi="nvim"
-alias vim="nvim"
-alias vimdiff="nvim -d"
-alias view="nvim -R"
-funcsave v
-funcsave vim
-funcsave vimdiff
-funcsave view
+abbr v "nvim"
+abbr vi "nvim"
+abbr vim "nvim"
+abbr vimdiff "nvim -d"
+abbr view "nvim -R"
 
 # Combine autossh with tmux to get a persistent ssh connection
 # https://jeffmcneill.com/autossh/
