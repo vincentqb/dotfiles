@@ -19,6 +19,7 @@ brew install reattach-to-user-namespace
 brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd
+brew install node
 
 # Update vim plugins
 nvim +PackClean +qa

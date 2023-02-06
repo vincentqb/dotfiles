@@ -20,7 +20,7 @@ sudo apt-add-repository ppa:fish-shell/release-3
 sudo apt update
 sudo apt install fish
 
-sudo apt install tmux shellcheck texlive
+sudo apt install tmux shellcheck texlive node
 
 ~/.tmux/plugins/tpm/bin/update_plugins all	# prefix + U
 ~/.tmux/plugins/tpm/bin/clean_plugins	    # prefix + alt + u
