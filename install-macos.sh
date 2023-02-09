@@ -11,7 +11,7 @@ git submodule update --init --recursive
 # tar xzvf nvim-macos.tar.gz
 # mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
 
-brew install ripgrep exa bat
+brew install ripgrep exa bat fd
 brew install nvim fish tmux
 brew install shellcheck
 brew install reattach-to-user-namespace

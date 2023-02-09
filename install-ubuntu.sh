@@ -22,6 +22,11 @@ sudo apt install fish
 
 sudo apt install tmux shellcheck texlive node
 
+sudo apt install fdfind bat ripgrep
+# sudo apt install exa
+sudo snap install rustup --classic
+cargo install exa
+
 ~/.tmux/plugins/tpm/bin/update_plugins all	# prefix + U
 ~/.tmux/plugins/tpm/bin/clean_plugins	    # prefix + alt + u
 ~/.tmux/plugins/tpm/bin/install_plugins	    # prefix + I
