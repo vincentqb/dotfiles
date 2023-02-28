@@ -31,6 +31,10 @@ cargo install exa
 ~/.tmux/plugins/tpm/bin/clean_plugins	    # prefix + alt + u
 ~/.tmux/plugins/tpm/bin/install_plugins	    # prefix + I
 
+# Install zellij to use instead of tmux
+mkdir -p ~/.local/bin
+wget -qO- https://github.com/zellij-org/zellij/releases/download/v0.34.4/zellij-x86_64-unknown-linux-musl.tar.gz | tar xvpz -C ~/.local/bin
+
 # bashls
 # sudo snap install bash-language-server
 

@@ -36,6 +36,10 @@ nvim +PackUpdate +qa
 # Only use UTF-8 in Terminal.app
 # defaults write com.apple.terminal StringEncodings -array 4
 
+# Install zellij to use instead of tmux
+mkdir -p ~/.local/bin
+wget -qO- https://github.com/zellij-org/zellij/releases/download/v0.34.4/zellij-aarch64-apple-darwin.tar.gz | tar xvpz -C ~/.local/bin
+
 # Use a modified version of the Pro theme by default in Terminal.app
 open "$HOME/dotfiles/terminal-app/Dracula.terminal"
 sleep 1  # Wait a bit to make sure the theme is loaded
