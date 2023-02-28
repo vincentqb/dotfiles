@@ -16,5 +16,5 @@ Try zellij in place of tmux:
 ```
 # wget -qO- https://github.com/zellij-org/zellij/releases/download/latest/zellij-x86_64-unknown-linux-musl.tar.gz | tar xvpz
 wget -qO- https://github.com/zellij-org/zellij/releases/download/latest/zellij-aarch64-apple-darwin.tar.gz | tar xvpz
-./zellij --layout compact options --simplified-ui true
+./zellij --layout compact options --simplified-ui true --default-shell "fish"
 ```
