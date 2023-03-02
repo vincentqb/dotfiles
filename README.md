@@ -14,5 +14,5 @@ PASSWD=github_application_password \
 
 Try zellij instead of tmux:
 ```
-zellij --layout compact options --simplified-ui true --default-shell "fish"
+zellij --layout compact options --simplified-ui true --default-shell "fish" --default-mode "locked"
 ```
