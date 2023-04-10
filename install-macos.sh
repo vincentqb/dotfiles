@@ -11,6 +11,9 @@ git submodule update --init --recursive
 # tar xzvf nvim-macos.tar.gz
 # mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
 
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+export PATH=$PATH:/opt/homebrew/bin
+
 brew install ripgrep exa bat fd
 brew install nvim fish tmux
 brew install shellcheck
@@ -19,6 +22,8 @@ brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd
 brew install node
+brew install yarn
+brew install wget
 
 # Update vim plugins
 nvim +PackClean +qa
@@ -47,12 +52,9 @@ defaults write com.apple.terminal "Default Window Settings" -string "Dracula"
 defaults write com.apple.terminal "Startup Window Settings" -string "Dracula"
 
 # Install anaconda
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-bash ~/miniconda.sh -b -p ~/miniconda
-eval "$(~/miniconda/bin/conda shell.bash hook)"
-source ~/miniconda/bin/activate
-conda init zsh
-conda init fish
+brew install anaconda
+export PATH=$PATH:/opt/homebrew/anaconda3/bin
+conda init zsh fish
 
 brew update
 brew upgrade
