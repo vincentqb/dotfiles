@@ -16,3 +16,9 @@ Try zellij instead of tmux:
 ```
 zellij --layout compact options --simplified-ui true --default-shell "fish" --default-mode "locked"
 ```
+
+In neovim, don't forget to
+```
+:PackUpdate
+:DirtytalkUpdate
+```
