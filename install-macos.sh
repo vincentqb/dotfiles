@@ -21,9 +21,14 @@ brew install reattach-to-user-namespace
 brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd
-brew install node
 brew install yarn
 brew install wget
+
+brew install node
+npm install -g bash-language-server
+npm install -g diagnostic-languageserver
+npm install -g neovim yarn
+yarn global add neovim
 
 # Update vim plugins
 nvim +PackClean +qa

@@ -51,12 +51,6 @@ alias pcp="rsync -a --info=progress2"
 funcsave pcp
 
 # Configure node.js to launch language servers
-fisher install jorgebucaran/nvm.fish
-nvm install lts
-npm install -g bash-language-server
-# npm install -g diagnostic-languageserver
-npm install -g neovim yarn
-yarn global add neovim
 
 # Set up anaconda in fish
 conda init fish
