@@ -25,14 +25,16 @@
     default = simple
 [pager]
     branch = false
+    log = true
 [url "https://github.com/"]
     insteadOf = git://github.com/
 [color]
 	ui = true
 [core]
-	pager = less -FMRiX
+	pager = "(printf '\n\n'; cat) | less -FMRiX"
+
 [alias]
-	dog = log -30 --graph --abbrev-commit --decorate --date-order --format='%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset) %s%C(reset)%C(dim) %ae%C(reset)%C(auto)%d'
+	dog = log -30 --graph --abbrev-commit --decorate --date-order --color=always --format='%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset) %s%C(reset)%C(dim) %ae%C(reset)%C(auto)%d'
 
 # Dracula Dark Theme
 # https://github.com/dracula/git/blob/master/config/gitconfig
