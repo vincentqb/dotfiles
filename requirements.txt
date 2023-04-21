@@ -9,8 +9,8 @@ pynvim
 python-lsp-server[all]
 pyls
 pyls-flake8
-pylsp-mypy
 pyls-isort
-python-lsp-black
+pylsp-mypy
 pylsp-rope
+python-lsp-black
 virtualenv
