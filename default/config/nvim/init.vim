@@ -6,7 +6,7 @@ let g:python3_host_prog = '/usr/bin/python3'
 " Fold using indentation
 au FileType python set foldmethod=indent foldnestmax=1 foldminlines=10
 " Open/close folds with space
-au FileType python nnoremap <space> za
+au FileType python nnoremap <space>o za
 
 " Automatic indentation
 set smartindent
@@ -103,11 +103,6 @@ colorscheme dracula
 " highlight CursorLine ctermbg=lightgrey guibg=lightgrey
 " highlight CursorLine ctermbg=black guibg=black
 
-" Make LSP messages appear above the current line
-" https://github.com/neovim/nvim-lspconfig/issues/1046
-" map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-
 " Show undo tree with F5
 nnoremap <F5> :UndotreeToggle<CR>
 
@@ -126,6 +121,11 @@ let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands = 0
+
+" Make LSP messages appear above the current line
+" https://github.com/neovim/nvim-lspconfig/issues/1046
+" map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+" map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Language Server Protocol
 lua << EOF
@@ -150,21 +150,8 @@ local on_attach = function(client, bufnr)
     -- Mappings.
     -- See `:help vim.lsp.*` for documentation on any of the below functions
     local bufopts = { noremap=true, silent=true, buffer=bufnr }
-    vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, bufopts)
-    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, bufopts)
-    vim.keymap.set('n', 'K', vim.lsp.buf.hover, bufopts)
-    vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, bufopts)
-    vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, bufopts)
-    vim.keymap.set('n', '<space>wa', vim.lsp.buf.add_workspace_folder, bufopts)
-    vim.keymap.set('n', '<space>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
-    vim.keymap.set('n', '<space>wl', function()
-        print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-    end, bufopts)
-    vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, bufopts)
-    vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, bufopts)
-    vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
-    vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', '<space>f', function() vim.lsp.buf.format { async = true } end, bufopts)
+    -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
+    vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
 end
 
 -- Configure `ruff-lsp`.
