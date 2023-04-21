@@ -175,7 +175,6 @@ lspconfig.ruff_lsp.setup {
         settings = {
             -- Any extra CLI arguments for `ruff` go here.
             args = {
-                line_length = 120
             },
         }
     }
