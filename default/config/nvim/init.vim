@@ -76,11 +76,12 @@ function! PackInit() abort
     " call minpac#add('airblade/vim-gitgutter')
     call minpac#add('lewis6991/gitsigns.nvim')
 
-    call minpac#add('psf/black')
+    " call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
     " call minpac#add('lervag/vimtex')
 
     call minpac#add('vimwiki/vimwiki')
+    " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
     " call minpac#add('psliwka/vim-dirtytalk', {'do': ':let &rtp = &rtp \| DirtytalkUpdate' })
     call minpac#add('psliwka/vim-dirtytalk', {'do': ':DirtytalkUpdate'})
