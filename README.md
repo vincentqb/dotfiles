@@ -9,7 +9,7 @@ git pull --recurse-submodules
 PASSWD=github_application_password \
     ~/dotfiles/bashdot/bashdot install default netrc
 
-/usr/bin/python3 -m pip install --user -r ~/dotfiles/requirements.txt
+/usr/bin/python3 -m pip install --user --upgrade -r ~/dotfiles/requirements.txt
 ```
 
 Try zellij instead of tmux:
