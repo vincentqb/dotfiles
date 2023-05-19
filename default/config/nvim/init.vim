@@ -6,7 +6,7 @@ let g:python3_host_prog = '/usr/bin/python3'
 " Fold using indentation
 au FileType python set foldmethod=indent foldnestmax=1 foldminlines=10
 " Open/close folds with space
-au FileType python nnoremap <space>o za
+au FileType python nnoremap <space> za
 
 " Automatic indentation
 set smartindent
@@ -76,7 +76,7 @@ function! PackInit() abort
     " call minpac#add('airblade/vim-gitgutter')
     call minpac#add('lewis6991/gitsigns.nvim')
 
-    " call minpac#add('psf/black')
+    call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
     " call minpac#add('lervag/vimtex')
 
@@ -136,10 +136,10 @@ local lspconfig = require('lspconfig')
 
 -- See: https://github.com/neovim/nvim-lspconfig/tree/54eb2a070a4f389b1be0f98070f81d23e2b1a715#suggested-configuration
 local opts = { noremap=true, silent=true }
-vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
+-- vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
-vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
+-- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
 
 -- Use an on_attach function to only map the following keys
 -- after the language server attaches to the current buffer
