@@ -37,7 +37,7 @@
     dog = log -30 --graph --abbrev-commit --decorate --date-order --color=always
 [format]
     # https://draculatheme.com/contribute
-    pretty="%C(reset)%C(#ff79c6)%h%C(reset) %C(#8be9fd)(%cr)%C(reset)%C(#f8f8f2) %s%C(reset)%C(#44475a) %ae%C(reset)%C(auto)%d%C(reset)"
+    pretty="%C(reset)%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset)%C(white) %s%C(reset)%C(#44475a) %ae%C(reset)%C(auto)%d%C(reset)"
 
 # Dracula Dark Theme
 # https://github.com/dracula/git/blob/master/config/gitconfig
