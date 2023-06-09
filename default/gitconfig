@@ -80,3 +80,5 @@
   updated = green bold
 [status]
 	short = true
+[pull]
+	rebase = true

@@ -74,3 +74,6 @@
 [submodule "default/zgen"]
 	path = default/zgen
 	url = https://github.com/tarjoilija/zgen.git
+[submodule "default/config/kitty/whiskers"]
+	path = default/config/kitty/whiskers
+	url = https://github.com/igrmk/whiskers.git
