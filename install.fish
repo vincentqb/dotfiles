@@ -35,6 +35,27 @@ set -Ux VISUAL nvim
 set -Ux TEXEDIT "nvim %s"
 set -Ux GIT_EDITOR nvim
 
+# exa - Color Scheme Definitions
+# https://github.com/dracula/exa/blob/main/exa_colors.zshrc
+set -Ux EXA_COLORS "\
+uu=36:\
+gu=37:\
+sn=32:\
+sb=32:\
+da=34:\
+ur=34:\
+uw=35:\
+ux=36:\
+ue=36:\
+gr=34:\
+gw=35:\
+gx=36:\
+tr=34:\
+tw=35:\
+tx=36:"
+# https://github.com/DarrinTisdale/zsh-aliases-exa/blob/master/zsh-aliases-exa.plugin.zsh
+alias xl='exa -lbGF --git --sort=modified'
+
 # Combine autossh with tmux to get a persistent ssh connection
 # https://jeffmcneill.com/autossh/
 # https://pempek.net/articles/2013/04/24/vpn-less-persistent-ssh-sessions/

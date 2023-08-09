@@ -9,4 +9,5 @@ if status is-interactive
     abbr vimdiff "nvim -d"
     abbr view "nvim -RO"
     abbr s "kitty +kitten ssh"
+    abbr icat "kitty +kitten icat"
 end
