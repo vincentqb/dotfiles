@@ -80,7 +80,6 @@ function! PackInit() abort
     call minpac#add('neovim/nvim-lspconfig')
     " call minpac#add('lervag/vimtex')
 
-    call minpac#add('vimwiki/vimwiki')
     " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
     " call minpac#add('psliwka/vim-dirtytalk', {'do': ':let &rtp = &rtp \| DirtytalkUpdate' })
@@ -105,16 +104,6 @@ colorscheme dracula
 
 " Show undo tree with F5
 nnoremap <F5> :UndotreeToggle<CR>
-
-" Set default directory for vimwiki files
-let g:vimwiki_list = [{'path': "~/wiki"}]
-" Set vimwiki colors for each heading level: default is all same color
-hi VimwikiHeader1 ctermfg=Green
-hi VimwikiHeader2 ctermfg=Cyan
-hi VimwikiHeader3 ctermfg=Blue
-hi VimwikiHeader4 ctermfg=Yellow
-hi VimwikiHeader5 ctermfg=Red
-hi VimwikiHeader6 ctermfg=Brown
 
 " Set vimtex
 let g:tex_flavor = 'latex'
