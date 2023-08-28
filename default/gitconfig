@@ -8,7 +8,12 @@
     process = git-lfs filter-process
 [credential]
     helper = cache --timeout=31536000
-# [core]
+[difftool]
+    prompt = false
+[diff]
+    tool = nvim
+[difftool "nvim"]
+    cmd = "nvim -Rd \"$LOCAL\" \"$REMOTE\""
 #     editor = nvim
 # [merge]
 #     tool = nvim -d
