@@ -35,9 +35,9 @@ set -Ux VISUAL nvim
 set -Ux TEXEDIT "nvim %s"
 set -Ux GIT_EDITOR nvim
 
-# exa - Color Scheme Definitions
+# eza - Color Scheme Definitions
 # https://github.com/dracula/exa/blob/main/exa_colors.zshrc
-set -Ux EXA_COLORS "\
+set -Ux EZA_COLORS "\
 uu=36:\
 gu=37:\
 sn=32:\
@@ -54,7 +54,7 @@ tr=34:\
 tw=35:\
 tx=36:"
 # https://github.com/DarrinTisdale/zsh-aliases-exa/blob/master/zsh-aliases-exa.plugin.zsh
-alias xl='exa -lbGF --git --sort=modified'
+alias lz="eza -lm --no-user --no-permissions --time-style iso --color=always"
 
 # Combine autossh with tmux to get a persistent ssh connection
 # https://jeffmcneill.com/autossh/
