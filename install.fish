@@ -1,7 +1,7 @@
 #!/usr/bin/fish
 
 # Extend $PATH
-fish_add_path $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin $HOME/.toolbox/bin $HOME/.cargo/bin
+fish_add_path $HOME/.toolbox/bin/ $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin $HOME/.toolbox/bin $HOME/.cargo/bin
 
 # Install plugin manager
 curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
@@ -73,6 +73,12 @@ alias pcp="rsync -a --info=progress2"
 funcsave pcp
 
 # Configure node.js to launch language servers
+# fisher install jorgebucaran/nvm.fish
+# nvm install lts
+# npm install -g bash-language-server
+# npm install -g diagnostic-languageserver
+# npm install -g neovim yarn
+# yarn global add neovim
 
 # Set up anaconda in fish
 conda init fish

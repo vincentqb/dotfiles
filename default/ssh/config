@@ -8,14 +8,16 @@ Host *
     # ControlPath ~/.ssh/control:%h:%p:%r
     ControlPath ~/.ssh/control:%C
 
-# Host emr
-#     User hadoop
-#     HostName someipofemr.ec2.internal
-#     ProxyJump ec2-user@somesmallec2.compute-1.amazonaws.com
-#     IdentityFile ~/.ssh/quennv_ec2.pem
-#     RemoteCommand (command -v tmux || sudo yum install tmux) && (tmux attach || tmux new)
-#     RequestTTY force
-#     # for code access:
-#     RemoteForward 2222 git.website.com:22
-#     # for jupyter:
-#     LocalForward 5901 localhost:5901
+Host emr
+    Hostname ip_emr.ec2.internal
+    ProxyCommand ssh -W %h:%p jump_server
+    User hadoop
+    IdentityFile ~/.ssh/quennv_ec2.pem
+    Port 22
+    RemoteCommand (command -v tmux || sudo yum install -y git tmux) && (tmux attach || tmux new)
+
+Host jump_server
+    Hostname ip_bastion.compute-1.amazonaws.com
+    User ec2-user
+    IdentityFile ~/.ssh/quennv_ec2.pem
+    Port 22
