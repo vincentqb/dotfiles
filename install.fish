@@ -54,7 +54,7 @@ tr=34:\
 tw=35:\
 tx=36:"
 # https://github.com/DarrinTisdale/zsh-aliases-exa/blob/master/zsh-aliases-exa.plugin.zsh
-alias lz="eza -lm --no-user --no-permissions --time-style iso -s modified -r --color=always"
+alias lz="eza -lm --no-user --no-permissions --time-style long-iso -s modified -r --color=always"
 
 # Combine autossh with tmux to get a persistent ssh connection
 # https://jeffmcneill.com/autossh/
