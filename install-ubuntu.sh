@@ -23,9 +23,6 @@ sudo apt install fish
 sudo apt install tmux shellcheck texlive node
 
 sudo apt install fdfind bat ripgrep
-# sudo apt install exa
-sudo snap install rustup --classic
-cargo install exa
 
 ~/.tmux/plugins/tpm/bin/update_plugins all	# prefix + U
 ~/.tmux/plugins/tpm/bin/clean_plugins	    # prefix + alt + u
@@ -53,3 +50,8 @@ conda init zsh
 conda init fish
 conda config --set auto_activate_base true
 conda update -n base -c conda-forge conda
+
+# Install eza
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+git clone https://github.com/eza-community/eza.git
+cargo install --path eza/
