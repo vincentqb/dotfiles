@@ -1,7 +1,7 @@
 #!/usr/bin/fish
 
 # Extend $PATH
-fish_add_path $HOME/.toolbox/bin/ $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin $HOME/.toolbox/bin $HOME/.cargo/bin
+fish_add_path $HOME/bin $HOME/.local/bin $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin $HOME/.toolbox/bin $HOME/.cargo/bin
 
 # Install plugin manager
 curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
