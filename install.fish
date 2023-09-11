@@ -54,8 +54,8 @@ tr=34:\
 tw=35:\
 tx=36:"
 # https://github.com/DarrinTisdale/zsh-aliases-exa/blob/master/zsh-aliases-exa.plugin.zsh
-alias lz="eza -lm --no-user --no-permissions --time-style long-iso -s modified -r --grid --color=always"
-funcsave lz
+# alias lz="eza -lm --no-user --no-permissions --time-style long-iso -s modified -r --grid --color=always"
+# funcsave lz
 
 # Combine autossh with tmux to get a persistent ssh connection
 # https://jeffmcneill.com/autossh/
@@ -65,12 +65,12 @@ funcsave lz
 # alias ssa="AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M $(awk 'BEGIN { srand(); do r = rand()*32000; while ( r < 20000 ); printf("%d\n",r)  }' < /dev/null)"
 # alias ssa='AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M $(/usr/bin/python3 -c "import random; print(random.randrange(20_000, 30_000));")'
 # https://unix.stackexchange.com/questions/275681/ssh-connection-through-ssh-tunnel-keeps-closing
-alias ssa='AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M 0'
-funcsave ssa
+# alias ssa='AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M 0'
+# funcsave ssa
 
 # cp with progress bar
-alias pcp="rsync -a --info=progress2"
-funcsave pcp
+# alias pcp="rsync -a --info=progress2"
+# funcsave pcp
 
 # Configure node.js to launch language servers
 # fisher install jorgebucaran/nvm.fish
