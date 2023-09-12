@@ -6,15 +6,10 @@ git submodule update --init --recursive
 
 /usr/bin/pip3 install --user -r requirements.txt
 
-# Install latest neovim
-# wget https://github.com/neovim/neovim/releases/download/stable/nvim-macos.tar.gz
-# tar xzvf nvim-macos.tar.gz
-# mv ./nvim-osx64/bin/nvim ~/.local/bin/nvim
-
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 export PATH=$PATH:/opt/homebrew/bin
 
-brew install ripgrep exa bat fd
+brew install ripgrep bat fd
 brew install nvim fish tmux
 brew install shellcheck
 brew install reattach-to-user-namespace
@@ -51,10 +46,10 @@ mkdir -p ~/.local/bin
 wget -qO- https://github.com/zellij-org/zellij/releases/download/v0.34.4/zellij-aarch64-apple-darwin.tar.gz | tar xvpz -C ~/.local/bin
 
 # Use a modified version of the Pro theme by default in Terminal.app
-open "$HOME/dotfiles/terminal-app/Dracula.terminal"
-sleep 1  # Wait a bit to make sure the theme is loaded
-defaults write com.apple.terminal "Default Window Settings" -string "Dracula"
-defaults write com.apple.terminal "Startup Window Settings" -string "Dracula"
+# open "$HOME/dotfiles/terminal-app/Dracula.terminal"
+# sleep 1  # Wait a bit to make sure the theme is loaded
+# defaults write com.apple.terminal "Default Window Settings" -string "Dracula"
+# defaults write com.apple.terminal "Startup Window Settings" -string "Dracula"
 
 # Install anaconda
 brew install anaconda

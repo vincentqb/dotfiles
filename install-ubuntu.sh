@@ -11,9 +11,9 @@ mkdir -p ~/.local/bin
 wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
 chmod +x ~/.local/bin/nvim
 # Update nvim plugins
-~/.local/bin/nvim --headless +DirtytalkUpdate +qa
 ~/.local/bin/nvim --headless +PackClean +qa
 ~/.local/bin/nvim --headless +PackUpdate +qa
+~/.local/bin/nvim --headless +DirtytalkUpdate +qa
 
 # https://launchpad.net/~fish-shell/+archive/ubuntu/release-3
 sudo apt-add-repository ppa:fish-shell/release-3
