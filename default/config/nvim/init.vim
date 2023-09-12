@@ -37,23 +37,14 @@ set colorcolumn=120
 set autowrite
 
 " Activate spellchecker
-set spell spelllang=en_us,programming
+" set spell spelllang=en_us,programming
 " Spell-check Markdown files and Git Commit Messages
 " autocmd FileType markdown setlocal spell
 " autocmd FileType gitcommit setlocal spell
 " Disable spellcheck in python by default
-autocmd FileType python setlocal nospell
-
-" Toggle spellchecking with \s
-function! ToggleSpellCheck()
-  set spell!
-  if &spell
-    echo "Spellcheck ON"
-  else
-    echo "Spellcheck OFF"
-  endif
-endfunction
-nnoremap <silent> <Leader>s :call ToggleSpellCheck()<CR>
+" autocmd FileType python setlocal nospell
+" Toggle spellchecking
+map <F2> :setlocal spell! spelllang=en_us,programming<CR>
 
 function! PackInit() abort
     packadd minpac
