@@ -59,3 +59,7 @@ conda init zsh fish
 
 brew update
 brew upgrade
+
+# AMZN
+xcode-select --install
+toolbox install ada axe
