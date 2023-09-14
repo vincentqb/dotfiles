@@ -5,7 +5,10 @@
 # the shell is not interactive.  The following line does that; don't remove it!
 [[ $- != *i* ]] && return
 
-source /etc/bashrc
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+  . /etc/bashrc
+fi
 
 # Keep lond command history
 HISTFILESIZE=-1
