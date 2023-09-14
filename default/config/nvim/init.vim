@@ -143,7 +143,6 @@ lspconfig.ruff_lsp.setup {
         settings = {
             -- Any extra CLI arguments for `ruff` go here.
             args = {
-                -- "--config", "~/.config/ruff/pyproject.toml",
                 -- "--extend-ignore", "E501",
                 "--line-length", "120",
             },
