@@ -105,7 +105,7 @@ let g:vimtex_indent_on_ampersands = 0
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
 " map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-" map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Language Server Protocol
 lua << EOF
@@ -143,6 +143,7 @@ lspconfig.ruff_lsp.setup {
         settings = {
             -- Any extra CLI arguments for `ruff` go here.
             args = {
+                extendIgnore = {'E051'}
             },
         }
     }
