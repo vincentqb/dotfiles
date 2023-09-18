@@ -4,7 +4,7 @@ git submodule sync
 git submodule update --init --recursive
 ~/dotfiles/bashdot/bashdot install default
 
-/usr/bin/pip3 install --user -r requirements.txt
+/usr/bin/pip3 install --user --upgrade -r requirements.txt
 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 export PATH=$PATH:/opt/homebrew/bin
@@ -25,9 +25,10 @@ npm install -g diagnostic-languageserver
 npm install -g neovim yarn
 yarn global add neovim
 
-# Update vim plugins
-nvim +PackClean +qa
-nvim +PackUpdate +qa
+# Update nvim plugins
+nvim --headless +PackClean +qa
+nvim --headless +PackUpdate +qa
+nvim --headless +DirtytalkUpdate +qa
 
 # Spell checker for pylint
 # brew install enchant
