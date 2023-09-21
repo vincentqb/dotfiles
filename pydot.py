@@ -1,3 +1,6 @@
+"""
+Link dotiles to given files.
+"""
 import os
 from pathlib import Path
 from string import Template
@@ -7,12 +10,12 @@ from loguru import logger
 
 app = typer.Typer(add_completion=False)
 
-TEMPLATE = ".template"
-RENDERED = ".rendered"
-
 
 def build_map(home, candidates):
     names = {}
+
+    TEMPLATE = ".template"
+    RENDERED = ".rendered"
 
     for candidate in candidates:
         if candidate.name.startswith("."):
@@ -36,13 +39,14 @@ def build_map(home, candidates):
 
 def render_candidates(candidates, dry_run):
     for candidate, (dotfile, rendered) in candidates.items():
-        if candidate.name.endswith(TEMPLATE):
+        if dotfile != rendered:
             with open(candidate, "r") as fp:
                 content = fp.read()
             content = Template(content).safe_substitute(os.environ)
             with open(rendered, "w") as fp:
                 if not dry_run:
                     fp.write(content)
+                logger.debug(f"Rendered {rendered}")
 
 
 def make_links(candidates, dry_run):
