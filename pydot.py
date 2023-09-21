@@ -1,5 +1,5 @@
 """
-Link dotiles to given files.
+Idempotently link dotiles to given files.
 """
 import os
 from pathlib import Path
@@ -75,14 +75,14 @@ def make_links(candidates, dry_run):
 @app.command()
 def install(folder: Path, dry_run: bool = False):
     folder = folder.expanduser().resolve()
-    assert folder.exists() and folder.is_dir(), f"Folder {folder} does not exist."
+    assert folder.exists() and folder.is_dir(), f"Folder {folder} does not exist"
 
     home = Path("~").expanduser().resolve()
     candidates = list(folder.glob("*"))
     candidates = build_map(home, candidates)
 
     if not make_links(candidates, True):
-        raise RuntimeError("There were warnings: dotfiles not installed.")
+        raise RuntimeError("There were warnings: dotfiles not installed")
 
     render_candidates(candidates, dry_run)
     make_links(candidates, dry_run)
