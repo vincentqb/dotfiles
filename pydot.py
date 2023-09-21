@@ -1,14 +1,48 @@
-"""
-Idempotently link dotiles to given files.
-"""
 import os
 from pathlib import Path
 from string import Template
 
-import typer
-from loguru import logger
+try:
+    from loguru import logger
 
-app = typer.Typer(add_completion=False)
+    raise ImportError()
+except ImportError:
+
+    class Logger:
+        @staticmethod
+        def warning(msg):
+            print(msg)
+
+        @staticmethod
+        def info(msg):
+            print(msg)
+
+        @staticmethod
+        def debug(msg):
+            print(msg)
+
+    logger = Logger()
+
+
+try:
+    import typer
+
+    app = typer.Typer(add_completion=False)
+except ImportError:
+
+    class App:
+        def command(self):
+            def func(command):
+                self.func = command
+
+            return func
+
+        def __call__(self):
+            import sys
+
+            self.func(sys.argv[-1])
+
+    app = App()
 
 
 def build_map(home, candidates):
@@ -74,6 +108,10 @@ def make_links(candidates, dry_run):
 
 @app.command()
 def install(folder: Path, dry_run: bool = False):
+    """
+    Idempotently link dotiles to given files.
+    """
+    folder = Path(folder)
     folder = folder.expanduser().resolve()
     assert folder.exists() and folder.is_dir(), f"Folder {folder} does not exist"
 
