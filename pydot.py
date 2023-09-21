@@ -11,75 +11,77 @@ TEMPLATE = ".template"
 RENDERED = ".rendered"
 
 
-def build_map(home, files):
+def build_map(home, candidates):
     names = {}
-    for file in files:
-        if file.name.startswith("."):
+
+    for candidate in candidates:
+        if candidate.name.startswith("."):
+            continue
+        if candidate.name.endswith(RENDERED):
             continue
 
-        name = file.name
+        name = candidate.name
         if name.endswith(TEMPLATE):
-            name = name[: -len(TEMPLATE)] + RENDERED
+            name_dotfile = name[: -len(TEMPLATE)]
+            name_rendered = name[: -len(TEMPLATE)] + RENDERED
+        else:
+            name_dotfile = name_rendered = name
 
-        dotfile = home / name
-        names[file] = dotfile
+        dotfile = home / name_dotfile
+        rendered = home / name_rendered
+        names[candidate] = (dotfile, rendered)
 
     return names
 
 
-def render_files(files):
-    for file, dotfile in files.items():
-        if file.name.endswith(TEMPLATE):
-            with open(file, "r") as fp:
+def render_candidates(candidates, dry_run):
+    for candidate, (dotfile, rendered) in candidates.items():
+        if candidate.name.endswith(TEMPLATE):
+            with open(candidate, "r") as fp:
                 content = fp.read()
             content = Template(content).safe_substitute(os.environ)
-            with open(dotfile, "w") as fp:
-                # fp.write(content)
-                pass
+            with open(rendered, "w") as fp:
+                if not dry_run:
+                    fp.write(content)
 
 
-def check_links(files):
-    results = {}
-    for file, dotfile in files.items():
-        # logger.debug(file)
-        results[file] = True
+def make_links(candidates, dry_run):
+    success = True
 
+    for file, (dotfile, rendered) in candidates.items():
         if dotfile.exists():
             if dotfile.is_symlink():
-                # breakpoint()
-                if dotfile.readlink() != file:
+                if dotfile.readlink() == rendered:
+                    if not dry_run:
+                        logger.info(f"Exists: {dotfile} => {rendered}")
+                else:
                     logger.warning(f"{dotfile} already exists and does not points to {file}")
-                    results[file] = False
+                    success = False
             else:
                 logger.warning(f"{dotfile} already exists")
-                results[file] = False
-
-    return results
-
-
-def make_links(files):
-    for file, dotfile in files.items():
-        if dotfile.exists():
-            logger.info(f"Exists: {dotfile} => {file}")
+                success = False
         else:
-            # dotfile.symlink_to(file)
-            logger.info(f"Created: {dotfile} => {file}")
+            if not dry_run:
+                dotfile.symlink_to(rendered)
+                logger.info(f"Created: {dotfile} => {rendered}")
+
+    return success
 
 
 @app.command()
-def install(folder: Path):
+def install(folder: Path, dry_run: bool = False):
     folder = folder.expanduser().resolve()
     assert folder.exists() and folder.is_dir(), f"folder {folder} does not exist"
 
     home = Path("~").expanduser().resolve()
-    files = list(folder.glob("*"))
-    files = build_map(home, files)
+    candidates = list(folder.glob("*"))
+    candidates = build_map(home, candidates)
 
-    if not all(check_links(files).values()):
+    if not make_links(candidates, dry_run):
         raise RuntimeError("Cannot install dotfiles")
 
-    render_files(files)
-    # make_links(files)
+    render_candidates(candidates, dry_run)
+    make_links(candidates, dry_run)
 
 
 if __name__ == "__main__":
