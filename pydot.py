@@ -55,10 +55,10 @@ def make_links(candidates, dry_run):
                     if not dry_run:
                         logger.info(f"Exists: {dotfile} => {rendered}")
                 else:
-                    logger.warning(f"{dotfile} already exists and does not points to {file}")
+                    logger.warning(f"File {dotfile} already exists and does not points to {file}")
                     success = False
             else:
-                logger.warning(f"{dotfile} already exists")
+                logger.warning(f"File {dotfile} already exists and is not a link")
                 success = False
         else:
             if not dry_run:
@@ -71,14 +71,14 @@ def make_links(candidates, dry_run):
 @app.command()
 def install(folder: Path, dry_run: bool = False):
     folder = folder.expanduser().resolve()
-    assert folder.exists() and folder.is_dir(), f"folder {folder} does not exist"
+    assert folder.exists() and folder.is_dir(), f"Folder {folder} does not exist."
 
     home = Path("~").expanduser().resolve()
     candidates = list(folder.glob("*"))
     candidates = build_map(home, candidates)
 
-    if not make_links(candidates, dry_run):
-        raise RuntimeError("Cannot install dotfiles")
+    if not make_links(candidates, True):
+        raise RuntimeError("There were warnings: dotfiles not installed.")
 
     render_candidates(candidates, dry_run)
     make_links(candidates, dry_run)
