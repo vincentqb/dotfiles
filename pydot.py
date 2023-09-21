@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+from string import Template
 
 import typer
 from loguru import logger
@@ -9,35 +11,54 @@ TEMPLATE = ".template"
 RENDERED = ".rendered"
 
 
-def check_symlinks(home, files):
-
-    success = True
+def build_map(home, files):
+    names = {}
     for file in files:
-        logger.debug(file)
+        if file.name.startswith("."):
+            continue
 
-        if file.name[: -len(TEMPLATE)] == TEMPLATE:
-            name = file.name[: -len(TEMPLATE)] + RENDERED
-        else:
-            name = file.name
+        name = file.name
+        if name.endswith(TEMPLATE):
+            name = name[: -len(TEMPLATE)] + RENDERED
 
         dotfile = home / name
+        names[file] = dotfile
+
+    return names
+
+
+def render_files(files):
+    for file, dotfile in files.items():
+        if file.name.endswith(TEMPLATE):
+            with open(file, "r") as fp:
+                content = fp.read()
+            content = Template(content).safe_substitute(os.environ)
+            with open(dotfile, "w") as fp:
+                # fp.write(content)
+                pass
+
+
+def check_links(files):
+    results = {}
+    for file, dotfile in files.items():
+        # logger.debug(file)
+        results[file] = True
+
         if dotfile.exists():
             if dotfile.is_symlink():
-                breakpoint()
+                # breakpoint()
                 if dotfile.readlink() != file:
                     logger.warning(f"{dotfile} already exists and does not points to {file}")
-                    success = False
+                    results[file] = False
             else:
                 logger.warning(f"{dotfile} already exists")
-                success = False
+                results[file] = False
 
-    return success
+    return results
 
 
-def make_symlinks(home, files):
-
-    for file in files:
-        dotfile = home / f"{file.name}"
+def make_links(files):
+    for file, dotfile in files.items():
         if dotfile.exists():
             logger.info(f"Exists: {dotfile} => {file}")
         else:
@@ -47,17 +68,18 @@ def make_symlinks(home, files):
 
 @app.command()
 def install(folder: Path):
-
     folder = folder.expanduser().resolve()
-    assert folder.exists() and folder.is_dir(), f"{folder} does not exist"
+    assert folder.exists() and folder.is_dir(), f"folder {folder} does not exist"
 
-    candidates = list(folder.glob("*"))
     home = Path("~").expanduser().resolve()
+    files = list(folder.glob("*"))
+    files = build_map(home, files)
 
-    if not check_symlinks(home, candidates):
+    if not all(check_links(files).values()):
         raise RuntimeError("Cannot install dotfiles")
 
-    make_symlinks(home, candidates)
+    render_files(files)
+    # make_links(files)
 
 
 if __name__ == "__main__":
