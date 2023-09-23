@@ -2,27 +2,6 @@ import os
 from pathlib import Path
 from string import Template
 
-try:
-    from loguru import logger
-
-    raise ImportError()
-except ImportError:
-
-    class Logger:
-        @staticmethod
-        def warning(msg):
-            print(msg)
-
-        @staticmethod
-        def info(msg):
-            print(msg)
-
-        @staticmethod
-        def debug(msg):
-            print(msg)
-
-    logger = Logger()
-
 
 try:
     import typer
@@ -73,15 +52,24 @@ def build_map(home, candidates):
 
 
 def render_candidates(candidates, dry_run):
+    success = True
     for candidate, (dotfile, rendered) in candidates.items():
         if candidate != rendered:
             with open(candidate, "r") as fp:
-                content = fp.read()
-            content = Template(content).safe_substitute(os.environ)
-            with open(rendered, "w") as fp:
+                content_candidate = fp.read()
+            content_candidate = Template(content_candidate).safe_substitute(os.environ)
+            if rendered.exists():
+                with open(rendered, "r") as fp:
+                    content_rendered = fp.read()
+                if content_candidate != content_rendered:
+                    print(f"File {rendered} already exists but its content doesn't match new content")
+                    success = False
+            else:
                 if not dry_run:
-                    fp.write(content)
-                logger.debug(f"Rendered {rendered}")
+                    with open(rendered, "w") as fp:
+                        fp.write(content_candidate)
+                        print(f"Rendered {rendered}")
+    return success
 
 
 def make_links(candidates, dry_run):
@@ -92,17 +80,17 @@ def make_links(candidates, dry_run):
             if dotfile.is_symlink():
                 if dotfile.readlink() == rendered:
                     if not dry_run:
-                        logger.info(f"Exists: {dotfile} => {rendered}")
+                        print(f"Exists: {dotfile} => {rendered}")
                 else:
-                    logger.warning(f"File {dotfile} already exists, points to {dotfile.readlink()}, instead of {rendered}")
+                    print(f"File {dotfile} exists but does not point to {rendered}")
                     success = False
             else:
-                logger.warning(f"File {dotfile} already exists and is not a link")
+                print(f"File {dotfile} exists and is not a link")
                 success = False
         else:
             if not dry_run:
                 dotfile.symlink_to(rendered)
-                logger.info(f"Created: {dotfile} => {rendered}")
+                print(f"Created: {dotfile} => {rendered}")
 
     return success
 
@@ -120,8 +108,10 @@ def install(folder: Path, dry_run: bool = False):
     candidates = list(folder.glob("*"))
     candidates = build_map(home, candidates)
 
-    if not make_links(candidates, True):
-        raise RuntimeError("There were warnings: dotfiles not installed")
+    success = make_links(candidates, True)
+    success = success and render_candidates(candidates, True)
+    if not success:
+        raise SystemExit("There were warnings: dotfiles not installed")
 
     render_candidates(candidates, dry_run)
     make_links(candidates, dry_run)
