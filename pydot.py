@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from string import Template
+from typing import List
 
 
 try:
@@ -80,7 +81,7 @@ def make_links(candidates, dry_run):
             if dotfile.is_symlink():
                 if dotfile.readlink() == rendered:
                     if not dry_run:
-                        print(f"Exists: {dotfile} => {rendered}")
+                        print(f"Installed previously: {dotfile} => {rendered}")
                 else:
                     print(f"File {dotfile} exists but does not point to {rendered}")
                     success = False
@@ -90,31 +91,57 @@ def make_links(candidates, dry_run):
         else:
             if not dry_run:
                 dotfile.symlink_to(rendered)
-                print(f"Created: {dotfile} => {rendered}")
+                print(f"Created now: {dotfile} => {rendered}")
 
     return success
 
 
-@app.command()
-def install(folder: Path, dry_run: bool = False):
-    """
-    Idempotently link dotiles to given files.
-    """
+def parse_folder(folder):
     folder = Path(folder)
     folder = folder.expanduser().resolve()
-    assert folder.exists() and folder.is_dir(), f"Folder {folder} does not exist"
+
+    if folder.exists and folder.is_dir():
+        success = True
+    else:
+        print(f"Folder {folder} does not exist")
+        success = False
+    return success, folder
+
+
+def install_one(folder: Path, dry_run):
+    success, folder = parse_folder(folder)
+    if not success:
+        return success
 
     home = Path("~").expanduser().resolve()
     candidates = list(folder.glob("*"))
     candidates = build_map(home, candidates)
 
-    success = make_links(candidates, True)
-    success = success and render_candidates(candidates, True)
+    success = make_links(candidates, dry_run)
+    success = success and render_candidates(candidates, dry_run)
     if not success:
-        raise SystemExit("There were warnings: dotfiles not installed")
+        return success
 
-    render_candidates(candidates, dry_run)
-    make_links(candidates, dry_run)
+    return success
+
+
+@app.command()
+def install(folders: List[Path], dry_run: bool = False):
+    """
+    Idempotently link dotiles to given files.
+    """
+    if isinstance(folders, str):
+        folders = [folders]
+
+    success = True
+    for folder in folders:
+        success = success and install_one(folder, True)
+    if not success:
+        raise SystemExit("There were errors: dotfiles not installed")
+
+    if not dry_run:
+        for folder in folders:
+            install_one(folder, dry_run)
 
 
 if __name__ == "__main__":
