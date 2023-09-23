@@ -88,7 +88,7 @@ def parse_folder(folder):
     return success, folder
 
 
-def install_one(folder: Path, dry_run):
+def install_folder(folder: Path, dry_run):
     success, folder = parse_folder(folder)
     if not success:
         return success
@@ -105,26 +105,23 @@ def install_one(folder: Path, dry_run):
     return success
 
 
-def install(folders: List[Path], dry_run: bool = False):
+def install_folders(folders: List[Path], dry_run: bool = False):
     """
-    Idempotently link dotiles to given files.
+    Idempotently link dotiles to files in given folders.
     """
-    if isinstance(folders, str):
-        folders = [folders]
-
     success = True
     for folder in folders:
-        success = success and install_one(folder, True)
+        success = success and install_folder(folder, True)
     if not success:
-        raise SystemExit("There were errors: dotfiles not installed")
+        raise SystemExit("dotfiles not installed since there were errors")
 
     if not dry_run:
         for folder in folders:
-            install_one(folder, dry_run)
+            install_folder(folder, dry_run)
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=install_folders.__doc__)
     parser.add_argument("folders", nargs="+")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=False)
     arguments = parser.parse_args()
@@ -133,4 +130,4 @@ def parse_arguments():
 
 if __name__ == "__main__":
     arguments = parse_arguments()
-    install(**arguments)
+    install_folders(**arguments)
