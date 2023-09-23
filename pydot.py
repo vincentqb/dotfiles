@@ -59,13 +59,14 @@ def build_map(home, candidates):
 
         name = candidate.name
         if name.endswith(TEMPLATE):
-            name_dotfile = name[: -len(TEMPLATE)]
+            name_dotfile = "." + name[: -len(TEMPLATE)]
             name_rendered = name[: -len(TEMPLATE)] + RENDERED
         else:
-            name_dotfile = name_rendered = name
+            name_dotfile = "." + name
+            name_rendered = name
 
         dotfile = home / name_dotfile
-        rendered = home / name_rendered
+        rendered = candidate.parent / name_rendered
         names[candidate] = (dotfile, rendered)
 
     return names
@@ -73,7 +74,7 @@ def build_map(home, candidates):
 
 def render_candidates(candidates, dry_run):
     for candidate, (dotfile, rendered) in candidates.items():
-        if dotfile != rendered:
+        if candidate != rendered:
             with open(candidate, "r") as fp:
                 content = fp.read()
             content = Template(content).safe_substitute(os.environ)
@@ -86,14 +87,14 @@ def render_candidates(candidates, dry_run):
 def make_links(candidates, dry_run):
     success = True
 
-    for file, (dotfile, rendered) in candidates.items():
+    for candidate, (dotfile, rendered) in candidates.items():
         if dotfile.exists():
             if dotfile.is_symlink():
                 if dotfile.readlink() == rendered:
                     if not dry_run:
                         logger.info(f"Exists: {dotfile} => {rendered}")
                 else:
-                    logger.warning(f"File {dotfile} already exists and does not points to {file}")
+                    logger.warning(f"File {dotfile} already exists, points to {dotfile.readlink()}, instead of {rendered}")
                     success = False
             else:
                 logger.warning(f"File {dotfile} already exists and is not a link")
