@@ -1,28 +1,8 @@
+import argparse
 import os
 from pathlib import Path
 from string import Template
 from typing import List
-
-
-try:
-    import typer
-
-    app = typer.Typer(add_completion=False)
-except ImportError:
-
-    class App:
-        def command(self):
-            def func(command):
-                self.func = command
-
-            return func
-
-        def __call__(self):
-            import sys
-
-            self.func(sys.argv[-1])
-
-    app = App()
 
 
 def build_map(home, candidates):
@@ -125,7 +105,6 @@ def install_one(folder: Path, dry_run):
     return success
 
 
-@app.command()
 def install(folders: List[Path], dry_run: bool = False):
     """
     Idempotently link dotiles to given files.
@@ -144,5 +123,14 @@ def install(folders: List[Path], dry_run: bool = False):
             install_one(folder, dry_run)
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("folders", nargs="+")
+    parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=False)
+    arguments = parser.parse_args()
+    return vars(arguments)
+
+
 if __name__ == "__main__":
-    app()
+    arguments = parse_arguments()
+    install(**arguments)
