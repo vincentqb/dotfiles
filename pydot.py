@@ -1,8 +1,31 @@
 import argparse
+import logging
 import os
 from pathlib import Path
 from string import Template
 from typing import List
+
+
+class CustomFormatter(logging.Formatter):
+    grey = "\x1b[38;20m"
+    yellow = "\x1b[33;20m"
+    red = "\x1b[31;20m"
+    bold_red = "\x1b[31;1m"
+    reset = "\x1b[0m"
+    format = "%(levelname)s - %(message)s"
+
+    FORMATS = {
+        logging.DEBUG: grey + format + reset,
+        logging.INFO: grey + "%(message)s" + reset,
+        logging.WARNING: yellow + format + reset,
+        logging.ERROR: red + format + reset,
+        logging.CRITICAL: bold_red + format + reset,
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
 
 
 def build_map(home, candidates):
@@ -43,13 +66,13 @@ def render_candidates(candidates, dry_run):
                 with open(rendered, "r") as fp:
                     content_rendered = fp.read()
                 if content_candidate != content_rendered:
-                    print(f"File {rendered} already exists but its content doesn't match new content")
+                    logger.warning(f"File {rendered} already exists but its content doesn't match new content")
                     success = False
             else:
                 if not dry_run:
                     with open(rendered, "w") as fp:
                         fp.write(content_candidate)
-                        print(f"Rendered {rendered}")
+                        # logger.info(f"Rendered {rendered}")
     return success
 
 
@@ -61,17 +84,17 @@ def make_links(candidates, dry_run):
             if dotfile.is_symlink():
                 if dotfile.readlink() == rendered:
                     if not dry_run:
-                        print(f"Installed previously: {dotfile} => {rendered}")
+                        logger.info(f"Installed already: {dotfile} => {rendered}")
                 else:
-                    print(f"File {dotfile} exists but does not point to {rendered}")
+                    logger.warning(f"File {dotfile} exists but does not point to {rendered}")
                     success = False
             else:
-                print(f"File {dotfile} exists and is not a link")
+                logger.warning(f"File {dotfile} exists and is not a link")
                 success = False
         else:
             if not dry_run:
                 dotfile.symlink_to(rendered)
-                print(f"Created now: {dotfile} => {rendered}")
+                logger.info(f"Created now: {dotfile} => {rendered}")
 
     return success
 
@@ -83,7 +106,7 @@ def parse_folder(folder):
     if folder.exists and folder.is_dir():
         success = True
     else:
-        print(f"Folder {folder} does not exist")
+        logger.warning(f"Folder {folder} does not exist")
         success = False
     return success, folder
 
@@ -113,11 +136,24 @@ def install_folders(folders: List[Path], dry_run: bool = False):
     for folder in folders:
         success = success and install_folder(folder, True)
     if not success:
-        raise SystemExit("dotfiles not installed since there were errors")
+        logger.error("dotfiles not installed since there were warnings")
+        raise SystemExit()
 
     if not dry_run:
         for folder in folders:
             install_folder(folder, dry_run)
+
+
+def get_logger():
+    logger = logging.getLogger("pydot")
+    logger.setLevel(logging.DEBUG)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(CustomFormatter())
+
+    logger.addHandler(ch)
+    return logger
 
 
 def parse_arguments():
@@ -130,4 +166,5 @@ def parse_arguments():
 
 if __name__ == "__main__":
     arguments = parse_arguments()
+    logger = get_logger()
     install_folders(**arguments)
