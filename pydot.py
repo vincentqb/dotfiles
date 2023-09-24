@@ -1,7 +1,7 @@
 import argparse
 import logging
-import re
 import os
+import re
 from pathlib import Path
 from string import Template
 from typing import List
