@@ -8,22 +8,19 @@ from typing import List
 
 
 def build_cdr_map(home, candidates):
-    names = {}
 
     TEMPLATE = ".template"
     RENDERED = ".rendered"
 
+    names = {}
+
     for candidate in candidates:
         name = candidate.name
-
-        if name.startswith(".") or name.endswith(RENDERED):
-            continue
-
-        # Add dot prefix and replace template by rendered when needed
-        rendered = candidate.parent / re.sub(TEMPLATE + "$", RENDERED, name)
-        dotfile = home / ("." + name.removesuffix(TEMPLATE))
-
-        names[candidate] = (dotfile, rendered)
+        if not (name.startswith(".") or name.endswith(RENDERED)):
+            # Add dot prefix and replace template when needed
+            rendered = candidate.parent / re.sub(TEMPLATE + "$", RENDERED, name)
+            dotfile = home / ("." + name.removesuffix(TEMPLATE))
+            names[candidate] = (dotfile, rendered)
 
     return names
 
