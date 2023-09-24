@@ -1,33 +1,28 @@
 import argparse
 import logging
+import re
 import os
 from pathlib import Path
 from string import Template
 from typing import List
 
 
-def build_map(home, candidates):
+def build_cdr_map(home, candidates):
     names = {}
 
     TEMPLATE = ".template"
     RENDERED = ".rendered"
 
     for candidate in candidates:
-        if candidate.name.startswith("."):
-            continue
-        if candidate.name.endswith(RENDERED):
-            continue
-
         name = candidate.name
-        if name.endswith(TEMPLATE):
-            name_dotfile = "." + name[: -len(TEMPLATE)]
-            name_rendered = name[: -len(TEMPLATE)] + RENDERED
-        else:
-            name_dotfile = "." + name
-            name_rendered = name
 
-        dotfile = home / name_dotfile
-        rendered = candidate.parent / name_rendered
+        if name.startswith(".") or name.endswith(RENDERED):
+            continue
+
+        # Add dot prefix and replace template by rendered when needed
+        rendered = candidate.parent / re.sub(TEMPLATE + "$", RENDERED, name)
+        dotfile = home / ("." + name.removesuffix(TEMPLATE))
+
         names[candidate] = (dotfile, rendered)
 
     return names
@@ -96,7 +91,7 @@ def install_folder(folder: Path, dry_run):
 
     home = Path("~").expanduser().resolve()
     candidates = list(folder.glob("*"))
-    candidates = build_map(home, candidates)
+    candidates = build_cdr_map(home, candidates)
 
     success = make_links(candidates, dry_run)
     success = success and render_candidates(candidates, dry_run)
