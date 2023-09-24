@@ -106,7 +106,7 @@ def install_folders(folders: List[Path], dry_run: bool = False):
     for folder in folders:
         success = success and install_folder(folder, True)
     if not success:
-        logger.error("dotfiles not installed since there were warnings")
+        logger.error("dotfiles are not installed since there are warnings")
         raise SystemExit()
 
     if not dry_run:
