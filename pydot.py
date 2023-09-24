@@ -8,7 +8,6 @@ from typing import List
 
 
 def build_cdr_map(home, candidates):
-
     TEMPLATE = ".template"
     RENDERED = ".rendered"
 
@@ -46,7 +45,7 @@ def render_candidates(candidates, dry_run):
     return success
 
 
-def make_links(candidates, dry_run):
+def install_links(candidates, dry_run):
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -69,33 +68,23 @@ def make_links(candidates, dry_run):
     return success
 
 
-def parse_folder(folder):
+def install_folder(folder: Path, dry_run):
     folder = Path(folder)
     folder = folder.expanduser().resolve()
-
-    if folder.exists and folder.is_dir():
-        success = True
-    else:
+    if not (folder.exists and folder.is_dir()):
         logger.warning(f"Folder {folder} does not exist")
-        success = False
-    return success, folder
-
-
-def install_folder(folder: Path, dry_run):
-    success, folder = parse_folder(folder)
-    if not success:
-        return success
+        return False
 
     home = Path("~").expanduser().resolve()
     candidates = list(folder.glob("*"))
     candidates = build_cdr_map(home, candidates)
 
-    success = make_links(candidates, dry_run)
+    success = install_links(candidates, dry_run)
     success = success and render_candidates(candidates, dry_run)
     if not success:
-        return success
+        return False
 
-    return success
+    return True
 
 
 def install_folders(folders: List[Path], dry_run: bool = False):
