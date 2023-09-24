@@ -123,8 +123,6 @@ def install_folders(folders: List[Path], dry_run: bool = False):
 
 
 def get_logger():
-
-
     class CustomFormatter(logging.Formatter):
         grey = "\x1b[38;20m"
         yellow = "\x1b[33;20m"
@@ -145,8 +143,9 @@ def get_logger():
             log_fmt = self.FORMATS.get(record.levelno)
             formatter = logging.Formatter(log_fmt)
             return formatter.format(record)
-        logger = logging.getLogger("pydot")
-        logger.setLevel(logging.DEBUG)
+
+    logger = logging.getLogger("pydot")
+    logger.setLevel(logging.DEBUG)
 
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
