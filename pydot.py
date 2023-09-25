@@ -55,7 +55,7 @@ def install_links(candidates, dry_run):
                     if not dry_run:
                         logger.info(f"Installed already: {dotfile} => {rendered}")
                 else:
-                    logger.warning(f"File {dotfile} exists but does not point to {rendered}")
+                    logger.warning(f"File {dotfile} exists and points to {os.readlink(str(dotfile))} instead of {rendered}")
                     success = False
             else:
                 logger.warning(f"File {dotfile} exists and is not a link")
