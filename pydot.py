@@ -41,7 +41,6 @@ def render_candidates(candidates, dry_run):
                 if not dry_run:
                     with open(rendered, "w") as fp:
                         fp.write(content_candidate)
-                        # logger.info(f"Rendered {rendered}")
     return success
 
 
@@ -89,11 +88,11 @@ def install_folder(folder: Path, dry_run):
     return True
 
 
-def install_folders(folders: List[Path], dry_run, verbose):
+def install_folders(folders: List[Path], dry_run):
     """
     Idempotently link dotiles to files in given folders.
     """
-    if not verbose:
+    if not dry_run:
         logger.setLevel(logging.WARNING)
 
     success = True
@@ -103,8 +102,8 @@ def install_folders(folders: List[Path], dry_run, verbose):
         logger.error("dotfiles are not installed since there are warnings")
         raise SystemExit()
 
-    logger.setLevel(logging.WARNING)
     if not dry_run:
+        logger.setLevel(logging.WARNING)
         for folder in folders:
             install_folder(folder, dry_run)
 
@@ -147,7 +146,6 @@ def parse_arguments():
     parser.add_argument("folders", nargs="+")
     parser.add_argument("--dry-run", default=False, action="store_true")
     parser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
-    parser.add_argument("--verbose", default=False, action="store_true")
     arguments = parser.parse_args()
     return vars(arguments)
 
