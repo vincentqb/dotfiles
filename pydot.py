@@ -133,14 +133,14 @@ def main(command, folders, dry_run):
     if command == "link":
         success = loop_folders(link_render, folders, dry_run=True)
         if not success:
-            logger.error("New dotfiles were not linked since there are warnings")
+            logger.error("dotfiles were not changed since there were warnings")
             raise SystemExit()
         if not dry_run:
             success = loop_folders(link_render, folders, dry_run=False)
     elif command == "unlink":
         success = loop_folders(unlink, folders, dry_run=True)
         if not success:
-            logger.error("dotfiles were not unlinked since there are warnings")
+            logger.error("dotfiles were not changed since there were warnings")
             raise SystemExit()
         if not dry_run:
             success = loop_folders(unlink, folders, dry_run=False)
