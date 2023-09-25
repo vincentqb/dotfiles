@@ -90,7 +90,7 @@ def install_folder(folder: Path, dry_run):
 
 def install_folders(folders: List[Path], dry_run):
     """
-    Idempotently link dotiles to files in given folders.
+    Link dotfiles to files in given folders in an idempotent way.
     """
     if not dry_run:
         logger.setLevel(logging.WARNING)
@@ -130,7 +130,7 @@ def get_logger():
             formatter = logging.Formatter(log_fmt)
             return formatter.format(record)
 
-    logger = logging.getLogger("pydot")
+    logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
     ch = logging.StreamHandler()
@@ -151,6 +151,6 @@ def parse_arguments():
 
 
 if __name__ == "__main__":
-    arguments = parse_arguments()
     logger = get_logger()
+    arguments = parse_arguments()
     install_folders(**arguments)
