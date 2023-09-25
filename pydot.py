@@ -27,7 +27,7 @@ def build_cdr_map(home, candidates):
     return names
 
 
-def render_candidates(candidates, dry_run):
+def render(candidates, dry_run):
     success = True
     for candidate, (dotfile, rendered) in candidates.items():
         if candidate != rendered:
@@ -72,28 +72,13 @@ def link(candidates, dry_run):
     return success
 
 
-def link_folders(folders, dry_run):
-    home = Path("~").expanduser().resolve()
-
-    success = True
-    for folder in folders:
-        folder = Path(folder)
-        folder = folder.expanduser().resolve()
-        if folder.exists and folder.is_dir():
-            candidates = sorted(folder.glob("*"))
-            candidates = build_cdr_map(home, candidates)
-
-            success1 = link(candidates, dry_run)
-            success2 = render_candidates(candidates, dry_run)
-            success = success and success1 and success2
-        else:
-            logger.warning(f"Folder {folder} does not exist")
-            success = False
-
-    return success
+def link_render(candidates, dry_run):
+    success1 = link(candidates, dry_run)
+    success2 = render(candidates, dry_run)
+    return success1 and success2
 
 
-def unlink_folder(candidates, dry_run):
+def unlink(candidates, dry_run):
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -119,7 +104,7 @@ def unlink_folder(candidates, dry_run):
     return success
 
 
-def unlink_folders(folders, dry_run):
+def loop_folders(command, folders, dry_run):
     home = Path("~").expanduser().resolve()
 
     success = True
@@ -130,8 +115,8 @@ def unlink_folders(folders, dry_run):
             candidates = sorted(folder.glob("*"))
             candidates = build_cdr_map(home, candidates)
 
-            success1 = unlink_folder(candidates, dry_run)
-            success = success and success1
+            success_ = command(candidates, dry_run)
+            success = success and success_
         else:
             logger.warning(f"Folder {folder} does not exist")
             success = False
@@ -146,19 +131,19 @@ def main(command, folders, dry_run):
     if not dry_run:
         logger.setLevel(logging.WARNING)
     if command == "link":
-        success = link_folders(folders, dry_run=True)
+        success = loop_folders(link_render, folders, dry_run=True)
         if not success:
             logger.error("New dotfiles were not linked since there are warnings")
             raise SystemExit()
         if not dry_run:
-            success = link_folders(folders, dry_run=False)
+            success = loop_folders(link_render, folders, dry_run=False)
     elif command == "unlink":
-        success = unlink_folders(folders, dry_run=True)
+        success = loop_folders(unlink, folders, dry_run=True)
         if not success:
             logger.error("dotfiles were not unlinked since there are warnings")
             raise SystemExit()
         if not dry_run:
-            success = unlink_folders(folders, dry_run=False)
+            success = loop_folders(unlink, folders, dry_run=False)
 
 
 def get_logger():
