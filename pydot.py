@@ -78,48 +78,44 @@ def install_links(candidates, dry_run):
     return success
 
 
-def install_folder(folder: Path, dry_run):
+def install_folders(folders: Path, dry_run):
     """
     Return False if a warning was raised, and True otherwise.
     """
-    folder = Path(folder)
-    folder = folder.expanduser().resolve()
-    if not (folder.exists and folder.is_dir()):
-        logger.warning(f"Folder {folder} does not exist")
-        return False
 
-    home = Path("~").expanduser().resolve()
-    candidates = list(folder.glob("*"))
-    candidates = build_cdr_map(home, candidates)
+    success = True
+    for folder in folders:
+        folder = Path(folder)
+        folder = folder.expanduser().resolve()
+        if folder.exists and folder.is_dir():
+            home = Path("~").expanduser().resolve()
+            candidates = sorted(folder.glob("*"))
+            candidates = build_cdr_map(home, candidates)
 
-    success = [
-        install_links(candidates, dry_run),
-        render_candidates(candidates, dry_run),
-    ]
-    if not all(success):
-        return False
+            success1 = install_links(candidates, dry_run)
+            success2 = render_candidates(candidates, dry_run)
+            success = success and success1 and success2
+        else:
+            logger.warning(f"Folder {folder} does not exist")
+            success = False
 
-    return True
+    return success
 
 
-def install_folders(folders: List[Path], dry_run):
+def main(folders, dry_run):
     """
     Link dotfiles to files in given folders in an idempotent way.
     """
     if not dry_run:
         logger.setLevel(logging.WARNING)
 
-    success = []
-    for folder in folders:
-        success.append(install_folder(folder, True))
-    if not all(success):
+    if install_folders(folders, dry_run=True):
         logger.error("dotfiles are not installed since there are warnings")
         raise SystemExit()
 
     if not dry_run:
-        logger.setLevel(logging.WARNING)
         for folder in folders:
-            install_folder(folder, dry_run)
+            install_folders(folder, dry_run)
 
 
 def get_logger():
@@ -167,4 +163,4 @@ def parse_arguments():
 if __name__ == "__main__":
     logger = get_logger()
     arguments = parse_arguments()
-    install_folders(**arguments)
+    main(**arguments)
