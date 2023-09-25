@@ -78,7 +78,7 @@ def install_links(candidates, dry_run):
     return success
 
 
-def install_folders(folders: Path, dry_run):
+def install_folders(folders, dry_run):
     """
     Return False if a warning was raised, and True otherwise.
     """
@@ -114,8 +114,7 @@ def main(folders, dry_run):
         raise SystemExit()
 
     if not dry_run:
-        for folder in folders:
-            install_folders(folder, dry_run)
+        install_folders(folders, dry_run=False)
 
 
 def get_logger():
