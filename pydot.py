@@ -47,7 +47,7 @@ def render_candidates(candidates, dry_run):
     return success
 
 
-def install_links(candidates, dry_run):
+def link(candidates, dry_run):
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -72,7 +72,7 @@ def install_links(candidates, dry_run):
     return success
 
 
-def install_folders(folders, dry_run):
+def link_folders(folders, dry_run):
     home = Path("~").expanduser().resolve()
 
     success = True
@@ -83,7 +83,7 @@ def install_folders(folders, dry_run):
             candidates = sorted(folder.glob("*"))
             candidates = build_cdr_map(home, candidates)
 
-            success1 = install_links(candidates, dry_run)
+            success1 = link(candidates, dry_run)
             success2 = render_candidates(candidates, dry_run)
             success = success and success1 and success2
         else:
@@ -93,20 +93,19 @@ def install_folders(folders, dry_run):
     return success
 
 
-def main(subparser, folders):
+def main(command, folders, dry_run):
     """
     Link dotfiles to files in given folders in an idempotent way.
     """
-    if subparser == "install":
+    if not dry_run:
         logger.setLevel(logging.WARNING)
-
-    success = install_folders(folders, dry_run=True)
-    if subparser == "install" and not success:
-        logger.error("No new dotfiles were not linked since there are warnings")
-        raise SystemExit()
-
-    if subparser == "install":
-        install_folders(folders, dry_run=False)
+    if command == "link":
+        success = link_folders(folders, dry_run=True)
+        if not success:
+            logger.error("New dotfiles were not linked since there are warnings")
+            raise SystemExit()
+        if not dry_run:
+            success = link_folders(folders, dry_run=False)
 
 
 def get_logger():
@@ -143,14 +142,13 @@ def get_logger():
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description=install_folders.__doc__)
-    subparsers = parser.add_subparsers(dest="subparser")
+    parser = argparse.ArgumentParser(description=link_folders.__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    parser_install = subparsers.add_parser("install")
-    parser_install.add_argument("folders", nargs="+")
-
-    parser_check = subparsers.add_parser("check")
-    parser_check.add_argument("folders", nargs="+")
+    parser_link = subparsers.add_parser("link")
+    parser_link.add_argument("folders", nargs="+")
+    parser_link.add_argument("--dry-run", default=False, action="store_true")
+    parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
 
     arguments = parser.parse_args()
     return vars(arguments)
