@@ -4,7 +4,6 @@ import os
 import re
 from pathlib import Path
 from string import Template
-from typing import List
 
 
 def build_cdr_map(home, candidates):
