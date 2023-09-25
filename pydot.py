@@ -80,9 +80,11 @@ def install_folder(folder: Path, dry_run):
     candidates = list(folder.glob("*"))
     candidates = build_cdr_map(home, candidates)
 
-    success = install_links(candidates, dry_run)
-    success = success and render_candidates(candidates, dry_run)
-    if not success:
+    success = [
+        install_links(candidates, dry_run),
+        render_candidates(candidates, dry_run),
+    ]
+    if not all(success):
         return False
 
     return True
@@ -95,10 +97,10 @@ def install_folders(folders: List[Path], dry_run):
     if not dry_run:
         logger.setLevel(logging.WARNING)
 
-    success = True
+    success = []
     for folder in folders:
-        success = success and install_folder(folder, True)
-    if not success:
+        success.append(install_folder(folder, True))
+    if not all(success):
         logger.error("dotfiles are not installed since there are warnings")
         raise SystemExit()
 
