@@ -51,17 +51,19 @@ def install_links(candidates, dry_run):
     for candidate, (dotfile, rendered) in candidates.items():
         if dotfile.exists():
             if dotfile.is_symlink():
-                if os.readlink(str(dotfile)) == str(rendered):
-                    if not dry_run:
-                        logger.info(f"Installed already: {dotfile} => {rendered}")
+                link = os.readlink(str(dotfile))
+                if link == str(rendered):
+                    logger.info(f"Installed already: {dotfile} => {rendered}")
                 else:
-                    logger.warning(f"File {dotfile} exists and points to {os.readlink(str(dotfile))} instead of {rendered}")
+                    logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
                     success = False
             else:
                 logger.warning(f"File {dotfile} exists and is not a link")
                 success = False
         else:
-            if not dry_run:
+            if dry_run:
+                logger.info(f"To create: {dotfile} => {rendered}")
+            else:
                 dotfile.symlink_to(rendered)
                 logger.info(f"Created now: {dotfile} => {rendered}")
 
@@ -87,10 +89,13 @@ def install_folder(folder: Path, dry_run):
     return True
 
 
-def install_folders(folders: List[Path], dry_run: bool = False):
+def install_folders(folders: List[Path], dry_run, verbose):
     """
     Idempotently link dotiles to files in given folders.
     """
+    if not verbose:
+        logger.setLevel(logging.WARNING)
+
     success = True
     for folder in folders:
         success = success and install_folder(folder, True)
@@ -98,6 +103,7 @@ def install_folders(folders: List[Path], dry_run: bool = False):
         logger.error("dotfiles are not installed since there are warnings")
         raise SystemExit()
 
+    logger.setLevel(logging.WARNING)
     if not dry_run:
         for folder in folders:
             install_folder(folder, dry_run)
@@ -141,6 +147,7 @@ def parse_arguments():
     parser.add_argument("folders", nargs="+")
     parser.add_argument("--dry-run", default=False, action="store_true")
     parser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+    parser.add_argument("--verbose", default=False, action="store_true")
     arguments = parser.parse_args()
     return vars(arguments)
 
