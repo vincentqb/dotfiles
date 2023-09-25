@@ -66,7 +66,7 @@ def link_rendered(candidates, dry_run):
                 logger.info(f"File {dotfile} would be created and linked to {rendered}")
             else:
                 dotfile.symlink_to(rendered)
-                logger.info(f"File {dotfile} created and links to {rendered}")
+                logger.info(f"File {dotfile} created and linked to {rendered}")
 
     return success
 
