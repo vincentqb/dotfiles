@@ -8,6 +8,9 @@ from typing import List
 
 
 def build_cdr_map(home, candidates):
+    """
+    Maps "candidate to be linked to" to ("dotfile", "rendered candidate")
+    """
     TEMPLATE = ".template"
     RENDERED = ".rendered"
 
@@ -25,6 +28,9 @@ def build_cdr_map(home, candidates):
 
 
 def render_candidates(candidates, dry_run):
+    """
+    Return False if a warning was raised, and True otherwise.
+    """
     success = True
     for candidate, (dotfile, rendered) in candidates.items():
         if candidate != rendered:
@@ -45,6 +51,9 @@ def render_candidates(candidates, dry_run):
 
 
 def install_links(candidates, dry_run):
+    """
+    Return False if a warning was raised, and True otherwise.
+    """
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -70,6 +79,9 @@ def install_links(candidates, dry_run):
 
 
 def install_folder(folder: Path, dry_run):
+    """
+    Return False if a warning was raised, and True otherwise.
+    """
     folder = Path(folder)
     folder = folder.expanduser().resolve()
     if not (folder.exists and folder.is_dir()):
