@@ -102,18 +102,19 @@ def install_folders(folders, dry_run):
     return success
 
 
-def main(folders, dry_run):
+def main(subparser, folders):
     """
     Link dotfiles to files in given folders in an idempotent way.
     """
-    if not dry_run:
+    if subparser == "install":
         logger.setLevel(logging.WARNING)
 
-    if install_folders(folders, dry_run=True):
-        logger.error("dotfiles are not installed since there are warnings")
+    success = install_folders(folders, dry_run=True)
+    if subparser == "install" and not success:
+        logger.error("No new dotfiles were not linked since there are warnings")
         raise SystemExit()
 
-    if not dry_run:
+    if subparser == "install":
         install_folders(folders, dry_run=False)
 
 
@@ -152,9 +153,14 @@ def get_logger():
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=install_folders.__doc__)
-    parser.add_argument("folders", nargs="+")
-    parser.add_argument("--dry-run", default=False, action="store_true")
-    parser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+    subparsers = parser.add_subparsers(dest="subparser")
+
+    parser_install = subparsers.add_parser("install")
+    parser_install.add_argument("folders", nargs="+")
+
+    parser_check = subparsers.add_parser("check")
+    parser_check.add_argument("folders", nargs="+")
+
     arguments = parser.parse_args()
     return vars(arguments)
 
