@@ -195,7 +195,7 @@ def get_logger():
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description=link_folders.__doc__)
+    parser = argparse.ArgumentParser(description=link.__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     parser_link = subparsers.add_parser("link")
