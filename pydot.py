@@ -28,9 +28,6 @@ def build_cdr_map(home, candidates):
 
 
 def render_candidates(candidates, dry_run):
-    """
-    Return False if a warning was raised, and True otherwise.
-    """
     success = True
     for candidate, (dotfile, rendered) in candidates.items():
         if candidate != rendered:
@@ -51,9 +48,6 @@ def render_candidates(candidates, dry_run):
 
 
 def install_links(candidates, dry_run):
-    """
-    Return False if a warning was raised, and True otherwise.
-    """
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -79,16 +73,13 @@ def install_links(candidates, dry_run):
 
 
 def install_folders(folders, dry_run):
-    """
-    Return False if a warning was raised, and True otherwise.
-    """
+    home = Path("~").expanduser().resolve()
 
     success = True
     for folder in folders:
         folder = Path(folder)
         folder = folder.expanduser().resolve()
         if folder.exists and folder.is_dir():
-            home = Path("~").expanduser().resolve()
             candidates = sorted(folder.glob("*"))
             candidates = build_cdr_map(home, candidates)
 
