@@ -18,7 +18,7 @@ def build_cdr_map(home, candidates):
         if not (name.startswith(".") or name.endswith(RENDERED)):
             # Add dot prefix and replace template when needed
             rendered = candidate.parent / re.sub(TEMPLATE + "$", RENDERED, name)
-            dotfile = home / ("." + name.removesuffix(TEMPLATE))
+            dotfile = home / ("." + re.sub(TEMPLATE + "$", "", name))
             names[candidate] = (dotfile, rendered)
 
     return names
@@ -51,7 +51,7 @@ def install_links(candidates, dry_run):
     for candidate, (dotfile, rendered) in candidates.items():
         if dotfile.exists():
             if dotfile.is_symlink():
-                if dotfile.readlink() == rendered:
+                if os.readlink(str(dotfile)) == str(rendered):
                     if not dry_run:
                         logger.info(f"Installed already: {dotfile} => {rendered}")
                 else:
@@ -139,7 +139,8 @@ def get_logger():
 def parse_arguments():
     parser = argparse.ArgumentParser(description=install_folders.__doc__)
     parser.add_argument("folders", nargs="+")
-    parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--dry-run", default=False, action="store_true")
+    parser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
     arguments = parser.parse_args()
     return vars(arguments)
 
