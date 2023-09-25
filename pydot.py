@@ -46,7 +46,7 @@ def render(candidates, dry_run):
     return success
 
 
-def link(candidates, dry_run):
+def link_rendered(candidates, dry_run):
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -71,10 +71,12 @@ def link(candidates, dry_run):
     return success
 
 
-def link_render(candidates, dry_run):
-    success1 = link(candidates, dry_run)
-    success2 = render(candidates, dry_run)
-    return success1 and success2
+def link(candidates, dry_run):
+    success = [
+        render(candidates, dry_run),
+        link_rendered(candidates, dry_run),
+    ]
+    return all(success)
 
 
 def unlink(candidates, dry_run):
@@ -130,12 +132,12 @@ def main(command, folders, dry_run):
     if not dry_run:
         logger.setLevel(logging.WARNING)
     if command == "link":
-        success = loop_folders(link_render, folders, dry_run=True)
+        success = loop_folders(link, folders, dry_run=True)
         if not success:
             logger.error("dotfiles were not changed since there were warnings")
             raise SystemExit()
         if not dry_run:
-            success = loop_folders(link_render, folders, dry_run=False)
+            success = loop_folders(link, folders, dry_run=False)
     elif command == "unlink":
         success = loop_folders(unlink, folders, dry_run=True)
         if not success:
