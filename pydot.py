@@ -93,6 +93,52 @@ def link_folders(folders, dry_run):
     return success
 
 
+def unlink_folder(candidates, dry_run):
+    success = True
+
+    for candidate, (dotfile, rendered) in candidates.items():
+        if dotfile.exists():
+            if dotfile.is_symlink():
+                link = os.readlink(str(dotfile))
+                if link == str(rendered):
+                    if dry_run:
+                        logger.info(f"File {dotfile} would be unlinked from {rendered}")
+                    else:
+                        # dotfile.unlink()
+                        logger.info(f"File {dotfile} unlinked from {rendered}")
+                else:
+                    logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
+                    success = False
+            else:
+                logger.warning(f"File {dotfile} exists but is not a link")
+                success = False
+        else:
+            logger.warning(f"File {dotfile} does not exists")
+            success = False
+
+    return success
+
+
+def unlink_folders(folders, dry_run):
+    home = Path("~").expanduser().resolve()
+
+    success = True
+    for folder in folders:
+        folder = Path(folder)
+        folder = folder.expanduser().resolve()
+        if folder.exists and folder.is_dir():
+            candidates = sorted(folder.glob("*"))
+            candidates = build_cdr_map(home, candidates)
+
+            success1 = unlink_folder(candidates, dry_run)
+            success = success and success1
+        else:
+            logger.warning(f"Folder {folder} does not exist")
+            success = False
+
+    return success
+
+
 def main(command, folders, dry_run):
     """
     Link dotfiles to files in given folders in an idempotent way.
@@ -106,6 +152,13 @@ def main(command, folders, dry_run):
             raise SystemExit()
         if not dry_run:
             success = link_folders(folders, dry_run=False)
+    elif command == "unlink":
+        success = unlink_folders(folders, dry_run=True)
+        if not success:
+            logger.error("dotfiles were not unlinked since there are warnings")
+            raise SystemExit()
+        if not dry_run:
+            success = unlink_folders(folders, dry_run=False)
 
 
 def get_logger():
@@ -149,6 +202,11 @@ def parse_arguments():
     parser_link.add_argument("folders", nargs="+")
     parser_link.add_argument("--dry-run", default=False, action="store_true")
     parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+
+    parser_unlink = subparsers.add_parser("unlink")
+    parser_unlink.add_argument("folders", nargs="+")
+    parser_unlink.add_argument("--dry-run", default=False, action="store_true")
+    parser_unlink.add_argument("--no-dry-run", dest="dry_run", action="store_false")
 
     arguments = parser.parse_args()
     return vars(arguments)
