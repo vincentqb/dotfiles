@@ -41,7 +41,7 @@ def render_candidates(candidates, dry_run):
                 with open(rendered, "r") as fp:
                     content_rendered = fp.read()
                 if content_candidate != content_rendered:
-                    logger.warning(f"File {rendered} already exists but its content doesn't match new content")
+                    logger.warning(f"File {rendered} already exists but doesn't match newly rendered content")
                     success = False
             else:
                 if not dry_run:
@@ -61,19 +61,19 @@ def install_links(candidates, dry_run):
             if dotfile.is_symlink():
                 link = os.readlink(str(dotfile))
                 if link == str(rendered):
-                    logger.info(f"Installed already: {dotfile} => {rendered}")
+                    logger.info(f"File {dotfile} links to {rendered} as expected")
                 else:
                     logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
                     success = False
             else:
-                logger.warning(f"File {dotfile} exists and is not a link")
+                logger.warning(f"File {dotfile} exists but is not a link")
                 success = False
         else:
             if dry_run:
-                logger.info(f"To create: {dotfile} => {rendered}")
+                logger.info(f"File {dotfile} would be created and linked to {rendered}")
             else:
                 dotfile.symlink_to(rendered)
-                logger.info(f"Created now: {dotfile} => {rendered}")
+                logger.info(f"File {dotfile} created and links to {rendered}")
 
     return success
 
