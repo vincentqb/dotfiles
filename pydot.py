@@ -69,49 +69,51 @@ def unlink(candidate, dotfile, rendered, dry_run):
         logger.warning(f"File {dotfile} does not exists")
 
 
-def apply_command_to_folders(home, command, folders, dry_run):
+def apply_command_to_folders(command, home, folders, dry_run):
     home = Path(home).expanduser().resolve()
-    for folder in folders:
-        folder = Path(folder).expanduser().resolve()
-        if folder.exists and folder.is_dir():
-            for candidate in sorted(folder.glob("*")):
-                name = candidate.name
-                if not (name.startswith(".") or name.endswith(".rendered")):
-                    # Add dot prefix and replace template when needed
-                    rendered = candidate.parent / re.sub(".template$", ".rendered", name)
-                    dotfile = home / ("." + re.sub(".template$", "", name))
-                    command(candidate, dotfile, rendered, dry_run)
-        else:
-            logger.warning(f"Folder {folder} does not exist")
+    if home.exists and home.is_dir():
+        for folder in folders:
+            folder = Path(folder).expanduser().resolve()
+            if folder.exists and folder.is_dir():
+                for candidate in sorted(folder.glob("*")):
+                    name = candidate.name
+                    if not (name.startswith(".") or name.endswith(".rendered")):
+                        # Add dot prefix and replace template when needed
+                        rendered = candidate.parent / re.sub(".template$", ".rendered", name)
+                        dotfile = home / ("." + re.sub(".template$", "", name))
+                        command(candidate, dotfile, rendered, dry_run)
+            else:
+                logger.warning(f"Folder {folder} does not exist")
+    else:
+        logger.warning(f"Folder {home} does not exist")
 
 
-def main(command, folders, dry_run):
+def try_then_run_command(command, home, folders, dry_run):
     """
     Manage links to dotfiles.
     """
     if not dry_run:
         logger.setLevel(logging.WARNING)
 
-    home = "~"
     command = COMMANDS[command]
-
-    apply_command_to_folders(home, command, folders, dry_run=True)
+    apply_command_to_folders(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
         logger.error("dotfiles were not changed since there were warnings")
         raise SystemExit()
 
     if not dry_run:
-        apply_command_to_folders(home, command, folders, dry_run=False)
+        apply_command_to_folders(command, home, folders, dry_run=False)
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser = argparse.ArgumentParser(description=try_then_run_command.__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     for key, func in COMMANDS.items():
         subparser = subparsers.add_parser(key, description=func.__doc__)
         subparser.add_argument("folders", nargs="+")
+        subparser.add_argument("--home", nargs="?", default="~")
         subparser.add_argument("-d", "--dry-run", default=False, action="store_true")
         subparser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
 
@@ -168,4 +170,4 @@ def get_logger():
 if __name__ == "__main__":
     COMMANDS = {"link": link, "unlink": unlink}
     logger = get_logger()
-    main(**parse_arguments())
+    try_then_run_command(**parse_arguments())
