@@ -36,11 +36,9 @@ def link(candidate, dotfile, rendered, dry_run):
         else:
             logger.warning(f"File {dotfile} exists but is not a link")
     else:
-        if dry_run:
-            logger.info(f"File {dotfile} would be created and linked to {rendered}")
-        else:
+        if not dry_run:
             dotfile.symlink_to(rendered)
-            logger.info(f"File {dotfile} created and linked to {rendered}")
+        logger.info(f"File {dotfile} created and linked to {rendered}")
 
 
 def unlink(candidate, dotfile, rendered, dry_run):
@@ -52,11 +50,9 @@ def unlink(candidate, dotfile, rendered, dry_run):
         if dotfile.is_symlink():
             link = os.readlink(str(dotfile))
             if link == str(rendered):
-                if dry_run:
-                    logger.info(f"File {dotfile} would be unlinked from {rendered}")
-                else:
+                if not dry_run:
                     dotfile.unlink()
-                    logger.info(f"File {dotfile} unlinked from {rendered}")
+                logger.info(f"File {dotfile} unlinked from {rendered}")
             else:
                 logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
         else:
@@ -94,7 +90,7 @@ def try_then_run_command(command, home, folders, dry_run):
     run_command_on_folders(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
-        logger.error(f"dotfiles {'would not have been' if dry_run else 'were not'} changed since there were warnings")
+        logger.error("dotfiles were not changed since there were warnings")
         raise SystemExit()
 
     if not dry_run:
