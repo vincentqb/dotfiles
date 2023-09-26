@@ -15,18 +15,16 @@ def link(candidate, dotfile, rendered, dry_run):
 
     if candidate != rendered:
         with open(candidate, "r") as fp:
-            content_candidate = fp.read()
-        content_candidate = Template(content_candidate).safe_substitute(os.environ)
+            content = Template(fp.read()).safe_substitute(os.environ)
 
         if rendered.exists():
             with open(rendered, "r") as fp:
-                content_rendered = fp.read()
-            if content_candidate != content_rendered:
-                logger.warning(f"File {rendered} already exists but doesn't match newly rendered content")
+                if content != fp.read():
+                    logger.warning(f"File {rendered} already exists but doesn't match newly rendered content")
         else:
             if not dry_run:
                 with open(rendered, "w") as fp:
-                    fp.write(content_candidate)
+                    fp.write(content)
 
     # Create link
 
