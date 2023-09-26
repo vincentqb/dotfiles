@@ -117,9 +117,7 @@ def loop_folders(command, folders, dry_run):
         if folder.exists and folder.is_dir():
             candidates = sorted(folder.glob("*"))
             candidates = build_cdr_map(home, candidates)
-
-            success_ = command(candidates, dry_run)
-            success = success and success_
+            success = all([success, command(candidates, dry_run)])
         else:
             logger.warning(f"Folder {folder} does not exist")
             success = False
