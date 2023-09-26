@@ -6,7 +6,10 @@ from pathlib import Path
 from string import Template
 
 
-def link_render(candidate, dotfile, rendered, dry_run):
+def make_render(candidate, dotfile, rendered, dry_run):
+    """
+    Create rendered file from template.
+    """
     if candidate != rendered:
         with open(candidate, "r") as fp:
             content_candidate = fp.read()
@@ -25,7 +28,10 @@ def link_render(candidate, dotfile, rendered, dry_run):
     return True
 
 
-def link_make(candidate, dotfile, rendered, dry_run):
+def make_link(candidate, dotfile, rendered, dry_run):
+    """
+    Create link.
+    """
     if dotfile.exists():
         if dotfile.is_symlink():
             link = os.readlink(str(dotfile))
@@ -50,14 +56,15 @@ def link(candidates, dry_run):
     """
     Link dotfiles to files in given folders in an idempotent way.
     """
+
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
         success = all(
             [
                 success,
-                link_render(candidate, dotfile, rendered, dry_run),
-                link_make(candidate, dotfile, rendered, dry_run),
+                make_render(candidate, dotfile, rendered, dry_run),
+                make_link(candidate, dotfile, rendered, dry_run),
             ]
         )
 
@@ -193,9 +200,9 @@ def get_logger():
     return logger
 
 
-COMMANDS = {"link": link, "unlink": unlink}
-
 if __name__ == "__main__":
+    COMMANDS = {"link": link, "unlink": unlink}
     logger = get_logger()
+
     arguments = parse_arguments()
     main(**arguments)
