@@ -12,6 +12,12 @@ PASSWD=github_application_password \
 /usr/bin/python3 -m pip install --user --upgrade -r ~/dotfiles/requirements.txt
 ```
 
+Try pydot instead of bashdot:
+```
+PASSWD=github_application_password \
+    python ~/dotfiles/pydot.py install default netrc
+```
+
 Try zellij instead of tmux:
 ```
 zellij --layout compact options --simplified-ui true --default-shell "fish" --default-mode "locked"
