@@ -6,10 +6,13 @@ from pathlib import Path
 from string import Template
 
 
-def make_render(candidate, dotfile, rendered, dry_run):
+def link(candidate, dotfile, rendered, dry_run):
     """
-    Create rendered file from template.
+    Link dotfiles to files in given folders in an idempotent way.
     """
+
+    # Create rendered file from template
+
     if candidate != rendered:
         with open(candidate, "r") as fp:
             content_candidate = fp.read()
@@ -25,11 +28,8 @@ def make_render(candidate, dotfile, rendered, dry_run):
                 with open(rendered, "w") as fp:
                     fp.write(content_candidate)
 
+    # Create link
 
-def make_link(candidate, dotfile, rendered, dry_run):
-    """
-    Create link.
-    """
     if dotfile.exists():
         if dotfile.is_symlink():
             link = os.readlink(str(dotfile))
@@ -45,15 +45,6 @@ def make_link(candidate, dotfile, rendered, dry_run):
         else:
             dotfile.symlink_to(rendered)
             logger.info(f"File {dotfile} created and linked to {rendered}")
-
-
-def link(candidate, dotfile, rendered, dry_run):
-    """
-    Link dotfiles to files in given folders in an idempotent way.
-    """
-
-    make_render(candidate, dotfile, rendered, dry_run)
-    make_link(candidate, dotfile, rendered, dry_run)
 
 
 def unlink(candidate, dotfile, rendered, dry_run):
