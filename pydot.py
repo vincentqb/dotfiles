@@ -90,7 +90,7 @@ def try_then_run_command(command, home, folders, dry_run):
     run_command_on_folders(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
-        logger.error("dotfiles were not changed since there were warnings")
+        logger.error("There were warnings, so exiting without changing dotfiles.")
         raise SystemExit()
 
     if not dry_run:
