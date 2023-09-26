@@ -69,7 +69,7 @@ def unlink(candidate, dotfile, rendered, dry_run):
         logger.warning(f"File {dotfile} does not exists")
 
 
-def apply_command_to_folders(command, folders, home, dry_run):
+def apply_command_to_folders(home, command, folders, dry_run):
     home = Path(home).expanduser().resolve()
     for folder in folders:
         folder = Path(folder).expanduser().resolve()
@@ -95,14 +95,14 @@ def main(command, folders, dry_run):
     home = "~"
     command = COMMANDS[command]
 
-    apply_command_to_folders(command, folders, home, dry_run=True)
+    apply_command_to_folders(home, command, folders, dry_run=True)
 
     if logger.warning.counter > 0:
         logger.error("dotfiles were not changed since there were warnings")
         raise SystemExit()
 
     if not dry_run:
-        apply_command_to_folders(command, folders, home, dry_run=False)
+        apply_command_to_folders(home, command, folders, dry_run=False)
 
 
 def parse_arguments():
@@ -110,13 +110,12 @@ def parse_arguments():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     for key, func in COMMANDS.items():
-        parser_link = subparsers.add_parser(key, description=func.__doc__)
-        parser_link.add_argument("folders", nargs="+")
-        parser_link.add_argument("-d", "--dry-run", default=False, action="store_true")
-        parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+        subparser = subparsers.add_parser(key, description=func.__doc__)
+        subparser.add_argument("folders", nargs="+")
+        subparser.add_argument("-d", "--dry-run", default=False, action="store_true")
+        subparser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
 
-    arguments = parser.parse_args()
-    return vars(arguments)
+    return vars(parser.parse_args())
 
 
 def get_logger():
