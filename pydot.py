@@ -92,7 +92,7 @@ def unlink(candidates, dry_run):
                     if dry_run:
                         logger.info(f"File {dotfile} would be unlinked from {rendered}")
                     else:
-                        # dotfile.unlink()
+                        dotfile.unlink()
                         logger.info(f"File {dotfile} unlinked from {rendered}")
                 else:
                     logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
