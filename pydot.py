@@ -107,7 +107,7 @@ def unlink(candidates, dry_run):
     return success
 
 
-def loop_folders(command, folders, dry_run):
+def apply_command_to_folders(command, folders, dry_run):
     home = Path("~").expanduser().resolve()
 
     success = True
@@ -131,20 +131,27 @@ def main(command, folders, dry_run):
     """
     if not dry_run:
         logger.setLevel(logging.WARNING)
-    if command == "link":
-        success = loop_folders(link, folders, dry_run=True)
-        if not success:
-            logger.error("dotfiles were not changed since there were warnings")
-            raise SystemExit()
-        if not dry_run:
-            success = loop_folders(link, folders, dry_run=False)
-    elif command == "unlink":
-        success = loop_folders(unlink, folders, dry_run=True)
-        if not success:
-            logger.error("dotfiles were not changed since there were warnings")
-            raise SystemExit()
-        if not dry_run:
-            success = loop_folders(unlink, folders, dry_run=False)
+
+    command = COMMANDS[command]
+    if not apply_command_to_folders(command, folders, dry_run=True):
+        logger.error("dotfiles were not changed since there were warnings")
+        raise SystemExit()
+    if not dry_run:
+        apply_command_to_folders(command, folders, dry_run=False)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description=link.__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    for command in COMMANDS.keys():
+        parser_link = subparsers.add_parser(command)
+        parser_link.add_argument("folders", nargs="+")
+        parser_link.add_argument("--dry-run", default=False, action="store_true")
+        parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+
+    arguments = parser.parse_args()
+    return vars(arguments)
 
 
 def get_logger():
@@ -180,23 +187,7 @@ def get_logger():
     return logger
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description=link.__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    parser_link = subparsers.add_parser("link")
-    parser_link.add_argument("folders", nargs="+")
-    parser_link.add_argument("--dry-run", default=False, action="store_true")
-    parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
-
-    parser_unlink = subparsers.add_parser("unlink")
-    parser_unlink.add_argument("folders", nargs="+")
-    parser_unlink.add_argument("--dry-run", default=False, action="store_true")
-    parser_unlink.add_argument("--no-dry-run", dest="dry_run", action="store_false")
-
-    arguments = parser.parse_args()
-    return vars(arguments)
-
+COMMANDS = {"link": link, "unlink": unlink}
 
 if __name__ == "__main__":
     logger = get_logger()
