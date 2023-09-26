@@ -178,6 +178,4 @@ def get_logger():
 if __name__ == "__main__":
     COMMANDS = {"link": link, "unlink": unlink}
     logger = get_logger()
-
-    arguments = parse_arguments()
-    main(**arguments)
+    main(**parse_arguments())
