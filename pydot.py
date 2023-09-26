@@ -160,7 +160,7 @@ def parse_arguments():
     for key, func in COMMANDS.items():
         parser_link = subparsers.add_parser(key, description=func.__doc__)
         parser_link.add_argument("folders", nargs="+")
-        parser_link.add_argument("--dry-run", default=False, action="store_true")
+        parser_link.add_argument("-d", "--dry-run", default=False, action="store_true")
         parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
 
     arguments = parser.parse_args()
