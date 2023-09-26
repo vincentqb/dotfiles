@@ -20,12 +20,10 @@ def make_render(candidate, dotfile, rendered, dry_run):
                 content_rendered = fp.read()
             if content_candidate != content_rendered:
                 logger.warning(f"File {rendered} already exists but doesn't match newly rendered content")
-                return False
         else:
             if not dry_run:
                 with open(rendered, "w") as fp:
                     fp.write(content_candidate)
-    return True
 
 
 def make_link(candidate, dotfile, rendered, dry_run):
@@ -39,17 +37,14 @@ def make_link(candidate, dotfile, rendered, dry_run):
                 logger.info(f"File {dotfile} links to {rendered} as expected")
             else:
                 logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
-                return False
         else:
             logger.warning(f"File {dotfile} exists but is not a link")
-            return False
     else:
         if dry_run:
             logger.info(f"File {dotfile} would be created and linked to {rendered}")
         else:
             dotfile.symlink_to(rendered)
             logger.info(f"File {dotfile} created and linked to {rendered}")
-    return True
 
 
 def link(candidate, dotfile, rendered, dry_run):
@@ -57,12 +52,8 @@ def link(candidate, dotfile, rendered, dry_run):
     Link dotfiles to files in given folders in an idempotent way.
     """
 
-    return all(
-        [
-            make_render(candidate, dotfile, rendered, dry_run),
-            make_link(candidate, dotfile, rendered, dry_run),
-        ]
-    )
+    make_render(candidate, dotfile, rendered, dry_run)
+    make_link(candidate, dotfile, rendered, dry_run)
 
 
 def unlink(candidate, dotfile, rendered, dry_run):
@@ -81,21 +72,15 @@ def unlink(candidate, dotfile, rendered, dry_run):
                     logger.info(f"File {dotfile} unlinked from {rendered}")
             else:
                 logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
-                return False
         else:
             logger.warning(f"File {dotfile} exists but is not a link")
-            return False
     else:
         logger.warning(f"File {dotfile} does not exists")
-        return False
-
-    return True
 
 
 def apply_command_to_folders(command, folders, dry_run):
     home = Path("~").expanduser().resolve()
 
-    success = True
     for folder in folders:
         folder = Path(folder)
         folder = folder.expanduser().resolve()
@@ -106,12 +91,9 @@ def apply_command_to_folders(command, folders, dry_run):
                     # Add dot prefix and replace template when needed
                     rendered = candidate.parent / re.sub(".template$", ".rendered", name)
                     dotfile = home / ("." + re.sub(".template$", "", name))
-                    success = all([success, command(candidate, dotfile, rendered, dry_run)])
+                    command(candidate, dotfile, rendered, dry_run)
         else:
             logger.warning(f"Folder {folder} does not exist")
-            success = False
-
-    return success
 
 
 def main(command, folders, dry_run):
@@ -122,9 +104,12 @@ def main(command, folders, dry_run):
         logger.setLevel(logging.WARNING)
 
     command = COMMANDS[command]
-    if not apply_command_to_folders(command, folders, dry_run=True):
+    apply_command_to_folders(command, folders, dry_run=True)
+
+    if logger.warning.counter > 0:
         logger.error("dotfiles were not changed since there were warnings")
         raise SystemExit()
+
     if not dry_run:
         apply_command_to_folders(command, folders, dry_run=False)
 
@@ -144,6 +129,17 @@ def parse_arguments():
 
 
 def get_logger():
+    class CallCounted:
+        """Decorator to determine number of calls for a method"""
+
+        def __init__(self, method):
+            self.method = method
+            self.counter = 0
+
+        def __call__(self, *args, **kwargs):
+            self.counter += 1
+            return self.method(*args, **kwargs)
+
     class CustomFormatter(logging.Formatter):
         grey = "\x1b[38;20m"
         yellow = "\x1b[33;20m"
@@ -173,6 +169,9 @@ def get_logger():
     ch.setFormatter(CustomFormatter())
 
     logger.addHandler(ch)
+
+    # Add logger.warning.counter
+    logger.warning = CallCounted(logger.warning)
     return logger
 
 
