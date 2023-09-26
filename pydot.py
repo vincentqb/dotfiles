@@ -1,8 +1,8 @@
-import argparse
 import logging
 import os
-import re
+from argparse import ArgumentParser
 from pathlib import Path
+from re import sub
 from string import Template
 
 
@@ -12,7 +12,6 @@ def link(candidate, dotfile, rendered, dry_run):
     """
 
     # Create rendered file from template
-
     if candidate != rendered:
         with open(candidate, "r") as fp:
             content = Template(fp.read()).safe_substitute(os.environ)
@@ -27,7 +26,6 @@ def link(candidate, dotfile, rendered, dry_run):
                     fp.write(content)
 
     # Create link
-
     if dotfile.exists():
         if dotfile.is_symlink():
             link = os.readlink(str(dotfile))
@@ -77,8 +75,8 @@ def run_command_on_folders(command, home, folders, dry_run):
                     name = candidate.name
                     if not (name.startswith(".") or name.endswith(".rendered")):
                         # Add dot prefix and replace template when needed
-                        rendered = candidate.parent / re.sub(".template$", ".rendered", name)
-                        dotfile = home / ("." + re.sub(".template$", "", name))
+                        rendered = candidate.parent / sub(".template$", ".rendered", name)
+                        dotfile = home / ("." + sub(".template$", "", name))
                         command(candidate, dotfile, rendered, dry_run)
             else:
                 logger.warning(f"Folder {folder} does not exist")
@@ -105,7 +103,7 @@ def try_then_run_command(command, home, folders, dry_run):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description=try_then_run_command.__doc__)
+    parser = ArgumentParser(description=try_then_run_command.__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     for key, func in COMMANDS.items():
