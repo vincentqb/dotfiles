@@ -88,14 +88,13 @@ def try_then_run_command(command, home, folders, dry_run):
     """
     Manage links to dotfiles.
     """
-    if not dry_run:
-        logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.INFO if dry_run else logging.WARNING)
 
     command = COMMANDS[command]
     run_command_on_folders(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
-        logger.error("dotfiles were not changed since there were warnings")
+        logger.error(f"dotfiles {'would not have been' if dry_run else 'were not'} changed since there were warnings")
         raise SystemExit()
 
     if not dry_run:
