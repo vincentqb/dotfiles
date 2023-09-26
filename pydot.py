@@ -67,7 +67,7 @@ def unlink(candidate, dotfile, rendered, dry_run):
         logger.warning(f"File {dotfile} does not exists")
 
 
-def apply_command_to_folders(command, home, folders, dry_run):
+def run_command_on_folders(command, home, folders, dry_run):
     home = Path(home).expanduser().resolve()
     if home.exists and home.is_dir():
         for folder in folders:
@@ -94,14 +94,14 @@ def try_then_run_command(command, home, folders, dry_run):
         logger.setLevel(logging.WARNING)
 
     command = COMMANDS[command]
-    apply_command_to_folders(command, home, folders, dry_run=True)
+    run_command_on_folders(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
         logger.error("dotfiles were not changed since there were warnings")
         raise SystemExit()
 
     if not dry_run:
-        apply_command_to_folders(command, home, folders, dry_run=False)
+        run_command_on_folders(command, home, folders, dry_run=False)
 
 
 def parse_arguments():
