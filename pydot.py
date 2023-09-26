@@ -6,26 +6,6 @@ from pathlib import Path
 from string import Template
 
 
-def build_cdr_map(home, candidates):
-    """
-    Maps "candidate to be linked to" to ("dotfile", "rendered candidate")
-    """
-    TEMPLATE = ".template"
-    RENDERED = ".rendered"
-
-    names = {}
-
-    for candidate in candidates:
-        name = candidate.name
-        if not (name.startswith(".") or name.endswith(RENDERED)):
-            # Add dot prefix and replace template when needed
-            rendered = candidate.parent / re.sub(TEMPLATE + "$", RENDERED, name)
-            dotfile = home / ("." + re.sub(TEMPLATE + "$", "", name))
-            names[candidate] = (dotfile, rendered)
-
-    return names
-
-
 def link_render(candidate, dotfile, rendered, dry_run):
     if candidate != rendered:
         with open(candidate, "r") as fp:
@@ -67,6 +47,9 @@ def link_make(candidate, dotfile, rendered, dry_run):
 
 
 def link(candidates, dry_run):
+    """
+    Link dotfiles to files in given folders in an idempotent way.
+    """
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -82,6 +65,9 @@ def link(candidates, dry_run):
 
 
 def unlink(candidates, dry_run):
+    """
+    Unlink dotfiles that are linked to files in given folders.
+    """
     success = True
 
     for candidate, (dotfile, rendered) in candidates.items():
@@ -107,6 +93,26 @@ def unlink(candidates, dry_run):
     return success
 
 
+def build_cdr_map(home, candidates):
+    """
+    Maps "candidate to be linked to" to ("dotfile", "rendered candidate")
+    """
+    TEMPLATE = ".template"
+    RENDERED = ".rendered"
+
+    names = {}
+
+    for candidate in candidates:
+        name = candidate.name
+        if not (name.startswith(".") or name.endswith(RENDERED)):
+            # Add dot prefix and replace template when needed
+            rendered = candidate.parent / re.sub(TEMPLATE + "$", RENDERED, name)
+            dotfile = home / ("." + re.sub(TEMPLATE + "$", "", name))
+            names[candidate] = (dotfile, rendered)
+
+    return names
+
+
 def apply_command_to_folders(command, folders, dry_run):
     home = Path("~").expanduser().resolve()
 
@@ -127,7 +133,7 @@ def apply_command_to_folders(command, folders, dry_run):
 
 def main(command, folders, dry_run):
     """
-    Link dotfiles to files in given folders in an idempotent way.
+    Manage links to dotfiles.
     """
     if not dry_run:
         logger.setLevel(logging.WARNING)
@@ -141,11 +147,11 @@ def main(command, folders, dry_run):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description=link.__doc__)
+    parser = argparse.ArgumentParser(description=main.__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    for command in COMMANDS.keys():
-        parser_link = subparsers.add_parser(command)
+    for key, func in COMMANDS.items():
+        parser_link = subparsers.add_parser(key, description=func.__doc__)
         parser_link.add_argument("folders", nargs="+")
         parser_link.add_argument("--dry-run", default=False, action="store_true")
         parser_link.add_argument("--no-dry-run", dest="dry_run", action="store_false")
