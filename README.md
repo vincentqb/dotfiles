@@ -15,7 +15,7 @@ PASSWD=github_application_password \
 Try pydot instead of bashdot:
 ```
 PASSWD=github_application_password \
-    python ~/dotfiles/pydot.py install default netrc
+    python3 ~/dotfiles/pydot.py link default netrc
 ```
 
 Try zellij instead of tmux:
