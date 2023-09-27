@@ -1,8 +1,5 @@
-default/config/nvim/pack/minpac/
 default/config/nvim/undodir/
-!default/config/nvim
 
-default/local
 default/tmux/plugins
 default/vim/.netrwhist
 default/ipython/profile_default/history.sqlite
