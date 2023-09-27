@@ -18,12 +18,15 @@ def link(candidate, dotfile, rendered, dry_run):
 
         if rendered.exists():
             with open(rendered, "r") as fp:
-                if content != fp.read():
+                if content == fp.read():
+                    logger.debug(f"File {rendered} already exists and has the expected content.")
+                else:
                     logger.warning(f"File {rendered} already exists but doesn't match newly rendered content")
         else:
             if not dry_run:
                 with open(rendered, "w") as fp:
                     fp.write(content)
+            logger.debug(f"File {rendered} created.")
 
     # Create link
     if dotfile.exists():
@@ -90,7 +93,7 @@ def try_then_run_command(command, home, folders, dry_run):
     run_command_on_folders(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
-        logger.error("There were warnings, so exiting without changing dotfiles.")
+        logger.error("There were conflicts: exiting without changing dotfiles.")
         raise SystemExit()
 
     if not dry_run:
@@ -129,11 +132,11 @@ def get_logger():
         red = "\x1b[31;20m"
         bold_red = "\x1b[31;1m"
         reset = "\x1b[0m"
-        format = "%(levelname)s - %(message)s"
+        format = "%(message)s"
 
         FORMATS = {
             logging.DEBUG: grey + format + reset,
-            logging.INFO: grey + "%(message)s" + reset,
+            logging.INFO: grey + format + reset,
             logging.WARNING: yellow + format + reset,
             logging.ERROR: red + format + reset,
             logging.CRITICAL: bold_red + format + reset,
