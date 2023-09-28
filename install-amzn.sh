@@ -2,7 +2,7 @@
 
 git submodule sync
 git submodule update --init --recursive
-~/dotfiles/bashdot/bashdot install default
+~/dotfiles/pydot install default
 
 /usr/bin/pip3 install --user -r requirements.txt --use-feature=2020-resolver
 
