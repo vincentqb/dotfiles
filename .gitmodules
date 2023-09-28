@@ -1,5 +1,5 @@
 [submodule "tpm"]
-	path = default/tmux/plugins/tpm
+	path = tmux2/tmux/plugins/tpm
 	url = https://github.com/tmux-plugins/tpm
 [submodule "bash-sensible"]
 	path = default/bash-sensible
