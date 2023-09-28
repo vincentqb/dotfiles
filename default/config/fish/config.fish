@@ -10,4 +10,11 @@ if status is-interactive
     abbr view "nvim -RO"
     abbr s "kitty +kitten ssh"
     abbr icat "kitty +kitten icat"
+
+    for motd in /run/motd.dynamic /etc/motd
+        if test -e $motd
+            cat $motd
+        end
+    end
+
 end
