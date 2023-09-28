@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=kitty
-Exec=/usr/bin/kitty --single-instance
-Icon=/home/vincent/.local/share/icons/whiskers_256x256.png
-Terminal=false
-Type=Application
