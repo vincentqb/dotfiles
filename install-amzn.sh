@@ -4,9 +4,10 @@ git submodule sync
 git submodule update --init --recursive
 ~/dotfiles/bashdot/bashdot install default
 
-/usr/bin/pip3 install --user -r requirements.txt
+/usr/bin/pip3 install --user -r requirements.txt --use-feature=2020-resolver
 
 # Install latest neovim
+sudo yum install fuse
 mkdir -p ~/.local/bin
 wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
 chmod +x ~/.local/bin/nvim
