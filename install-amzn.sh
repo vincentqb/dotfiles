@@ -25,3 +25,34 @@ curl https://sh.rustup.rs -sSf | sh
 # cargo install --locked bat fd-find ripgrep eza
 
 conda config --set auto_activate_base true
+
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
+sudo yum install amazon-cloudwatch-agent
+sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << EOM
+{
+    "agent": {
+        "metrics_collection_interval": 60,
+        "run_as_user": "root"
+    },
+    "metrics": {
+        "namespace": "Custom/GPU",
+        "append_dimensions": {
+            "AutoScalingGroupName": "${aws:AutoScalingGroupName}",
+            "ImageId": "${aws:ImageId}",
+            "InstanceId": "${aws:InstanceId}",
+            "InstanceType": "${aws:InstanceType}"
+        },
+        "aggregation_dimensions": [["InstanceId"]],
+        "metrics_collected": {
+            "nvidia_gpu": {
+                "measurement": [
+                    "utilization_gpu",
+                    "utilization_memory"
+                ]
+            }
+        }
+    }
+}
+EOM
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
