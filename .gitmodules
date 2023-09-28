@@ -4,9 +4,6 @@
 [submodule "bash-sensible"]
 	path = default/bash-sensible
 	url = https://github.com/mrzool/bash-sensible/
-[submodule "bashdot"]
-	path = bashdot
-	url = https://github.com/bashdot/bashdot
 [submodule "default/vim/pack/vim-sensible"]
 	path = default/vim/pack/plugins/start/vim-sensible
 	url = https://github.com/tpope/vim-sensible

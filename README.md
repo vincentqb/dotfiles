@@ -14,9 +14,9 @@ PASSWD=github_application_password \
 
 Alternatively, install dotfiles with [bashdot](https://github.com/bashdot/bashdot):
 ```
+git clone https://github.com/bashdot/bashdot.git ~/bashdot/
 PASSWD=github_application_password \
-    ~/dotfiles/bashdot/bashdot install default netrc
-
+    ~/bashdot/bashdot install default netrc
 ```
 
 Try zellij instead of tmux:
