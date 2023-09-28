@@ -72,7 +72,9 @@ def run_command_on_folders(command, home, folders, dry_run):
             if folder.exists and folder.is_dir():
                 for candidate in sorted(folder.glob("*")):
                     name = candidate.name
-                    if not (name.startswith(".") or name.endswith(".rendered")):
+                    if name.startswith("."):
+                        logger.debug(f"File {candidate} ignored.")
+                    elif not name.endswith(".rendered"):
                         # Add dot prefix and replace template when needed
                         rendered = candidate.parent / sub(".template$", ".rendered", name)
                         dotfile = home / ("." + sub(".template$", "", name))
