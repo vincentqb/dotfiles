@@ -21,4 +21,7 @@ sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/sh
 sudo yum install fish
 
 curl https://sh.rustup.rs -sSf | sh
-cargo install --locked bat fd-find ripgrep eza
+~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
+# cargo install --locked bat fd-find ripgrep eza
+
+conda config --set auto_activate_base true
