@@ -21,7 +21,7 @@ def link(candidate, dotfile, rendered, dry_run):
                 if content == fp.read():
                     logger.debug(f"File {rendered} exists with the expected content.")
                 else:
-                    logger.warning(f"File {rendered} exists but doesn't have the newly rendered content")
+                    logger.warning(f"File {rendered} exists but doesn't match newly rendered content")
         else:
             if not dry_run:
                 with open(rendered, "w") as fp:
@@ -64,7 +64,10 @@ def unlink(candidate, dotfile, rendered, dry_run):
         logger.warning(f"File {dotfile} does not exists")
 
 
-def run_command_on_folders(command, home, folders, dry_run):
+def run(command, home, folders, dry_run):
+    """
+    Run given command on all folders.
+    """
     home = Path(home).expanduser().resolve()
     if home.exists and home.is_dir():
         for folder in folders:
@@ -85,25 +88,25 @@ def run_command_on_folders(command, home, folders, dry_run):
         logger.warning(f"Folder {home} does not exist")
 
 
-def try_then_run_command(command, home, folders, dry_run):
+def try_then_run(command, home, folders, dry_run):
     """
     Manage links to dotfiles.
     """
     logger.setLevel(logging.INFO if dry_run else logging.WARNING)
 
     command = COMMANDS[command]
-    run_command_on_folders(command, home, folders, dry_run=True)
+    run(command, home, folders, dry_run=True)
 
     if logger.warning.counter > 0:
         logger.error("There were conflicts: exiting without changing dotfiles.")
         raise SystemExit()
 
     if not dry_run:
-        run_command_on_folders(command, home, folders, dry_run=False)
+        run(command, home, folders, dry_run=False)
 
 
 def parse_arguments():
-    parser = ArgumentParser(description=try_then_run_command.__doc__)
+    parser = ArgumentParser(description=try_then_run.__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     for key, func in COMMANDS.items():
@@ -129,24 +132,24 @@ def get_logger():
             return self.method(*args, **kwargs)
 
     class CustomFormatter(logging.Formatter):
-        grey = "\x1b[38;20m"
-        yellow = "\x1b[33;20m"
-        red = "\x1b[31;20m"
-        bold_red = "\x1b[31;1m"
-        reset = "\x1b[0m"
-        format = "%(message)s"
+        GREY = "\x1b[38;20m"
+        YELLOW = "\x1b[33;20m"
+        RED = "\x1b[31;20m"
+        BOLD_RED = "\x1b[31;1m"
+        RESET = "\x1b[0m"
+        FORMAT = "%(message)s"
 
-        FORMATS = {
-            logging.DEBUG: grey + format + reset,
-            logging.INFO: grey + format + reset,
-            logging.WARNING: yellow + format + reset,
-            logging.ERROR: red + format + reset,
-            logging.CRITICAL: bold_red + format + reset,
+        formats = {
+            logging.DEBUG: GREY + FORMAT + RESET,
+            logging.INFO: GREY + FORMAT + RESET,
+            logging.WARNING: YELLOW + FORMAT + RESET,
+            logging.ERROR: RED + FORMAT + RESET,
+            logging.CRITICAL: BOLD_RED + FORMAT + RESET,
         }
 
         def format(self, record):
-            log_fmt = self.FORMATS.get(record.levelno)
-            formatter = logging.Formatter(log_fmt)
+            format = self.formats.get(record.levelno)
+            formatter = logging.Formatter(format)
             return formatter.format(record)
 
     logger = logging.getLogger()
@@ -166,4 +169,4 @@ def get_logger():
 if __name__ == "__main__":
     COMMANDS = {"link": link, "unlink": unlink}
     logger = get_logger()
-    try_then_run_command(**parse_arguments())
+    try_then_run(**parse_arguments())
