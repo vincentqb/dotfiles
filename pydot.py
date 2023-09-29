@@ -2,9 +2,9 @@
 
 import logging
 import os
-from argparse import ArgumentParser
+import re
+from argparse import ArgumentParser, BooleanOptionalAction
 from pathlib import Path
-from re import sub
 from string import Template
 
 
@@ -26,7 +26,7 @@ def link(candidate, dotfile, rendered, dry_run):
     # Create link
     if dotfile.exists():
         if dotfile.is_symlink():
-            link = Path(os.readlink(str(dotfile))).expanduser().resolve()
+            link = dotfile.readlink()
             if link == rendered:
                 logger.info(f"File {dotfile} links to {rendered} as expected")
             else:
@@ -46,7 +46,7 @@ def unlink(candidate, dotfile, rendered, dry_run):
 
     if dotfile.exists():
         if dotfile.is_symlink():
-            link = Path(os.readlink(str(dotfile))).expanduser().resolve()
+            link = dotfile.readlink()
             if link == rendered:
                 if not dry_run:
                     dotfile.unlink()
@@ -74,8 +74,8 @@ def run(command, home, folders, dry_run):
                         logger.debug(f"File {candidate} ignored.")
                     elif not name.endswith(".rendered"):
                         # Add dot prefix and replace template when needed
-                        rendered = candidate.parent / sub(".template$", ".rendered", name)
-                        dotfile = home / ("." + sub(".template$", "", name))
+                        rendered = candidate.parent / re.sub(".template$", ".rendered", name)
+                        dotfile = home / ("." + re.sub(".template$", "", name))
                         command(candidate, dotfile, rendered, dry_run)
             else:
                 logger.warning(f"Folder {folder} does not exist")
@@ -110,8 +110,7 @@ def parse_arguments():
         subparser = subparsers.add_parser(key, description=func.__doc__)
         subparser.add_argument("folders", nargs="+")
         subparser.add_argument("--home", nargs="?", default="~")
-        subparser.add_argument("-d", "--dry-run", default=False, action="store_true")
-        subparser.add_argument("--no-dry-run", dest="dry_run", action="store_false")
+        subparser.add_argument("-d", "--dry-run", default=False, action=BooleanOptionalAction)
 
     return vars(parser.parse_args())
 
