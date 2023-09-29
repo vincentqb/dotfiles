@@ -17,7 +17,6 @@ def link(candidate, dotfile, rendered, dry_run):
     if candidate != rendered:
         with open(candidate, "r") as fp:
             content = Template(fp.read()).safe_substitute(os.environ)
-
         if not dry_run:
             with open(rendered, "w") as fp:
                 fp.write(content)
@@ -43,7 +42,6 @@ def unlink(candidate, dotfile, rendered, dry_run):
     """
     Unlink dotfiles that are linked to files in given folders.
     """
-
     if dotfile.exists():
         if dotfile.is_symlink():
             link = dotfile.readlink()
@@ -127,7 +125,7 @@ def get_logger():
             self.counter += 1
             return self.method(*args, **kwargs)
 
-    class CustomFormatter(logging.Formatter):
+    class Formatter(logging.Formatter):
         GREY = "\x1b[38;20m"
         YELLOW = "\x1b[33;20m"
         RED = "\x1b[31;20m"
@@ -148,17 +146,14 @@ def get_logger():
             formatter = logging.Formatter(format)
             return formatter.format(record)
 
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
-    ch.setFormatter(CustomFormatter())
+    ch.setFormatter(Formatter())
 
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
     logger.addHandler(ch)
-
-    # Add logger.warning.counter
-    logger.warning = CallCounted(logger.warning)
+    logger.warning = CallCounted(logger.warning)  # Add counter for warnings
     return logger
 
 
