@@ -62,10 +62,10 @@ def run(command, home, folders, dry_run):
     Run given command on all folders.
     """
     home = Path(home).expanduser().resolve()
-    if home.exists and home.is_dir():
+    if home.is_dir():
         for folder in folders:
             folder = Path(folder).expanduser().resolve()
-            if folder.exists and folder.is_dir():
+            if folder.is_dir():
                 for candidate in sorted(folder.glob("*")):
                     name = candidate.name
                     if name.startswith("."):
