@@ -48,6 +48,10 @@ def unlink(candidate, dotfile, rendered, dry_run):
         if dotfile.is_symlink():
             link = Path(os.readlink(str(dotfile))).expanduser().resolve()
             if link == rendered:
+                if candidate != rendered:
+                    if not dry_run:
+                        rendered.unlink(missing_ok=True)
+                    logger.debug(f"File {rendered} deleted")
                 if not dry_run:
                     dotfile.unlink()
                 logger.info(f"File {dotfile} unlinked from {rendered}")
