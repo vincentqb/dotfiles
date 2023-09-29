@@ -26,8 +26,8 @@ def link(candidate, dotfile, rendered, dry_run):
     # Create link
     if dotfile.exists():
         if dotfile.is_symlink():
-            link = os.readlink(str(dotfile))
-            if link == str(rendered):
+            link = Path(os.readlink(str(dotfile))).expanduser().resolve()
+            if link == rendered:
                 logger.info(f"File {dotfile} links to {rendered} as expected")
             else:
                 logger.warning(f"File {dotfile} exists and points to {link} instead of {rendered}")
@@ -46,8 +46,8 @@ def unlink(candidate, dotfile, rendered, dry_run):
 
     if dotfile.exists():
         if dotfile.is_symlink():
-            link = os.readlink(str(dotfile))
-            if link == str(rendered):
+            link = Path(os.readlink(str(dotfile))).expanduser().resolve()
+            if link == rendered:
                 if not dry_run:
                     dotfile.unlink()
                 logger.info(f"File {dotfile} unlinked from {rendered}")
