@@ -90,6 +90,8 @@ def run(command, home, folders, dry_run):
 def try_then_run(command, home, folders, dry_run):
     """
     Manage links to dotfiles.
+
+    Recommended: add **/*.rendered to .gitignore
     """
     logger.setLevel(logging.INFO if dry_run else logging.WARNING)
 
