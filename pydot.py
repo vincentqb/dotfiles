@@ -8,7 +8,7 @@ from pathlib import Path
 from string import Template
 
 
-def link(candidate, dotfile, rendered, dry_run):
+def link(candidate, rendered, dotfile, dry_run):
     """
     Link dotfiles to files in given folders in an idempotent way.
     """
@@ -38,7 +38,7 @@ def link(candidate, dotfile, rendered, dry_run):
         logger.info(f"File {dotfile} created and linked to {rendered}")
 
 
-def unlink(candidate, dotfile, rendered, dry_run):
+def unlink(candidate, rendered, dotfile, dry_run):
     """
     Unlink dotfiles that are linked to files in given folders.
     """
@@ -74,7 +74,7 @@ def run(command, home, folders, dry_run):
                         # Add dot prefix and replace template when needed
                         rendered = candidate.parent / re.sub(".template$", ".rendered", name)
                         dotfile = home / ("." + re.sub(".template$", "", name))
-                        command(candidate, dotfile, rendered, dry_run)
+                        command(candidate, rendered, dotfile, dry_run)
             else:
                 logger.warning(f"Folder {folder} does not exist")
     else:
