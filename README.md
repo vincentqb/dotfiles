@@ -3,8 +3,7 @@ Install dotfiles:
 git clone --recurse-submodules --remote-submodules --jobs 8 https://github.com/vincentqb/dotfiles ~/dotfiles
 git pull --recurse-submodules
 
-PASSWD=github_application_password \
-    /usr/bin/python3 ~/dotfiles/dotdash.py link default netrc
+PASSWD=github_application_password ~/dotfiles/dotdash/dotdash link default netrc
 ```
 Install python packages:
 ```
