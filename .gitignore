@@ -3,6 +3,7 @@ default/config/nvim/undodir/
 default/tmux/plugins
 default/vim/.netrwhist
 default/ipython/profile_default/history.sqlite
+default/config/fish/functions/_*.fish
 
 default/ssh/id_rsa
 default/ssh/id_rsa.pub
