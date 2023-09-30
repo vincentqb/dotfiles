@@ -1,7 +1,9 @@
 Install dotfiles:
 ```
 git clone --recurse-submodules --remote-submodules --jobs 8 https://github.com/vincentqb/dotfiles ~/dotfiles
-git pull --recurse-submodules
+
+git submodule sync
+git submodule update --init --recursive --remote
 
 PASSWD=github_application_password ~/dotfiles/dotdash/dotdash link default netrc
 ```
