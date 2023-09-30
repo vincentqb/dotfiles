@@ -4,7 +4,7 @@ git clone --recurse-submodules --remote-submodules --jobs 8 https://github.com/v
 git pull --recurse-submodules
 
 PASSWD=github_application_password \
-    /usr/bin/python3 ~/dotfiles/pydot.py link default netrc
+    /usr/bin/python3 ~/dotfiles/dotdash.py link default netrc
 ```
 Install python packages:
 ```
