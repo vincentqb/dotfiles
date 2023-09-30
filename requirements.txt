@@ -10,6 +10,3 @@ virtualenv
 black[jupyter]
 flake8
 pyenchant
-
-typer
-loguru
