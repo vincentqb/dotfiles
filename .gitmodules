@@ -68,6 +68,6 @@
 [submodule "default/config/kitty/whiskers"]
 	path = default/config/kitty/whiskers
 	url = https://github.com/igrmk/whiskers.git
-[submodule "dotdash"]
-	path = dotdash
-	url = https://github.com/vincentqb/dotdash
+[submodule "dot.py"]
+	path = dot.py
+	url = https://github.com/vincentqb/dot.py

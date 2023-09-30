@@ -5,7 +5,7 @@ git clone --recurse-submodules --remote-submodules --jobs 8 https://github.com/v
 git submodule sync
 git submodule update --init --recursive --remote
 
-PASSWD=github_application_password ~/dotfiles/dotdash/dotdash link default netrc
+PASSWD=github_application_password ~/dotfiles/dot.py/dot.py link default netrc
 ```
 Install python packages:
 ```
