@@ -7,7 +7,7 @@ git submodule update --init --recursive
 /usr/bin/pip3 install --user -r requirements.txt --use-feature=2020-resolver
 
 # Install latest neovim
-sudo yum install fuse
+sudo yum -y install fuse
 mkdir -p ~/.local/bin
 wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
 chmod +x ~/.local/bin/nvim
@@ -18,7 +18,7 @@ chmod +x ~/.local/bin/nvim
 ~/.local/bin/nvim --headless +DirtytalkUpdate +qa
 
 sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
-sudo yum install fish
+sudo yum -y install fish
 
 curl https://sh.rustup.rs -sSf | sh
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
