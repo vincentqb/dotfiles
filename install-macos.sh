@@ -2,7 +2,7 @@
 
 git submodule sync
 git submodule update --init --recursive
-~/dotfiles/dot.py/dot.py install default
+~/dotfiles/dot.py/dot.py link default
 
 /usr/bin/pip3 install --user --upgrade -r requirements.txt
 
