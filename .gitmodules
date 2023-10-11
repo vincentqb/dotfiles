@@ -2,7 +2,7 @@
 	path = tmux2/tmux/plugins/tpm
 	url = https://github.com/tmux-plugins/tpm
 [submodule "bash-sensible"]
-	path = default/bash-sensible
+	path = bash/bash-sensible
 	url = https://github.com/mrzool/bash-sensible/
 [submodule "default/vim/pack/vim-sensible"]
 	path = default/vim/pack/plugins/start/vim-sensible
