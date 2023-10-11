@@ -146,6 +146,7 @@ lspconfig.ruff_lsp.setup {
                 -- "--extend-ignore", "E501",
                 "--line-length", "120",
             },
+            interpreter = {"/usr/bin/python3"},
         }
     }
 }
