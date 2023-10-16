@@ -14,7 +14,8 @@ Host emr
     User hadoop
     IdentityFile ~/.ssh/quennv_ec2.pem
     Port 22
-    RemoteCommand (command -v tmux || sudo yum install -y git tmux) && (tmux attach || tmux new)
+    RemoteCommand (command -v tmux || sudo yum -y install git tmux) && (tmux attach || tmux new)
+    RequestTTY force
 
 Host jump_server
     Hostname ip_bastion.compute-1.amazonaws.com
