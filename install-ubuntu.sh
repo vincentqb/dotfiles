@@ -59,5 +59,5 @@ conda config --set auto_activate_base true
 conda update -n base -c conda-forge conda
 
 # sudo apt -y install fdfind bat ripgrep
-curl https://sh.rustup.rs -sSf | sh
+curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza

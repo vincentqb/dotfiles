@@ -20,9 +20,8 @@ chmod +x ~/.local/bin/nvim
 sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
 sudo yum -y install fish
 
-curl https://sh.rustup.rs -sSf | sh
+curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
-# cargo install --locked bat fd-find ripgrep eza
 
 conda config --set auto_activate_base true
 
