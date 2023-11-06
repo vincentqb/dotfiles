@@ -54,7 +54,7 @@ function! PackInit() abort
     call minpac#add('dracula/vim', { 'name': 'dracula' })
 
     call minpac#add('thinca/vim-visualstar')
-    call minpac#add('ervandew/supertab')
+    " call minpac#add('ervandew/supertab')
     call minpac#add('AndrewRadev/linediff.vim')
     call minpac#add('tpope/vim-surround')
     call minpac#add('mbbill/undotree')
@@ -71,6 +71,7 @@ function! PackInit() abort
     call minpac#add('neovim/nvim-lspconfig')
     " call minpac#add('lervag/vimtex')
 
+    " call minpac#add('vimwiki/vimwiki')
     " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
     " call minpac#add('psliwka/vim-dirtytalk', {'do': ':let &rtp = &rtp \| DirtytalkUpdate' })
