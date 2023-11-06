@@ -106,7 +106,7 @@ let g:vimtex_indent_on_ampersands = 0
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
 " map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-map <F4> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Language Server Protocol
 lua << EOF
@@ -131,8 +131,22 @@ local on_attach = function(client, bufnr)
     -- Mappings.
     -- See `:help vim.lsp.*` for documentation on any of the below functions
     local bufopts = { noremap=true, silent=true, buffer=bufnr }
+    -- vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, bufopts)
+    -- vim.keymap.set('n', 'gd', vim.lsp.buf.definition, bufopts)
+    -- vim.keymap.set('n', 'K', vim.lsp.buf.hover, bufopts)
+    -- vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, bufopts)
+    -- vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, bufopts)
+    -- vim.keymap.set('n', '<space>wa', vim.lsp.buf.add_workspace_folder, bufopts)
+    -- vim.keymap.set('n', '<space>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
+    -- vim.keymap.set('n', '<space>wl', function()
+    --     print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+    -- end, bufopts)
+    -- vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, bufopts)
+    -- vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, bufopts)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
+    -- vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
+    vim.keymap.set('n', '<F4>', function() vim.lsp.buf.format { async = true } end, bufopts)
 end
 
 -- Configure `ruff-lsp`.
@@ -150,6 +164,11 @@ lspconfig.ruff_lsp.setup {
             args = {
                 -- "--extend-ignore", "E501",
                 "--line-length", "120",
+            },
+            format = {
+                args = {
+                    "--line-length", "120",
+                },
             },
         }
     }
