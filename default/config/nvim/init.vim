@@ -122,6 +122,25 @@ vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
 -- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
 
+local ruff_format = function()
+    print 'Workspace edit Ruff: Fix lint'
+    vim.lsp.buf.format { async = true }
+end
+
+local ruff_organizeimports = function()
+    vim.lsp.buf.execute_command({
+        command = 'ruff.applyOrganizeImports',
+        arguments = {{ uri = vim.uri_from_bufnr(0) }}
+    })
+end
+
+local ruff_autofix = function()
+    vim.lsp.buf.execute_command({
+        command = 'ruff.applyAutofix',
+        arguments = {{ uri = vim.uri_from_bufnr(0) }}
+    })
+end
+
 -- Use an on_attach function to only map the following keys
 -- after the language server attaches to the current buffer
 local on_attach = function(client, bufnr)
@@ -146,9 +165,9 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', '<F4>', function() print 'Workspace edit Ruff: Fix lint'; vim.lsp.buf.format { async = true } end, bufopts)
-    vim.keymap.set('n', '<F5>', function() vim.lsp.buf.execute_command({ command = 'ruff.applyOrganizeImports', arguments = { { uri = vim.uri_from_bufnr(0) } } }) end, bufopts)
-    vim.keymap.set('n', '<F6>', function() vim.lsp.buf.execute_command({ command = 'ruff.applyAutofix', arguments = { { uri = vim.uri_from_bufnr(0) } } }) end, bufopts)
+    vim.keymap.set('n', '<F4>', ruff_format, bufopts)
+    vim.keymap.set('n', '<F5>', ruff_organizeimports, bufopts)
+    vim.keymap.set('n', '<F6>', ruff_autofix, bufopts)
 end
 
 -- Configure `ruff-lsp`.
