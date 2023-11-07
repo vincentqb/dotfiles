@@ -146,7 +146,7 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', '<F4>', function() vim.lsp.buf.format { async = true } end, bufopts)
+    vim.keymap.set('n', '<F4>', function() print 'Workspace edit Ruff: Fix lint'; vim.lsp.buf.format { async = true } end, bufopts)
     vim.keymap.set('n', '<F5>', function() vim.lsp.buf.execute_command({ command = 'ruff.applyOrganizeImports', arguments = { { uri = vim.uri_from_bufnr(0) } } }) end, bufopts)
     vim.keymap.set('n', '<F6>', function() vim.lsp.buf.execute_command({ command = 'ruff.applyAutofix', arguments = { { uri = vim.uri_from_bufnr(0) } } }) end, bufopts)
 end
