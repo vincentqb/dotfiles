@@ -44,7 +44,7 @@ set autowrite
 " Disable spellcheck in python by default
 " autocmd FileType python setlocal nospell
 " Toggle spellchecking
-map <F2> :setlocal spell! spelllang=en_us,programming<CR>
+map <F3> :setlocal spell! spelllang=en_us,programming<CR>
 
 function! PackInit() abort
     packadd minpac
@@ -67,7 +67,7 @@ function! PackInit() abort
     " call minpac#add('airblade/vim-gitgutter')
     call minpac#add('lewis6991/gitsigns.nvim')
 
-    call minpac#add('psf/black')
+    " call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
     " call minpac#add('lervag/vimtex')
 
@@ -95,7 +95,7 @@ colorscheme dracula
 " highlight CursorLine ctermbg=black guibg=black
 
 " Show undo tree with F5
-nnoremap <F5> :UndotreeToggle<CR>
+nnoremap <F2> :UndotreeToggle<CR>
 
 " Set vimtex
 let g:tex_flavor = 'latex'
@@ -106,7 +106,7 @@ let g:vimtex_indent_on_ampersands = 0
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
 " map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F6> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Language Server Protocol
 lua << EOF
@@ -144,9 +144,11 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, bufopts)
     -- vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, bufopts)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
-    vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
+    -- vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
     vim.keymap.set('n', '<F4>', function() vim.lsp.buf.format { async = true } end, bufopts)
+    vim.keymap.set('n', '<F5>', function() vim.lsp.buf.execute_command({ command = 'ruff.applyOrganizeImports', arguments = { { uri = vim.uri_from_bufnr(0) } } }) end, bufopts)
+    vim.keymap.set('n', '<F6>', function() vim.lsp.buf.execute_command({ command = 'ruff.applyAutofix', arguments = { { uri = vim.uri_from_bufnr(0) } } }) end, bufopts)
 end
 
 -- Configure `ruff-lsp`.
