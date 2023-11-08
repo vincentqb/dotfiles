@@ -61,3 +61,4 @@ conda update -n base -c conda-forge conda
 # sudo apt -y install fdfind bat ripgrep
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
+cargo install --locked --git https://github.com/latex-lsp/texlab
