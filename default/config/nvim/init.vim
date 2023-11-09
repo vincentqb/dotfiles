@@ -38,6 +38,7 @@ set autowrite
 
 " Activate spellchecker
 " set spell spelllang=en_us,programming
+au FileType tex set spell spelllang=en_us,programming
 " Spell-check Markdown files and Git Commit Messages
 " autocmd FileType markdown setlocal spell
 " autocmd FileType gitcommit setlocal spell
