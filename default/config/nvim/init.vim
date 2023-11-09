@@ -141,6 +141,18 @@ local ruff_autofix = function()
     })
 end
 
+local ruff_all = function()
+    vim.lsp.buf.format { async = false }
+
+    local params = { command = 'ruff.applyOrganizeImports', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
+    vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
+
+    local params = { command = 'ruff.applyAutofix', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
+    vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
+
+    print 'Ruff: Format, organize imports, autofix'
+end
+
 -- Use an on_attach function to only map the following keys
 -- after the language server attaches to the current buffer
 local on_attach = function(client, bufnr)
@@ -168,6 +180,7 @@ local on_attach = function(client, bufnr)
     vim.keymap.set('n', '<F4>', ruff_format, bufopts)
     vim.keymap.set('n', '<F5>', ruff_organizeimports, bufopts)
     vim.keymap.set('n', '<F6>', ruff_autofix, bufopts)
+    vim.keymap.set('n', '<F7>', ruff_all, bufopts)
 end
 
 -- Configure `ruff-lsp`.
