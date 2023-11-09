@@ -37,11 +37,11 @@ set colorcolumn=120
 set autowrite
 
 " Activate spellchecker
-" set spell spelllang=en_us,programming
-au FileType tex set spell spelllang=en_us,programming
+set spelllang=en_us,programming
 " Spell-check Markdown files and Git Commit Messages
+au FileType tex set spell
+au FileType gitcommit set spell
 " autocmd FileType markdown setlocal spell
-" autocmd FileType gitcommit setlocal spell
 " Disable spellcheck in python by default
 " autocmd FileType python setlocal nospell
 " Toggle spellchecking
