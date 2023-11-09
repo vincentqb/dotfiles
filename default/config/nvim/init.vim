@@ -95,7 +95,7 @@ colorscheme dracula
 " highlight CursorLine ctermbg=lightgrey guibg=lightgrey
 " highlight CursorLine ctermbg=black guibg=black
 
-" Show undo tree with F5
+" Toggle show undo tree
 nnoremap <F2> :UndotreeToggle<CR>
 
 " Set vimtex
@@ -107,7 +107,7 @@ let g:vimtex_indent_on_ampersands = 0
 " Make LSP messages appear above the current line
 " https://github.com/neovim/nvim-lspconfig/issues/1046
 " map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-map <F7> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " Language Server Protocol
 lua << EOF
