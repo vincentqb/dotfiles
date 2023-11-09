@@ -122,35 +122,16 @@ vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
 -- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
 
-local ruff_format = function()
-    print 'Workspace edit Ruff: Fix lint'
-    vim.lsp.buf.format { async = true }
-end
-
-local ruff_organizeimports = function()
-    vim.lsp.buf.execute_command({
-        command = 'ruff.applyOrganizeImports',
-        arguments = {{ uri = vim.uri_from_bufnr(0) }}
-    })
-end
-
-local ruff_autofix = function()
-    vim.lsp.buf.execute_command({
-        command = 'ruff.applyAutofix',
-        arguments = {{ uri = vim.uri_from_bufnr(0) }}
-    })
-end
-
 local ruff_all = function()
     vim.lsp.buf.format { async = false }
 
     local params = { command = 'ruff.applyOrganizeImports', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
     vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
 
-    local params = { command = 'ruff.applyAutofix', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
-    vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
+    -- local params = { command = 'ruff.applyAutofix', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
+    -- vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
 
-    print 'Ruff: Format, organize imports, autofix'
+    print 'Formatted with Ruff'
 end
 
 -- Use an on_attach function to only map the following keys
@@ -177,10 +158,7 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', '<F4>', ruff_format, bufopts)
-    vim.keymap.set('n', '<F5>', ruff_organizeimports, bufopts)
-    vim.keymap.set('n', '<F6>', ruff_autofix, bufopts)
-    vim.keymap.set('n', '<F7>', ruff_all, bufopts)
+    vim.keymap.set('n', '<F4>', ruff_all, bufopts)
 end
 
 -- Configure `ruff-lsp`.
