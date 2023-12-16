@@ -41,7 +41,7 @@
 [core]
 	pager = "(printf '\n\n'; cat) | less -FMRiX"
 [alias]
-    dog = log -20 --graph --abbrev-commit --decorate --date-order --color=always
+    dog = log -20 --graph --abbrev-commit --decorate --date-order --color=always --color-words
     wiff = diff --color-words
 [format]
     # https://draculatheme.com/contribute
