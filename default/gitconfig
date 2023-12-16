@@ -60,7 +60,7 @@
   plain =
   whitespace = magenta reverse
   meta = yellow
-  frag = cyan bold reverse
+  frag = magenta
   old = red
   new = green
 [color "grep"]
