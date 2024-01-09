@@ -4,7 +4,8 @@ git submodule sync
 git submodule update --init --recursive
 ~/dotfiles/dot.py/dot.py link default
 
-/usr/bin/pip3 install --user --upgrade -r requirements.txt
+/usr/bin/python3 -m pip install --upgrade pip
+/usr/bin/python3 -m pip install --user -r requirements.txt
 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 export PATH=$PATH:/opt/homebrew/bin
