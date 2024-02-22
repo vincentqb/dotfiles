@@ -109,6 +109,14 @@ let g:vimtex_indent_on_ampersands = 0
 " map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
+" https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
+fun! TrimWhitespace()
+    let l:save = winsaveview()
+    keeppatterns %s/\s\+$//e
+    call winrestview(l:save)
+endfun
+noremap <F6> :call TrimWhitespace()<CR>
+
 " Language Server Protocol
 lua << EOF
 
