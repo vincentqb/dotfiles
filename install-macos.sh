@@ -2,10 +2,12 @@
 
 git submodule sync
 git submodule update --init --recursive
-~/dotfiles/dot.py/dot.py link default
+~/dotfiles/dotpy/dot.py link default
 
 /usr/bin/python3 -m pip install --upgrade pip
 /usr/bin/python3 -m pip install --user -r requirements.txt
+
+curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 export PATH=$PATH:/opt/homebrew/bin
@@ -23,6 +25,11 @@ brew install --cask mactex-no-gui
 brew install yarn
 brew install wget
 brew install ruff
+
+# sshfs https://github.com/telepresenceio/telepresence/issues/1654#issuecomment-873538291
+# brew install --cask macfuse
+# brew install gromgit/fuse/sshfs-mac
+# brew link --overwrite sshfs-mac
 
 # brew install node
 # npm install -g bash-language-server

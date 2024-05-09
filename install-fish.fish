@@ -73,7 +73,7 @@ tx=36:"
 # funcsave ssa
 
 # cp with progress bar
-# alias pcp="rsync -a --info=progress2"
+# alias pcp="rsync -ahrz --info=progress2"
 # funcsave pcp
 
 # Configure node.js to launch language servers
