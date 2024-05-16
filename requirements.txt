@@ -9,4 +9,3 @@ virtualenv
 
 black[jupyter]
 flake8
-pyenchant
