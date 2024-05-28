@@ -70,5 +70,6 @@ export PATH=$PATH:/opt/homebrew/anaconda3/bin
 conda init zsh fish
 
 # AMZN
+toolbox update
 toolbox install ada axe
 xcode-select --install
