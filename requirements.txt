@@ -1,5 +1,6 @@
 ruff
 ruff-lsp
+nbqa
 
 neovim
 pynvim

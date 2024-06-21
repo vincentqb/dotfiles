@@ -1,0 +1,5 @@
+line-length=120
+extend-include = ["*.ipynb"]
+
+[lint]
+extend-select=["NPY201", "I"]
