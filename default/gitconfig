@@ -20,15 +20,12 @@
 # [merge]
 #     tool = nvim -d
 [merge]
-    tool = vimdiff
+    tool = nvimdiff
     conflictstyle = diff3
-# [mergetool "vimdiff"]
-#     # https://www.reddit.com/r/neovim/comments/qatokl/using_nvim_as_mergetool_with_vimfugitive/
-#     # https://gist.github.com/dteoh/ef407dd059125731d4afde33e05a232f
-#     cmd = nvim -d $LOCAL $REMOTE $MERGED -c '$wincmd w' -c 'wincmd J'
-[mergetool]
-    # keepBackup = false
-    prompt = true
+[mergetool "nvimdiff"]
+    # https://www.reddit.com/r/neovim/comments/qatokl/using_nvim_as_mergetool_with_vimfugitive/
+    # https://gist.github.com/dteoh/ef407dd059125731d4afde33e05a232f
+    cmd = nvim -d $LOCAL $REMOTE $MERGED -c '$wincmd w' -c 'wincmd J'
 [push]
     default = simple
 [pager]
