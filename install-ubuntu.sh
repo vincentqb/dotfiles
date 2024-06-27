@@ -60,9 +60,10 @@ source ~/miniconda/bin/activate
 conda init zsh
 conda init fish
 conda config --set auto_activate_base true
+conda config --set changeps1 False
 conda update -n base -c conda-forge conda
 
 # sudo apt -y install fdfind bat ripgrep
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
-cargo install --locked --git https://github.com/latex-lsp/texlab
+~/.cargo/bin/cargo install --locked --git https://github.com/latex-lsp/texlab
