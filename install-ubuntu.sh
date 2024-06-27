@@ -39,6 +39,9 @@ sudo apt -y install tmux shellcheck texlive node
 # Install zellij to use instead of tmux
 mkdir -p ~/.local/bin
 wget -qO- https://github.com/zellij-org/zellij/releases/download/v0.34.4/zellij-x86_64-unknown-linux-musl.tar.gz | tar xvpz -C ~/.local/bin
+# Install on remote ssh host
+# https://sw.kovidgoyal.net/kitty/faq/#i-get-errors-about-the-terminal-being-unknown-or-opening-the-terminal-failing-or-functional-keys-like-arrow-keys-don-t-work
+sudo apt install kitty-terminfo
 
 # bashls
 # sudo snap install bash-language-server
