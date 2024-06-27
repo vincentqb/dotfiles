@@ -25,6 +25,7 @@ brew install --cask mactex-no-gui
 brew install yarn
 brew install wget
 brew install ruff
+brew install rsync
 
 # sshfs https://github.com/telepresenceio/telepresence/issues/1654#issuecomment-873538291
 # brew install --cask macfuse
