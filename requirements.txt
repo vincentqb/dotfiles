@@ -10,3 +10,5 @@ virtualenv
 
 black[jupyter]
 flake8
+
+git-remote-codecommit
