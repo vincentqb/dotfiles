@@ -9,6 +9,7 @@
 [credential]
     helper = cache --timeout=31536000
 [difftool]
+    tool = nvim
     prompt = false
 [diff]
     tool = nvim
@@ -16,9 +17,20 @@
     colorMoved = default
 [difftool "nvim"]
     cmd = "nvim -Rd \"$LOCAL\" \"$REMOTE\""
-#     editor = nvim
-# [merge]
-#     tool = nvim -d
+[mergetool "nvim"]
+    cmd = "nvim -d \"$LOCAL\" \"$REMOTE\""
+[delta]
+    navigate = true    # use n and N to move between diff sections
+    light = false      # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
+    line-numbers = true
+    side-by-side = true
+    show-syntax-themes = true
+    features = decorations
+    syntax-theme = Dracula
+[delta "decorations"]
+    commit-style = raw
+    file-style = omit
+    hunk-header-style = file line-number syntax
 [merge]
     tool = nvimdiff
     conflictstyle = diff3
@@ -35,8 +47,10 @@
     insteadOf = git://github.com/
 [color]
 	ui = true
+	diff = always
 [core]
 	pager = "(printf '\n\n'; cat) | less -FMRiX"
+#  pager = "(printf '\n\n'; cat) | delta"
 [alias]
     dog = log -20 --graph --abbrev-commit --decorate --date-order --color=always --color-words
     wiff = diff --color-words
@@ -58,6 +72,7 @@
   plain =
   whitespace = magenta reverse
   meta = yellow
+  # frag = cyan bold reverse
   frag = magenta
   old = red
   new = green
