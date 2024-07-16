@@ -2,6 +2,8 @@ ruff
 ruff-lsp
 nbqa
 
+jedi-language-server
+
 neovim
 pynvim
 
