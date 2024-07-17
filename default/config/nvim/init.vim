@@ -114,8 +114,8 @@ map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " https://vim.fandom.com/wiki/Omni_completion
 set omnifunc=syntaxcomplete#Complete
-imap <Tab> <c-x><c-o>
-" imap <Tab> <c-o><c-n>
+imap <c-n> <c-x><c-o>
+" imap <c-n> <c-o><c-n>
 
 " https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
 fun! TrimWhitespace()
