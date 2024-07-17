@@ -30,6 +30,9 @@ set smartcase
 " Show matching brackets.
 set showmatch
 
+" Fuzzy cli completion
+set wildoptions+=fuzzy
+
 " Add vertical line to highlight column were row is too long
 set colorcolumn=120
 
