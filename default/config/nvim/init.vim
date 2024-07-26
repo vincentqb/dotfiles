@@ -132,6 +132,8 @@ lua << EOF
 
 local lspconfig = require('lspconfig')
 
+-- vim.lsp.set_log_level("debug")
+
 -- See: https://github.com/neovim/nvim-lspconfig/tree/54eb2a070a4f389b1be0f98070f81d23e2b1a715#suggested-configuration
 local opts = { noremap=true, silent=true }
 -- vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
