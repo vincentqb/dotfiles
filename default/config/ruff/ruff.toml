@@ -2,4 +2,4 @@ line-length=120
 extend-include = ["*.ipynb"]
 
 [lint]
-extend-select=["NPY201", "I"]
+extend-select = ["I", "NPY201", "RUF022", "UP004"]
