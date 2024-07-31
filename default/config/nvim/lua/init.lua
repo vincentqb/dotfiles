@@ -104,7 +104,18 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<F4>', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
     -- TODO See also https://github.com/astral-sh/ruff/discussions/12308
-    vim.keymap.set('n', '<F4>', vim.lsp.buf.format, bufopts)
+    -- vim.keymap.set('n', '<F4>', vim.lsp.buf.format, bufopts)
+    vim.keymap.set('n', '<F4>', function()
+        -- https://docs.astral.sh/ruff/formatter/#sorting-imports
+        vim.lsp.buf.format()
+        vim.lsp.buf.code_action({
+            context = {
+                only = { 'source.organizeImports' },
+                diagnostics = {},
+            },
+            apply = true,
+        })
+    end, bufopts)
 end
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
