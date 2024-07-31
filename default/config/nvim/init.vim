@@ -193,13 +193,8 @@ let g:vimtex_indent_on_ampersands = 0
 
 " https://vim.fandom.com/wiki/Omni_completion
 set omnifunc=syntaxcomplete#Complete
-" imap <c-n> <c-x><c-o>
+imap <c-n> <c-x><c-o>
 " imap <c-n> <c-o><c-n>
-
-" Make LSP messages appear above the current line
-" https://github.com/neovim/nvim-lspconfig/issues/1046
-" map <leader>d <cmd>lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-map <F5> <cmd>lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
 fun! TrimWhitespace()
@@ -208,6 +203,5 @@ fun! TrimWhitespace()
     call winrestview(l:save)
 endfun
 noremap <F6> <cmd>call TrimWhitespace()<CR>
-noremap <F4> <cmd>lua vim.lsp.buf.format()<CR>
 
 lua require("init")

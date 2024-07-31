@@ -9,6 +9,9 @@ local opts = { noremap=true, silent=true }
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
 -- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
+-- Make LSP messages appear above the current line
+-- https://github.com/neovim/nvim-lspconfig/issues/1046
+vim.keymap.set('n', '<F5>', vim.diagnostic.open_float, opts)
 
 -- Set up nvim-cmp.
 local cmp = require('cmp')
@@ -100,6 +103,7 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', '<F4>', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
+    vim.keymap.set('n', '<F4>', vim.lsp.buf.format, bufopts)
 end
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
