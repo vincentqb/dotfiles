@@ -171,7 +171,7 @@ colorscheme dracula
 " highlight CursorLine ctermbg=black guibg=black
 
 " Toggle show undo tree
-nnoremap <F2> :UndotreeToggle<CR>
+nnoremap <F2> <cmd>UndotreeToggle<CR>
 
 " Set default directory for vimwiki files
 " let g:vimwiki_list = [{'path': "~/wiki"}]
@@ -191,15 +191,15 @@ let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands = 0
 
-" Make LSP messages appear above the current line
-" https://github.com/neovim/nvim-lspconfig/issues/1046
-" map <leader>d :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
-
 " https://vim.fandom.com/wiki/Omni_completion
 set omnifunc=syntaxcomplete#Complete
 " imap <c-n> <c-x><c-o>
 " imap <c-n> <c-o><c-n>
+
+" Make LSP messages appear above the current line
+" https://github.com/neovim/nvim-lspconfig/issues/1046
+" map <leader>d <cmd>lua vim.diagnostic.open_float(0, {scope="line"})<CR>
+map <F5> <cmd>lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
 fun! TrimWhitespace()
@@ -207,6 +207,7 @@ fun! TrimWhitespace()
     keeppatterns %s/\s\+$//e
     call winrestview(l:save)
 endfun
-noremap <F6> :call TrimWhitespace()<CR>
+noremap <F6> <cmd>call TrimWhitespace()<CR>
+noremap <F4> <cmd>lua vim.lsp.buf.format()<CR>
 
 lua require("init")
