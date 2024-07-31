@@ -57,6 +57,7 @@ function! PackInit() abort
     call minpac#init()
     call minpac#add('k-takata/minpac', {'type': 'opt'})
     call minpac#add('dracula/vim', { 'name': 'dracula' })
+    " call minpac#add('folke/tokyonight.nvim')
 
     call minpac#add('thinca/vim-visualstar')
     " call minpac#add('ervandew/supertab')
@@ -75,6 +76,21 @@ function! PackInit() abort
     " call minpac#add('psf/black')
     call minpac#add('neovim/nvim-lspconfig')
     " call minpac#add('lervag/vimtex')
+    " call minpac#add('hrsh7th/nvim-cmp')
+    " call minpac#add('hrsh7th/cmp-vsnip')
+    " call minpac#add('hrsh7th/vim-vsnip')
+
+    call minpac#add('hrsh7th/nvim-cmp') " Autocompletion plugin
+    call minpac#add('hrsh7th/cmp-nvim-lsp') " LSP source for nvim-cmp
+    call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
+    call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
+
+    call minpac#add('hrsh7th/cmp-buffer')
+    call minpac#add('hrsh7th/cmp-path')
+    call minpac#add('hrsh7th/cmp-cmdline')
+    call minpac#add('hrsh7th/nvim-cmp')
+    " call minpac#add('hrsh7th/cmp-vsnip')
+    " call minpac#add('hrsh7th/vim-vsnip')
 
     " call minpac#add('vimwiki/vimwiki')
     " Run :DirtytalkUpdate manually
@@ -88,11 +104,63 @@ command! PackUpdate call PackInit() | call minpac#update()
 command! PackClean  call PackInit() | call minpac#clean()
 command! PackStatus packadd minpac | call minpac#status()
 
+" https://sw.kovidgoyal.net/kitty/faq/#i-get-errors-about-the-terminal-being-unknown-or-opening-the-terminal-failing-when-sshing-into-a-different-computer
+" Mouse support
+" set mouse=a
+" set ttymouse=sgr
+" set balloonevalterm
+" Styled and colored underline support
+let &t_AU = "\e[58:5:%dm"
+let &t_8u = "\e[58:2:%lu:%lu:%lum"
+let &t_Us = "\e[4:2m"
+let &t_Cs = "\e[4:3m"
+let &t_ds = "\e[4:4m"
+let &t_Ds = "\e[4:5m"
+let &t_Ce = "\e[4:0m"
+" Strikethrough
+let &t_Ts = "\e[9m"
+let &t_Te = "\e[29m"
+" Truecolor support
+let &t_8f = "\e[38:2:%lu:%lu:%lum"
+let &t_8b = "\e[48:2:%lu:%lu:%lum"
+let &t_RF = "\e]10;?\e\\"
+let &t_RB = "\e]11;?\e\\"
+" Bracketed paste
+let &t_BE = "\e[?2004h"
+let &t_BD = "\e[?2004l"
+let &t_PS = "\e[200~"
+let &t_PE = "\e[201~"
+" Cursor control
+let &t_RC = "\e[?12$p"
+let &t_SH = "\e[%d q"
+let &t_RS = "\eP$q q\e\\"
+let &t_SI = "\e[5 q"
+let &t_SR = "\e[3 q"
+let &t_EI = "\e[1 q"
+let &t_VS = "\e[?12l"
+" Focus tracking
+let &t_fe = "\e[?1004h"
+let &t_fd = "\e[?1004l"
+" execute "set <FocusGained>=\<Esc>[I"
+" execute "set <FocusLost>=\<Esc>[O"
+" Window title
+let &t_ST = "\e[22;2t"
+let &t_RT = "\e[23;2t"
+
+" vim hardcodes background color erase even if the terminfo file does
+" not contain bce. This causes incorrect background rendering when
+" using a color theme with a background color in terminals such as
+" kitty that do not support background color erase.
+let &t_ut=''
+
 " Enable theme
 " https://github.com/dracula/vim/issues/96
 " let g:dracula_italic = 0
 let g:dracula_colorterm = 0
 colorscheme dracula
+" colorscheme tokyonight-night
+" colorscheme tokyonight-storm
+" colorscheme tokyonight-moon
 
 " Add horizontal line
 " set cursorline
@@ -101,6 +169,18 @@ colorscheme dracula
 
 " Toggle show undo tree
 nnoremap <F2> :UndotreeToggle<CR>
+
+" Set default directory for vimwiki files
+" let g:vimwiki_list = [{'path': "~/wiki"}]
+" hi def VimwikiDelText term=strikethrough cterm=strikethrough gui=strikethrough
+" hi VimwikiDelText term=strikethrough cterm=strikethrough gui=strikethrough
+" Set vimwiki colors for each heading level: default is all same color
+" hi VimwikiHeader1 ctermfg=Green
+" hi VimwikiHeader2 ctermfg=Cyan
+" hi VimwikiHeader3 ctermfg=Blue
+" hi VimwikiHeader4 ctermfg=Yellow
+" hi VimwikiHeader5 ctermfg=Red
+" hi VimwikiHeader6 ctermfg=Brown
 
 " Set vimtex
 let g:tex_flavor = 'latex'
@@ -114,8 +194,8 @@ let g:vimtex_indent_on_ampersands = 0
 map <F5> :lua vim.diagnostic.open_float(0, {scope="line"})<CR>
 
 " https://vim.fandom.com/wiki/Omni_completion
-set omnifunc=syntaxcomplete#Complete
-imap <c-n> <c-x><c-o>
+" set omnifunc=syntaxcomplete#Complete
+" imap <c-n> <c-x><c-o>
 " imap <c-n> <c-o><c-n>
 
 " https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
@@ -126,14 +206,15 @@ fun! TrimWhitespace()
 endfun
 noremap <F6> :call TrimWhitespace()<CR>
 
-" Language Server Protocol
-lua << EOF
+" lua require("init")
 
+lua << EOF
+-- Language Server Protocol
 -- https://github.com/neovim/nvim-lspconfig
 
-local lspconfig = require('lspconfig')
+vim.lsp.set_log_level("debug")
 
--- vim.lsp.set_log_level("debug")
+local lspconfig = require('lspconfig')
 
 -- See: https://github.com/neovim/nvim-lspconfig/tree/54eb2a070a4f389b1be0f98070f81d23e2b1a715#suggested-configuration
 local opts = { noremap=true, silent=true }
@@ -142,16 +223,89 @@ vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
 -- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
 
-local ruff_all = function()
-    vim.lsp.buf.format { async = false }
+-- Add additional capabilities supported by nvim-cmp
+local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
-    local params = { command = 'ruff.applyOrganizeImports', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
-    vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
+local lspconfig = require('lspconfig')
 
-    -- local params = { command = 'ruff.applyAutofix', arguments = {{ uri = vim.uri_from_bufnr(0) }} }
-    -- vim.lsp.buf_request_sync(0, 'workspace/executeCommand', params)
+  -- Set up nvim-cmp.
+  local cmp = require'cmp'
 
-    print 'Formatted with Ruff'
+  cmp.setup({
+    snippet = {
+      -- REQUIRED - you must specify a snippet engine
+      expand = function(args)
+        -- vim.fn["vsnip#anonymous"](args.body) -- For `vsnip` users.
+        require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
+        -- require('snippy').expand_snippet(args.body) -- For `snippy` users.
+        -- vim.fn["UltiSnips#Anon"](args.body) -- For `ultisnips` users.
+        -- vim.snippet.expand(args.body) -- For native neovim snippets (Neovim v0.10+)
+      end,
+    },
+    window = {
+      -- completion = cmp.config.window.bordered(),
+      -- documentation = cmp.config.window.bordered(),
+    },
+    mapping = cmp.mapping.preset.insert({
+      ['<C-b>'] = cmp.mapping.scroll_docs(-4),
+      ['<C-f>'] = cmp.mapping.scroll_docs(4),
+      ['<C-Space>'] = cmp.mapping.complete(),
+      ['<C-e>'] = cmp.mapping.abort(),
+      ['<CR>'] = cmp.mapping.confirm({ select = true }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
+    }),
+    sources = cmp.config.sources({
+      { name = 'nvim_lsp' },
+      -- { name = 'vsnip' }, -- For vsnip users.
+      { name = 'luasnip' }, -- For luasnip users.
+      -- { name = 'ultisnips' }, -- For ultisnips users.
+      -- { name = 'snippy' }, -- For snippy users.
+    }, {
+      { name = 'buffer' },
+    })
+  })
+
+  -- To use git you need to install the plugin petertriho/cmp-git and uncomment lines below
+  -- Set configuration for specific filetype.
+  --[[ cmp.setup.filetype('gitcommit', {
+    sources = cmp.config.sources({
+      { name = 'git' },
+    }, {
+      { name = 'buffer' },
+    })
+ })
+ require("cmp_git").setup() ]]-- 
+
+  -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
+  cmp.setup.cmdline({ '/', '?' }, {
+    mapping = cmp.mapping.preset.cmdline(),
+    sources = {
+      { name = 'buffer' }
+    }
+  })
+
+  -- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
+  cmp.setup.cmdline(':', {
+    mapping = cmp.mapping.preset.cmdline(),
+    sources = cmp.config.sources({
+      { name = 'path' }
+    }, {
+      { name = 'cmdline' }
+    }),
+    matching = { disallow_symbol_nonprefix_matching = false }
+  })
+
+  -- Set up lspconfig.
+  local capabilities = require('cmp_nvim_lsp').default_capabilities()
+  -- Replace <YOUR_LSP_SERVER> with each lsp server you've enabled.
+  -- require('lspconfig')['<YOUR_LSP_SERVER>'].setup {
+    -- capabilities = capabilities
+  -- }
+local servers = { 'ruff', 'bashls', 'texlab', 'metals' }
+for _, lsp in ipairs(servers) do
+  lspconfig[lsp].setup {
+    -- on_attach = on_attach,
+    capabilities = capabilities,
+  }
 end
 
 -- Use an on_attach function to only map the following keys
@@ -176,89 +330,165 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, bufopts)
     -- vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, bufopts)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
-    -- vim.keymap.set('n', '<F3>', vim.lsp.buf.code_action, bufopts)
+    vim.keymap.set('n', '<F4>', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    vim.keymap.set('n', '<F4>', ruff_all, bufopts)
+    -- vim.keymap.set('n', '<F4>', ruff_all, bufopts)
 end
 
--- Configure `ruff-lsp`.
--- See: https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#ruff_lsp
--- For the default config, along with instructions on how to customize the settings
-lspconfig.ruff_lsp.setup {
-    on_attach = on_attach,
-    init_options = {
-        settings = {
-            -- Find with: echo $(/usr/bin/python3 -m site --user-base)/bin
-            -- https://github.com/MasahiroSakoda/dotfiles/blob/1ff9351cbf7e861c1b1f8a4a33afefb244d827cc/home/dot_config/nvim/lua/lsp/servers/ruff_lsp.lua#L17
-            -- path = {"/Users/quennv/Library/Python/3.9/bin/ruff"},
-            interpreter = {"/usr/bin/python3"},
-            -- Any extra CLI arguments for `ruff` go here.
-            args = {
-                -- "--extend-ignore", "E501",
-                "--line-length", "120",
-            },
-            format = {
-                args = {
-                    "--line-length", "120",
-                },
-            },
-        }
-    }
-}
+-- Enable some language servers with the additional completion capabilities offered by nvim-cmp
+local servers = { 'ruff', 'bashls', 'texlab', 'metals' }
+for _, lsp in ipairs(servers) do
+  lspconfig[lsp].setup {
+    -- on_attach = on_attach,
+    capabilities = capabilities,
+  }
+end
 
--- https://github.com/python-lsp/python-lsp-server/blob/develop/CONFIGURATION.md
--- lspconfig.pylsp.setup{
---     on_attach=on_attach,
---     settings={
---         pylsp={
---             plugins={
---                 -- pydocstyle={
---                 --     enabled=true,
---                 -- },
---                 flake8={
---                     enabled=true,
---                     maxLineLength=120,
---                     -- see documentation for defaults
---                     ignore={'E24', 'W503', 'E226', 'E126', 'E704', 'E121', 'E123', 'W504', 'E203', 'E501'}
---                     -- TODO find a way to use extend-ignore instead
---                 }
---                 -- mypy={
---                 --     ignore_missing_imports=true
---                 -- }
---             }
---         }
---     }
--- }
+--  -- luasnip setup
+--  local luasnip = require 'luasnip'
+--  
+--  -- nvim-cmp setup
+--  local cmp = require 'cmp'
+--  cmp.setup {
+--    snippet = {
+--      expand = function(args)
+--        luasnip.lsp_expand(args.body)
+--      end,
+--    },
+--    mapping = cmp.mapping.preset.insert({
+--      ['<C-u>'] = cmp.mapping.scroll_docs(-4), -- Up
+--      ['<C-d>'] = cmp.mapping.scroll_docs(4), -- Down
+--      -- C-b (back) C-f (forward) for snippet placeholder navigation.
+--      ['<C-Space>'] = cmp.mapping.complete(),
+--      ['<CR>'] = cmp.mapping.confirm {
+--        behavior = cmp.ConfirmBehavior.Replace,
+--        select = true,
+--      },
+--      ['<Tab>'] = cmp.mapping(function(fallback)
+--        if cmp.visible() then
+--          cmp.select_next_item()
+--        elseif luasnip.expand_or_jumpable() then
+--          luasnip.expand_or_jump()
+--        else
+--          fallback()
+--        end
+--      end, { 'i', 's' }),
+--      ['<S-Tab>'] = cmp.mapping(function(fallback)
+--        if cmp.visible() then
+--          cmp.select_prev_item()
+--        elseif luasnip.jumpable(-1) then
+--          luasnip.jump(-1)
+--        else
+--          fallback()
+--        end
+--      end, { 'i', 's' }),
+--    }),
+--    sources = {
+--      { name = 'nvim_lsp' },
+--      { name = 'luasnip' },
+--    },
+--  }
 
--- https://github.com/neovim/nvim-lspconfig
--- require('lspconfig').pyright.setup{}
-
-lspconfig.jedi_language_server.setup{on_attach=on_attach}
-lspconfig.bashls.setup{on_attach=on_attach}
-lspconfig.texlab.setup{on_attach=on_attach}
-lspconfig.metals.setup{on_attach=on_attach}
-
--- local shfmt = require('lsp.diagnosticls.formatters.shfmt')
--- local shellcheck = require('lsp.diagnosticls.linters.shellcheck')
-
--- lspconfig.diagnosticls.setup {
---   on_attach=on_attach,
---   filetypes={ 'sh', 'yaml', 'lua' },
---   init_options={
---     filetypes={
---       sh='shellcheck',
---       yaml='yamllint',
---     },
---     formatFiletypes={
---       sh='shfmt',
---     },
---     formatters={
---       shfmt=shfmt,
---     },
---     linters={
---       shellcheck=shellcheck,
---     },
---   },
--- }
+-- -- Use an on_attach function to only map the following keys
+-- -- after the language server attaches to the current buffer
+-- local on_attach = function(client, bufnr)
+--     -- Enable completion triggered by <c-x><c-o>
+--     vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
+-- 
+--     -- Mappings.
+--     -- See `:help vim.lsp.*` for documentation on any of the below functions
+--     local bufopts = { noremap=true, silent=true, buffer=bufnr }
+--     -- vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, bufopts)
+--     vim.keymap.set('n', 'gd', vim.lsp.buf.definition, bufopts)
+--     vim.keymap.set('n', 'K', vim.lsp.buf.hover, bufopts)
+--     -- vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, bufopts)
+--     -- vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, bufopts)
+--     -- vim.keymap.set('n', '<space>wa', vim.lsp.buf.add_workspace_folder, bufopts)
+--     -- vim.keymap.set('n', '<space>wr', vim.lsp.buf.remove_workspace_folder, bufopts)
+--     -- vim.keymap.set('n', '<space>wl', function()
+--     --     print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+--     -- end, bufopts)
+--     -- vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, bufopts)
+--     -- vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, bufopts)
+--     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
+--     vim.keymap.set('n', '<F4>', vim.lsp.buf.code_action, bufopts)
+--     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
+--     -- vim.keymap.set('n', '<F4>', ruff_all, bufopts)
+-- end
+-- 
+-- -- Configure `ruff-lsp`.
+-- -- See: https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#ruff_lsp
+-- -- For the default config, along with instructions on how to customize the settings
+-- lspconfig.ruff.setup {on_attach = on_attach}
+-- 
+-- -- lspconfig.pylsp.setup {
+-- -- 	settings = {
+-- -- 		pylsp = {
+-- -- 			plugins = {
+-- -- 				ruff = {
+-- -- 					enabled = true,
+-- --                     -- Find with: /usr/bin/python3 -c "import ruff; from pathlib import Path; print(Path(ruff.__file__).parent.parent.parent.parent.parent / 'bin' / 'ruff')"
+-- --                     executable = "/Users/quennv/Library/Python/3.9/bin/ruff",
+-- -- 					extendSelect = { "I" },
+-- -- 				},
+-- -- 			}
+-- -- 		}
+-- -- 	}
+-- -- }
+-- 
+-- -- https://github.com/python-lsp/python-lsp-server/blob/develop/CONFIGURATION.md
+-- -- lspconfig.pylsp.setup{
+-- --     on_attach=on_attach,
+-- --     settings={
+-- --         pylsp={
+-- --             plugins={
+-- --                 -- pydocstyle={
+-- --                 --     enabled=true,
+-- --                 -- },
+-- --                 flake8={
+-- --                     enabled=true,
+-- --                     maxLineLength=120,
+-- --                     -- see documentation for defaults
+-- --                     ignore={'E24', 'W503', 'E226', 'E126', 'E704', 'E121', 'E123', 'W504', 'E203', 'E501'}
+-- --                     -- TODO find a way to use extend-ignore instead
+-- --                 }
+-- --                 -- mypy={
+-- --                 --     ignore_missing_imports=true
+-- --                 -- }
+-- --             }
+-- --         }
+-- --     }
+-- -- }
+-- 
+-- -- https://github.com/neovim/nvim-lspconfig
+-- -- require('lspconfig').pyright.setup{}
+-- 
+-- -- local shfmt = require('lsp.diagnosticls.formatters.shfmt')
+-- -- local shellcheck = require('lsp.diagnosticls.linters.shellcheck')
+-- 
+-- -- lspconfig.diagnosticls.setup {
+-- --   on_attach=on_attach,
+-- --   filetypes={ 'sh', 'yaml', 'lua' },
+-- --   init_options={
+-- --     filetypes={
+-- --       sh='shellcheck',
+-- --       yaml='yamllint',
+-- --     },
+-- --     formatFiletypes={
+-- --       sh='shfmt',
+-- --     },
+-- --     formatters={
+-- --       shfmt=shfmt,
+-- --     },
+-- --     linters={
+-- --       shellcheck=shellcheck,
+-- --     },
+-- --   },
+-- -- }
+-- 
+-- -- lspconfig.jedi_language_server.setup{on_attach=on_attach}
+-- lspconfig.bashls.setup{on_attach=on_attach}
+-- lspconfig.texlab.setup{on_attach=on_attach}
+-- lspconfig.metals.setup{on_attach=on_attach}
 
 EOF
