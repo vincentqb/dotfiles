@@ -103,6 +103,7 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', '<F4>', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
+    -- TODO See also https://github.com/astral-sh/ruff/discussions/12308
     vim.keymap.set('n', '<F4>', vim.lsp.buf.format, bufopts)
 end
 
