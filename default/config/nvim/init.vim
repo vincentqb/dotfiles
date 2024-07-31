@@ -202,6 +202,6 @@ fun! TrimWhitespace()
     keeppatterns %s/\s\+$//e
     call winrestview(l:save)
 endfun
-noremap <F6> <cmd>call TrimWhitespace()<CR>
+nnoremap <F6> <cmd>call TrimWhitespace()<CR>
 
 lua require("init")
