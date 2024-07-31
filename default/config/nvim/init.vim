@@ -204,4 +204,5 @@ fun! TrimWhitespace()
 endfun
 nnoremap <F6> <cmd>call TrimWhitespace()<CR>
 
+" import lua/init.lua
 lua require("init")
