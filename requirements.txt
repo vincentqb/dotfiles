@@ -1,5 +1,4 @@
 ruff
-ruff-lsp
 nbqa
 
 jedi-language-server
