@@ -36,6 +36,11 @@ set wildoptions+=fuzzy
 " Add vertical line to highlight column were row is too long
 set colorcolumn=120
 
+" Add horizontal line
+" set cursorline
+" highlight CursorLine ctermbg=lightgrey guibg=lightgrey
+" highlight CursorLine ctermbg=black guibg=black
+
 " Automatically save before commands like :next and :make
 set autowrite
 
@@ -123,11 +128,6 @@ command! PackStatus packadd minpac | call minpac#status()
 " let g:dracula_italic = 0
 let g:dracula_colorterm = 0
 colorscheme dracula
-
-" Add horizontal line
-" set cursorline
-" highlight CursorLine ctermbg=lightgrey guibg=lightgrey
-" highlight CursorLine ctermbg=black guibg=black
 
 " Toggle show undo tree
 nnoremap <F2> <cmd>UndotreeToggle<CR>
