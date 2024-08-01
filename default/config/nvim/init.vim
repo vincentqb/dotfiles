@@ -58,7 +58,7 @@ map <F3> :setlocal spell! spelllang=en_us,programming<CR>
 
 " https://vim.fandom.com/wiki/Omni_completion
 set omnifunc=syntaxcomplete#Complete
-imap <c-n> <c-x><c-o>
+" imap <c-n> <c-x><c-o>
 " imap <c-n> <c-o><c-n>
 
 " https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file

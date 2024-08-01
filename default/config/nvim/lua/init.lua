@@ -131,6 +131,12 @@ for _, lsp in ipairs(servers) do
     }
 end
 
+lspconfig.jedi_language_server.setup {
+    on_attach = on_attach,
+    capabilities = capabilities,
+}
+
+-- omnifunc C-X C-O does not work with ruff
 lspconfig.ruff.setup {
     on_attach = on_attach,
     capabilities = capabilities,
