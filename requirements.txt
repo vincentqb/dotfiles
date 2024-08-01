@@ -1,15 +1,9 @@
 ruff
 nbqa
 
-jedi-language-server
-
 neovim
 pynvim
 
-black
 virtualenv
-
-black[jupyter]
-flake8
 
 git-remote-codecommit
