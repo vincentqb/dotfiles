@@ -120,7 +120,7 @@ end
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
 
-local servers = { 'ruff', 'bashls', 'texlab', 'metals' }
+local servers = { 'bashls', 'texlab', 'metals' }
 local lspconfig = require('lspconfig')
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
@@ -130,3 +130,13 @@ for _, lsp in ipairs(servers) do
         capabilities = capabilities,
     }
 end
+
+lspconfig.ruff.setup {
+    on_attach = on_attach,
+    capabilities = capabilities,
+    -- on_init = function(client)
+    --     client.config.settings.interpreter = lsp_python.get_python_path(client.config.root_dir)
+    --     client.config.settings.path = "/home/vincent/.local/bin/ruff"
+    -- end,
+    -- init_options = { settings = { lint = { preview = true } } }
+}
