@@ -1,5 +1,6 @@
 ruff
 nbqa
+jedi-language-server
 
 neovim
 pynvim
