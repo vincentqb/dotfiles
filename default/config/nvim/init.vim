@@ -101,11 +101,11 @@ function! PackInit() abort
     call minpac#add('hrsh7th/cmp-buffer')
     call minpac#add('hrsh7th/cmp-path')
     call minpac#add('hrsh7th/cmp-cmdline')
-    " call minpac#add('hrsh7th/cmp-vsnip')
-    " call minpac#add('hrsh7th/vim-vsnip')
+    call minpac#add('hrsh7th/cmp-vsnip')
+    call minpac#add('hrsh7th/vim-vsnip')
     " https://github.com/neovim/nvim-lspconfig/wiki/Autocompletion
-    call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
-    call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
+    " call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
+    " call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
 
     " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
