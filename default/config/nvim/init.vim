@@ -95,6 +95,13 @@ function! PackInit() abort
     call minpac#add('neovim/nvim-lspconfig')
 
     " Autocompletion plugin
+    " https://github.com/neovim/nvim-lspconfig/issues/130#issuecomment-992678432
+    " Plug 'maralla/completor.vim'  " enables code completion - https://github.com/maralla/completor.vim
+    " Plug 'prabirshrestha/asyncomplete.vim'  " code completion with support for LSP
+    " Plug 'ervandew/supertab'  " enables tab actions i.e. autocomplete by using <tab> insert mode
+    " Plug 'lifepillar/vim-mucomplete'  " enables code completion (popup)
+
+    " Autocompletion plugin
     " https://github.com/hrsh7th/nvim-cmp/
     call minpac#add('hrsh7th/nvim-cmp')
     call minpac#add('hrsh7th/cmp-nvim-lsp')
