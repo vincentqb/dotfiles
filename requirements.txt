@@ -8,3 +8,4 @@ pynvim
 virtualenv
 
 git-remote-codecommit
+pip
