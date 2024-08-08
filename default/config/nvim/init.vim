@@ -54,7 +54,7 @@ au FileType gitcommit set spell
 " Disable spellcheck in python by default
 " autocmd FileType python setlocal nospell
 " Toggle spellchecking
-map <F3> :setlocal spell! spelllang=en_us,programming<CR>
+noremap <F3> :setlocal spell! spelllang=en_us,programming<CR>
 
 " https://vim.fandom.com/wiki/Omni_completion
 set omnifunc=syntaxcomplete#Complete
@@ -67,7 +67,7 @@ fun! TrimWhitespace()
     keeppatterns %s/\s\+$//e
     call winrestview(l:save)
 endfun
-nnoremap <F6> <cmd>call TrimWhitespace()<CR>
+noremap <F6> <cmd>call TrimWhitespace()<CR>
 
 function! PackInit() abort
     packadd minpac
