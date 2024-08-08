@@ -3,16 +3,6 @@
 
 -- vim.lsp.set_log_level("debug")
 
--- See: https://github.com/neovim/nvim-lspconfig/tree/54eb2a070a4f389b1be0f98070f81d23e2b1a715#suggested-configuration
-local opts = { noremap=true, silent=true }
--- vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
-vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
-vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
--- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
--- Make LSP messages appear above the current line
--- https://github.com/neovim/nvim-lspconfig/issues/1046
-vim.keymap.set('n', '<F5>', vim.diagnostic.open_float, opts)
-
 -- Set up nvim-cmp.
 local cmp = require('cmp')
 
@@ -88,6 +78,14 @@ local on_attach = function(client, bufnr)
     -- Mappings.
     -- See `:help vim.lsp.*` for documentation on any of the below functions
     local bufopts = { noremap=true, silent=true, buffer=bufnr }
+    -- vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, bufopts)
+    vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, bufopts)
+    vim.keymap.set('n', ']d', vim.diagnostic.goto_next, bufopts)
+    -- vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, bufopts)
+    -- Make LSP messages appear above the current line
+    -- https://github.com/neovim/nvim-lspconfig/issues/1046
+    vim.keymap.set('n', '<F5>', vim.diagnostic.open_float, bufopts)
+
     -- vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, bufopts)
     vim.keymap.set('n', 'gd', vim.lsp.buf.definition, bufopts)
     vim.keymap.set('n', 'K', vim.lsp.buf.hover, bufopts)
@@ -103,10 +101,12 @@ local on_attach = function(client, bufnr)
     -- vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, bufopts)
     -- vim.keymap.set('n', '<F4>', vim.lsp.buf.code_action, bufopts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, bufopts)
-    -- TODO See also https://github.com/astral-sh/ruff/discussions/12308
+
+    -- TODO Replace anonumous function when ruff format sorts imports
+    -- https://docs.astral.sh/ruff/formatter/#sorting-imports
+    -- https://github.com/astral-sh/ruff/discussions/12308
     -- vim.keymap.set('n', '<F4>', vim.lsp.buf.format, bufopts)
     vim.keymap.set('n', '<F4>', function()
-        -- https://docs.astral.sh/ruff/formatter/#sorting-imports
         vim.lsp.buf.format()
         vim.lsp.buf.code_action({
             context = {
@@ -116,6 +116,7 @@ local on_attach = function(client, bufnr)
             apply = true,
         })
     end, bufopts)
+
 end
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp

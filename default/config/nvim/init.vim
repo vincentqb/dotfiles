@@ -74,7 +74,7 @@ function! PackInit() abort
 
     call minpac#init()
     call minpac#add('k-takata/minpac', {'type': 'opt'})
-    call minpac#add('dracula/vim', { 'name': 'dracula' })
+    call minpac#add('dracula/vim', {'name': 'dracula'})
 
     call minpac#add('thinca/vim-visualstar')
     " call minpac#add('ervandew/supertab')
@@ -116,8 +116,8 @@ function! PackInit() abort
 
     " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
-    " call minpac#add('psliwka/vim-dirtytalk', {'do': ':let &rtp = &rtp \| DirtytalkUpdate' })
-    call minpac#add('psliwka/vim-dirtytalk', {'do': ':DirtytalkUpdate'})
+    " call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
+    call minpac#add('psliwka/vim-dirtytalk')
 
 endfunction
 
