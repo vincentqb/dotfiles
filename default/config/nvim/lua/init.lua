@@ -122,7 +122,7 @@ end
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
 
-local servers = { 'bashls', 'texlab', 'metals' }
+local servers = { 'bashls', 'texlab', 'metals', 'jedi_language_server' }
 local lspconfig = require('lspconfig')
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
@@ -132,11 +132,6 @@ for _, lsp in ipairs(servers) do
         capabilities = capabilities,
     }
 end
-
-lspconfig.jedi_language_server.setup {
-    on_attach = on_attach,
-    capabilities = capabilities,
-}
 
 -- omnifunc C-X C-O does not work with ruff
 lspconfig.ruff.setup {
