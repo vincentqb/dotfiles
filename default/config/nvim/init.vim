@@ -60,6 +60,7 @@ noremap <F3> :setlocal spell! spelllang=en_us,programming<CR>
 set omnifunc=syntaxcomplete#Complete
 " imap <c-n> <c-x><c-o>
 " imap <c-n> <c-o><c-n>
+set pumheight=7
 
 " https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
 fun! TrimWhitespace()
