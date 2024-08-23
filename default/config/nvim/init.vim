@@ -46,6 +46,7 @@ set autowrite
 
 " Activate spellchecker
 set spelllang=en_us,programming
+set spellsuggest+=10
 " Spell-check Markdown files and Git Commit Messages
 au FileType markdown set spell
 au FileType tex set spell
