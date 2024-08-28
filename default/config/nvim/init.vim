@@ -27,6 +27,10 @@ set undofile
 set ignorecase
 set smartcase
 
+" Show line numbers
+set relativenumber
+set number
+
 " Show matching brackets.
 set showmatch
 
