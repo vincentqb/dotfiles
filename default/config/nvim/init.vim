@@ -134,7 +134,7 @@ command! PackClean  call PackInit() | call minpac#clean()
 command! PackStatus packadd minpac | call minpac#status()
 
 " Code completion with Amazon Q
-map <F12> :silent! call timer_start(1000, {-> CodeWhisperer()})<CR>
+map <F12> :silent! call CodeWhisperer()<CR>
 
 " Enable theme
 " https://github.com/dracula/vim/issues/96
