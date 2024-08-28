@@ -120,6 +120,8 @@ function! PackInit() abort
     " call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
     " call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
 
+    call minpac#add('vincentqb/vimwhisperer')
+
     " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
     " call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
@@ -130,6 +132,9 @@ endfunction
 command! PackUpdate call PackInit() | call minpac#update()
 command! PackClean  call PackInit() | call minpac#clean()
 command! PackStatus packadd minpac | call minpac#status()
+
+" Code completion with Amazon Q
+map <F12> :silent! call timer_start(1000, {-> CodeWhisperer()})<CR>
 
 " Enable theme
 " https://github.com/dracula/vim/issues/96
