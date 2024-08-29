@@ -69,5 +69,5 @@
 	path = default/config/kitty/whiskers
 	url = https://github.com/igrmk/whiskers.git
 [submodule "dot.py"]
-	path = dotpy
+	path = dot.py
 	url = https://github.com/vincentqb/dot.py
