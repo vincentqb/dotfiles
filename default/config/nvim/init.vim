@@ -31,8 +31,10 @@ set smartcase
 set relativenumber
 set number
 
-" Combined status and command bars but hides vim-mode unless using something like lualine
+" Hides command line
 " set cmdheight=0
+" Disable showing mode in command line
+set noshowmode
 
 " Show matching brackets.
 set showmatch
