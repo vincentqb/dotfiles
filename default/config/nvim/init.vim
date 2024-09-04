@@ -31,9 +31,9 @@ set smartcase
 set relativenumber
 set number
 
-" Hides command line
+" Hides command line unless used
 " set cmdheight=0
-" Disable showing mode in command line
+" Disable showing mode in command line, relevant when using lualine
 set noshowmode
 
 " Show matching brackets.
