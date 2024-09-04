@@ -1,6 +1,3 @@
--- Language Server Protocol
--- https://github.com/neovim/nvim-lspconfig
-
 require('lualine').setup {
     options = {
         icons_enabled = false,
@@ -9,6 +6,8 @@ require('lualine').setup {
     }
 }
 
+-- Language Server Protocol
+-- https://github.com/neovim/nvim-lspconfig
 -- vim.lsp.set_log_level("debug")
 
 -- Set up nvim-cmp.
@@ -141,7 +140,8 @@ for _, lsp in ipairs(servers) do
     }
 end
 
--- omnifunc C-X C-O does not work with ruff
+-- omnifunc C-X C-O does not work with ruff at this point
+-- jedi_language_server is providing that functionality
 lspconfig.ruff.setup {
     on_attach = on_attach,
     capabilities = capabilities,
