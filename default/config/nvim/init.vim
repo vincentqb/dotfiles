@@ -1,3 +1,6 @@
+" Set <Leader> to be something else than default \\ below
+" let g:mapleader="\\"
+
 " Specify Python 3 to use
 let g:python3_host_prog = '/usr/bin/python3'
 " Specify Python 2 to use
@@ -128,6 +131,9 @@ function! PackInit() abort
     call minpac#add('nvim-lualine/lualine.nvim')
     " call minpac#add('nvim-tree/nvim-web-devicons')
 
+    call minpac#add('nvim-lua/plenary.nvim')
+    call minpac#add('nvim-telescope/telescope.nvim', { 'tag': '0.1.8' })
+
     call minpac#add('vincentqb/vimwhisperer')
 
     " Run :DirtytalkUpdate manually
@@ -143,6 +149,12 @@ command! PackStatus packadd minpac | call minpac#status()
 
 " Code completion with Amazon Q
 map <F12> :silent! call CodeWhisperer()<CR>
+
+" Find files using Telescope
+nnoremap <Leader>ff <cmd>Telescope find_files<cr>
+nnoremap <Leader>fg <cmd>Telescope live_grep<cr>
+nnoremap <Leader>fb <cmd>Telescope buffers<cr>
+nnoremap <Leader>fh <cmd>Telescope help_tags<cr>
 
 " Enable theme
 " https://github.com/dracula/vim/issues/96
