@@ -32,7 +32,7 @@ set relativenumber
 set number
 
 " Combined status and command bars but hides vim-mode unless using something like lualine
-set cmdheight=0
+" set cmdheight=0
 
 " Show matching brackets.
 set showmatch
