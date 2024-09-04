@@ -31,6 +31,9 @@ set smartcase
 set relativenumber
 set number
 
+" Combined status and command bars
+set cmdheight=0
+
 " Show matching brackets.
 set showmatch
 
