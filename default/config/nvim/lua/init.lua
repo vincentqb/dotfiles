@@ -1,6 +1,14 @@
 -- Language Server Protocol
 -- https://github.com/neovim/nvim-lspconfig
 
+require('lualine').setup {
+    options = {
+        icons_enabled = false,
+        theme = 'dracula',
+        globalstatus = true
+    }
+}
+
 -- vim.lsp.set_log_level("debug")
 
 -- Set up nvim-cmp.

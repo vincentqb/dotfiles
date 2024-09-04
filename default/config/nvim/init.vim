@@ -31,7 +31,7 @@ set smartcase
 set relativenumber
 set number
 
-" Combined status and command bars
+" Combined status and command bars but hides vim-mode unless using something like lualine
 set cmdheight=0
 
 " Show matching brackets.
@@ -122,6 +122,9 @@ function! PackInit() abort
     " https://github.com/neovim/nvim-lspconfig/wiki/Autocompletion
     " call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
     " call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
+
+    call minpac#add('nvim-lualine/lualine.nvim')
+    " call minpac#add('nvim-tree/nvim-web-devicons')
 
     call minpac#add('vincentqb/vimwhisperer')
 
