@@ -106,6 +106,9 @@ function! PackInit() abort
 
     " call minpac#add('lervag/vimtex')
 
+    call minpac#add('nvim-lua/plenary.nvim')
+    call minpac#add('nvim-telescope/telescope.nvim', { 'tag': '0.1.8' })
+
     call minpac#add('neovim/nvim-lspconfig')
 
     " Autocompletion plugin
@@ -127,12 +130,10 @@ function! PackInit() abort
     " https://github.com/neovim/nvim-lspconfig/wiki/Autocompletion
     " call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
     " call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
+    call minpac#add('petertriho/cmp-git') " for cmp_git completion, requires plenary
 
     call minpac#add('nvim-lualine/lualine.nvim')
     " call minpac#add('nvim-tree/nvim-web-devicons')
-
-    call minpac#add('nvim-lua/plenary.nvim')
-    call minpac#add('nvim-telescope/telescope.nvim', { 'tag': '0.1.8' })
 
     call minpac#add('vincentqb/vimwhisperer')
 
