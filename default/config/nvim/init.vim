@@ -37,7 +37,7 @@ set number
 " Hides command line unless used
 " set cmdheight=0
 " Disable showing mode in command line, relevant when using lualine, clear with Ctrl-L redraw
-set noshowmode
+" set noshowmode
 
 " Show matching brackets.
 set showmatch
