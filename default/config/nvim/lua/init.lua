@@ -1,8 +1,10 @@
 require('lualine').setup {
     options = {
         icons_enabled = false,
-        theme = 'dracula',
-        globalstatus = true
+        theme = 'auto',
+        globalstatus = true,
+        component_separators = { left = '❯', right = '❮'},
+        section_separators = { left = '', right = ''},
     }
 }
 
