@@ -10,3 +10,5 @@ virtualenv
 git-remote-codecommit
 pip
 git+https://github.com/vincentqb/vimwhisperer
+
+dot.py
