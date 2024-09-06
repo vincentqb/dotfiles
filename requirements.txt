@@ -11,4 +11,4 @@ git-remote-codecommit
 pip
 git+https://github.com/vincentqb/vimwhisperer
 
-dot.py
+dot.py # git+https://github.com/vincentqb/dot.py
