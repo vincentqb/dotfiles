@@ -43,8 +43,14 @@ wget -qO- https://github.com/zellij-org/zellij/releases/download/v0.34.4/zellij-
 # https://sw.kovidgoyal.net/kitty/faq/#i-get-errors-about-the-terminal-being-unknown-or-opening-the-terminal-failing-or-functional-keys-like-arrow-keys-don-t-work
 sudo apt install kitty-terminfo
 
+# Install latest nodejs
+# https://github.com/bash-lsp/bash-language-server/issues/428#issuecomment-1147740945
+curl -fsSL https://deb.nodesource.com/setup_current.x | sudo -E bash -
+sudo apt install -y nodejs
 # bashls
-# sudo snap install bash-language-server
+# sudo snap install bash-language-server --classic
+sudo npm i -g bash-language-server
+sudo apt install -y shfmt shellcheck
 
 # scala
 # curl -fLo cs https://git.io/coursier-cli-"$(uname | tr LD ld)"
