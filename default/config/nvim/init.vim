@@ -142,7 +142,7 @@ function! PackInit() abort
     " call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
     call minpac#add('psliwka/vim-dirtytalk')
 
-    call minpac#add('nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'})
+    " call minpac#add('nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'})
 
 endfunction
 
