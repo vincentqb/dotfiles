@@ -144,6 +144,8 @@ function! PackInit() abort
 
     " call minpac#add('nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'})
 
+    " call minpac#add('Julian/lean.nvim')
+
 endfunction
 
 command! PackUpdate call PackInit() | call minpac#update()
