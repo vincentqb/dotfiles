@@ -19,7 +19,7 @@ brew install ripgrep bat fd
 brew install nvim fish tmux
 brew install shellcheck
 brew install reattach-to-user-namespace
-brew install texlab
+# brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd
 brew install yarn
@@ -71,6 +71,20 @@ export PATH=$PATH:/opt/homebrew/anaconda3/bin
 conda init zsh fish
 
 # AMZN
+kinit
+mwinit -o
+touch ~/toolbox-bootstrap.sh && \
+  curl -X POST \
+  --data '{"os":"osx"}' \
+  -H "Authorization: $(curl -L \
+  --cookie $HOME/.midway/cookie \
+  --cookie-jar $HOME/.midway/cookie \
+  "https://midway-auth.amazon.com/SSO?client_id=https://us-east-1.prod.release-service.toolbox.builder-tools.aws.dev&response_type=id_token&nonce=$RANDOM&redirect_uri=https://us-east-1.prod.release-service.toolbox.builder-tools.aws.dev:443")" \
+  https://us-east-1.prod.release-service.toolbox.builder-tools.aws.dev/v1/bootstrap \
+  > ~/toolbox-bootstrap.sh
+bash ~/toolbox-bootstrap.sh
+rm ~/toolbox-bootstrap.sh
+source ~/.$(basename "$SHELL")rc
 toolbox update
 toolbox install ada axe
 xcode-select --install
