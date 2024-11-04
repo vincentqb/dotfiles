@@ -135,7 +135,7 @@ function! PackInit() abort
     call minpac#add('nvim-lualine/lualine.nvim')
     " call minpac#add('nvim-tree/nvim-web-devicons')
 
-    call minpac#add('vincentqb/vimwhisperer')
+    " call minpac#add('vincentqb/vimwhisperer')
 
     " Run :DirtytalkUpdate manually
     " https://github.com/psliwka/vim-dirtytalk/issues/1
