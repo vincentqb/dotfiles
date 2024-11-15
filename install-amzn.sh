@@ -2,9 +2,8 @@
 
 git submodule sync
 git submodule update --init --recursive
-~/dotfiles/dot.py/dot.py link default
-
-/usr/bin/pip3 install --user -r requirements.txt --use-feature=2020-resolver
+/usr/bin/pip3 install --user -r requirements.txt
+dot.py link default
 
 # Install latest neovim
 sudo yum -y install fuse
@@ -17,13 +16,29 @@ chmod +x ~/.local/bin/nvim
 ~/.local/bin/nvim --headless +PackUpdate +qa
 ~/.local/bin/nvim --headless +DirtytalkUpdate +qa
 
+# Install fish
 sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
 sudo yum -y install fish
 
+# Install cargo
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
 
+# Install zellij
+sudo yum install perl-IPC-Cmd
+~/.cargo/bin/cargo install --locked zellij
+
+# Install conda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+bash ~/miniconda.sh -b -p ~/miniconda
+eval "$(~/miniconda/bin/conda shell.bash hook)"
+source ~/miniconda/bin/activate
+conda init --all
+conda init zsh
+conda init fish
 conda config --set auto_activate_base true
+conda config --set changeps1 False
+conda update -n base -c conda-forge conda
 
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum -y install amazon-cloudwatch-agent
@@ -56,6 +71,3 @@ EOM
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
 
-# Install zellij
-sudo yum install perl-IPC-Cmd
-cargo install --locked zellij
