@@ -32,13 +32,13 @@ sudo yum install perl-IPC-Cmd
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 bash ~/miniconda.sh -b -p ~/miniconda
 eval "$(~/miniconda/bin/conda shell.bash hook)"
-source ~/miniconda/bin/activate
-conda init --all
-conda init zsh
-conda init fish
-conda config --set auto_activate_base true
-conda config --set changeps1 False
-conda update -n base -c conda-forge conda
+~/miniconda/bin/conda init fish
+~/miniconda/bin/conda init --all
+~/miniconda/bin/conda init zsh
+~/miniconda/bin/conda init fish
+~/miniconda/bin/conda config --set auto_activate_base true
+~/miniconda/bin/conda config --set changeps1 False
+~/miniconda/bin/conda update -n base -c conda-forge conda
 
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum -y install amazon-cloudwatch-agent
