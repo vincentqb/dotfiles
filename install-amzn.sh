@@ -6,7 +6,7 @@ git submodule update --init --recursive
 dot.py link default
 
 # Install latest neovim
-sudo yum -y install fuse
+sudo yum install -y fuse
 mkdir -p ~/.local/bin
 wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
 chmod +x ~/.local/bin/nvim
@@ -18,14 +18,14 @@ chmod +x ~/.local/bin/nvim
 
 # Install fish
 sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
-sudo yum -y install fish
+sudo yum install -y fish
 
 # Install cargo
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
 
 # Install zellij
-sudo yum install perl-IPC-Cmd
+sudo yum install -y perl-IPC-Cmd
 ~/.cargo/bin/cargo install --locked zellij
 
 # Install conda
@@ -41,7 +41,7 @@ eval "$(~/miniconda/bin/conda shell.bash hook)"
 ~/miniconda/bin/conda update -n base -c conda-forge conda
 
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
-sudo yum -y install amazon-cloudwatch-agent
+sudo yum install -y amazon-cloudwatch-agent
 sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOM'
 {
     "agent": {
