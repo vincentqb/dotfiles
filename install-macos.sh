@@ -69,9 +69,9 @@ wget -qO- https://github.com/zellij-org/zellij/releases/download/v0.34.4/zellij-
 # defaults write com.apple.terminal "Startup Window Settings" -string "Dracula"
 
 # Install anaconda
-brew install anaconda
-export PATH=$PATH:/opt/homebrew/anaconda3/bin
-conda init zsh fish
+# brew install anaconda
+# export PATH=$PATH:/opt/homebrew/anaconda3/bin
+# conda init zsh fish
 
 # AMZN
 kinit

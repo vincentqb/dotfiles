@@ -29,16 +29,16 @@ sudo yum install -y perl-IPC-Cmd
 ~/.cargo/bin/cargo install --locked zellij
 
 # Install conda
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-bash ~/miniconda.sh -b -p ~/miniconda
-eval "$(~/miniconda/bin/conda shell.bash hook)"
-~/miniconda/bin/conda init fish
-~/miniconda/bin/conda init --all
-~/miniconda/bin/conda init zsh
-~/miniconda/bin/conda init fish
-~/miniconda/bin/conda config --set auto_activate_base true
-~/miniconda/bin/conda config --set changeps1 False
-~/miniconda/bin/conda update -n base -c conda-forge conda
+# wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+# bash ~/miniconda.sh -b -p ~/miniconda
+# eval "$(~/miniconda/bin/conda shell.bash hook)"
+# ~/miniconda/bin/conda init fish
+# ~/miniconda/bin/conda init --all
+# ~/miniconda/bin/conda init zsh
+# ~/miniconda/bin/conda init fish
+# ~/miniconda/bin/conda config --set auto_activate_base true
+# ~/miniconda/bin/conda config --set changeps1 False
+# ~/miniconda/bin/conda update -n base -c conda-forge conda
 
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent

@@ -85,5 +85,5 @@ tx=36:"
 # yarn global add neovim
 
 # Set up anaconda in fish
-conda init fish
-conda config --set changeps1 False
+# conda init fish
+# conda config --set changeps1 False

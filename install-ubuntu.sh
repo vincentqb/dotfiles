@@ -59,15 +59,15 @@ sudo apt install -y shfmt shellcheck
 # export PATH="$PATH:/home/ubuntu/.local/share/coursier/bin"\
 
 # Install anaconda
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-bash ~/miniconda.sh -b -p ~/miniconda
-eval "$(~/miniconda/bin/conda shell.bash hook)"
-source ~/miniconda/bin/activate
-conda init zsh
-conda init fish
-conda config --set auto_activate_base true
-conda config --set changeps1 False
-conda update -n base -c conda-forge conda
+# wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+# bash ~/miniconda.sh -b -p ~/miniconda
+# eval "$(~/miniconda/bin/conda shell.bash hook)"
+# source ~/miniconda/bin/activate
+# conda init zsh
+# conda init fish
+# conda config --set auto_activate_base true
+# conda config --set changeps1 False
+# conda update -n base -c conda-forge conda
 
 # sudo apt -y install fdfind bat ripgrep
 curl https://sh.rustup.rs -sSf | sh -s -- -y
