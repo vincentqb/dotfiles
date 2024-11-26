@@ -121,7 +121,8 @@ end
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
 
-local servers = { 'bashls', 'texlab', 'metals', 'jedi_language_server' }
+-- local servers = { 'bashls', 'texlab', 'metals', 'jedi_language_server' }
+local servers = { 'texlab', 'jedi_language_server' }
 local lspconfig = require('lspconfig')
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
