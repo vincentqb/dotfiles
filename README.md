@@ -8,7 +8,7 @@ git submodule update --init --recursive --remote
 /usr/bin/python3 -m ensurepip --user --upgrade
 /usr/bin/python3 -m pip install --user --upgrade -r ~/dotfiles/requirements.txt
 
-# Install dotfiles:
+# Install dotfiles (space prefix tells shell to forget command in history)
  PASSWD=github_application_password dot.py link default netrc
 
 # Run corresponding install scripts:
