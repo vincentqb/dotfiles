@@ -74,3 +74,13 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a 
 # Install dependecies for efs
 sudo yum install -y amazon-efs-utils
 sudo mkdir /efs
+sudo mount -t efs -o tls,iam fs-9c2846d5 /efs
+
+# Ensure latest nvidia
+# sudo dnf install -y kernel-modules-extra
+# sudo dnf install -y nvidia-release
+# sudo dnf install -y nvidia-driver
+# sudo dnf install -y cuda-toolkit
+# Check drivers are installed properly
+# nvidia-smi
+# python -c "import torch; assert torch.cuda.is_available()"
