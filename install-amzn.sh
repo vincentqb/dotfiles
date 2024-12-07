@@ -28,6 +28,10 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 sudo yum install -y perl-IPC-Cmd
 ~/.cargo/bin/cargo install --locked zellij
 
+# Install zenith
+sudo dnf install -y clang
+~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
+
 # Install conda
 # wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 # bash ~/miniconda.sh -b -p ~/miniconda
