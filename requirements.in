@@ -1,0 +1,11 @@
+dot.py # git+https://github.com/vincentqb/dot.py
+git+https://github.com/vincentqb/vimwhisperer
+git-remote-codecommit
+jedi-language-server
+nbqa
+neovim
+pip
+pynvim
+ruff
+uv
+virtualenv
