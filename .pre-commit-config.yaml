@@ -1,6 +1,6 @@
 repos:
 - repo: https://github.com/astral-sh/uv-pre-commit
-  rev: 0.5.9
+  rev: 0.5.10
   hooks:
     - id: pip-compile
       args: [requirements.in, -o, requirements.txt, --upgrade]
