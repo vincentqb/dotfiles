@@ -5,6 +5,7 @@ jedi-language-server
 nbqa
 neovim
 pip
+pre-commit
 pynvim
 ruff
 uv
