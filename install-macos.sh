@@ -31,6 +31,8 @@ brew install ruff
 brew install rsync
 brew install eza
 
+brew install --cask wezterm
+
 # sshfs https://github.com/telepresenceio/telepresence/issues/1654#issuecomment-873538291
 # brew install --cask macfuse
 # brew install gromgit/fuse/sshfs-mac
@@ -41,6 +43,9 @@ brew install eza
 # npm install -g diagnostic-languageserver
 # npm install -g neovim yarn
 # yarn global add neovim
+
+sudo fish -c 'echo (which fish) >> /etc/shells'
+chsh -s $(which fish)
 
 # Update nvim plugins
 nvim --headless +PackClean +qa
