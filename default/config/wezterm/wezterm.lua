@@ -9,6 +9,7 @@ return {
     font_size = 14.0,
     color_scheme = "Dracula (Official)",
     tab_bar_at_bottom = true,
+    hide_tab_bar_if_only_one_tab = true,
     use_fancy_tab_bar = false,
     window_decorations = "RESIZE",
     unix_domains = {
