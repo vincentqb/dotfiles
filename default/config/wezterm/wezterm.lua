@@ -11,7 +11,7 @@ return {
     tab_bar_at_bottom = true,
     hide_tab_bar_if_only_one_tab = true,
     use_fancy_tab_bar = false,
-    window_decorations = "RESIZE",
+    window_decorations = "TITLE | RESIZE",
     unix_domains = {
         {
             name = "example",
