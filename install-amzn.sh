@@ -32,6 +32,15 @@ sudo yum install -y perl-IPC-Cmd
 sudo dnf install -y clang
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
 
+# Install wezterm server only
+git clone --depth=1 --branch=main --recursive https://github.com/wezterm/wezterm.git
+# cd wezterm
+git submodule update --init --recursive wezterm/
+./wezterm/get-deps
+cargo build --release --bin wezterm-mux-server
+cp ./wezterm/target/release/wezterm-mux-server ~/.local/bin/
+# cd ..
+
 # Install conda
 # wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
 # bash ~/miniconda.sh -b -p ~/miniconda
