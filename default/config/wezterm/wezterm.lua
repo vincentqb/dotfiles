@@ -14,8 +14,25 @@ return {
     window_decorations = "TITLE | RESIZE",
     unix_domains = {
         {
-            name = "example",
-            proxy_command = { "ssh", "-T", "-A", "gpu1min", "wezterm", "cli", "proxy" },
+            name = "example1",
+            -- proxy_command = { "ssh", "-T", "-A", "gpu1min", "wezterm", "cli", "proxy" },
+            proxy_command = { "ssh", "-T", "-A", "gpu1min", "/home/ec2-user/.local/bin/wezterm-mux-server", "cli", "proxy" },
         },
+    },
+    ssh_domains = {
+        {
+            name = "example2",
+            remote_address = "gpu1min",
+            remote_wezterm_path = "/home/ec2-user/.local/bin/wezterm-mux-server",
+        },
+        {
+            name = "example3",
+            username = "ec2-user",
+            -- IdentityFile = "~/.ssh/quennv_ec2.pem",
+            remote_address = "ec2-54-166-254-8.compute-1.amazonaws.com",
+            remote_wezterm_path = "/home/ec2-user/.local/bin/wezterm-mux-server",
+        },
+    -- or simply use:
+    -- wezterm ssh gpu1min
     },
 }
