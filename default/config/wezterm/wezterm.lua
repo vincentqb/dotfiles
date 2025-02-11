@@ -34,5 +34,6 @@ return {
         },
     -- or simply use:
     -- wezterm ssh gpu1min
+    -- wezterm cli spawn --domain-name SSH:gpu1min
     },
 }
