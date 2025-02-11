@@ -16,12 +16,13 @@ chmod +x ~/.local/bin/nvim
 ~/.local/bin/nvim --headless +PackUpdate +qa
 ~/.local/bin/nvim --headless +DirtytalkUpdate +qa
 
-# Install utilities like chsh
-sudo yum install util-linux-user
-
 # Install fish
 sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
 sudo yum install -y fish
+
+# Install utilities like chsh
+sudo yum install util-linux-user
+sudo chsh -u ec2-user -s /usr/bin/fish
 
 # Install cargo
 curl https://sh.rustup.rs -sSf | sh -s -- -y
