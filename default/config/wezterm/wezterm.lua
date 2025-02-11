@@ -33,6 +33,9 @@ return {
             remote_wezterm_path = "/home/ec2-user/.local/bin/wezterm-mux-server",
         },
     -- or simply use:
+    -- wezterm connect example1
+    -- wezterm connect example2
+    -- wezterm connect example3
     -- wezterm ssh gpu1min
     -- wezterm cli spawn --domain-name SSH:gpu1min
     },
