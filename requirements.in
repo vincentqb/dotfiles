@@ -1,4 +1,4 @@
-dot.py # git+https://github.com/vincentqb/dot.py
+git+https://github.com/vincentqb/dot.py
 git+https://github.com/vincentqb/matplotlib-backend-sixel.git
 git+https://github.com/vincentqb/vimwhisperer
 git-remote-codecommit

@@ -2,15 +2,11 @@
 
 git submodule sync
 git submodule update --init --recursive
-~/dotfiles/dot.py/dot.py link default
-
-/usr/bin/python3 -m pip install --upgrade pip
-/usr/bin/python3 -m pip install --user -r requirements.txt
 
 # Install latest neovim
 sudo apt -y install libfuse2
 mkdir -p ~/.local/bin
-wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
+wget https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.appimage -O ~/.local/bin/nvim
 chmod +x ~/.local/bin/nvim
 # Update nvim plugins
 ~/.local/bin/nvim --headless +PackClean +qa
@@ -29,6 +25,7 @@ curl -s https://api.github.com/repos/kiyoon/tmux-appimage/releases/latest \
 sudo apt-add-repository ppa:fish-shell/release-3
 sudo apt update
 sudo apt -y install fish
+sudo chsh vincent -s /usr/bin/fish
 
 sudo apt -y install tmux shellcheck texlive node
 
@@ -73,3 +70,10 @@ sudo apt install -y shfmt shellcheck
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
 ~/.cargo/bin/cargo install --locked --git https://github.com/latex-lsp/texlab
+
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cat requirements.in | xargs --max-lines=1 uv tool install
+
+# Install dotfiles
+dot.py link default

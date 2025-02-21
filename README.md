@@ -5,8 +5,8 @@ git submodule sync
 git submodule update --init --recursive --remote
 
 # Install python packages
-/usr/bin/python3 -m ensurepip --user --upgrade
-/usr/bin/python3 -m pip install --user --upgrade -r ~/dotfiles/requirements.txt
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cat requirements.in | xargs --max-lines=1 uv tool install
 
 # Install dotfiles (space prefix tells shell to forget command in history)
  PASSWD=github_application_password dot.py link default netrc
