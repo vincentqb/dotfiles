@@ -31,6 +31,7 @@ brew install ruff
 brew install rsync
 brew install eza
 brew install zellij
+brew install awscli
 
 brew install --cask wezterm
 
