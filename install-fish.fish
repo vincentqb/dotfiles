@@ -17,6 +17,9 @@ fisher install acomagu/fish-async-prompt
 fisher install pure-fish/pure
 set -U async_prompt_functions _pure_prompt_git
 
+# https://github.com/wez/wezterm/issues/1846
+# fisher install danhper/fish-ssh-agent
+
 # Return to default keybindings
 fish_default_key_bindings
 rm -f ~/.config/fish/functions/fish_user_key_bindings.fish
