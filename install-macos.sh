@@ -33,7 +33,9 @@ brew install eza
 brew install zellij
 brew install awscli
 
-brew install --cask wezterm
+# brew install --cask wezterm
+# brew install --cask wezterm@nightly
+cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm wezterm-gui
 
 # sshfs https://github.com/telepresenceio/telepresence/issues/1654#issuecomment-873538291
 # brew install --cask macfuse
@@ -95,3 +97,10 @@ source ~/.$(basename "$SHELL")rc
 toolbox update
 toolbox install ada axe
 xcode-select --install
+
+# install docker
+# /opt/homebrew/opt/colima/bin/colima start -f
+brew install --cask docker
+brew install docker docker-compose colima
+# docker replacement
+toolbox install finch

@@ -37,12 +37,13 @@ sudo dnf install -y clang
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
 
 # Install wezterm server only
-git clone --depth=1 --branch=main --recursive https://github.com/wezterm/wezterm.git
+cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm-mux-server
+# git clone --depth=1 --branch=main --recursive https://github.com/wezterm/wezterm.git
 # cd wezterm
-git submodule update --init --recursive wezterm/
-./wezterm/get-deps
-cargo build --release --bin wezterm-mux-server
-cp ./wezterm/target/release/wezterm-mux-server ~/.local/bin/
+# git submodule update --init --recursive wezterm/
+# ./wezterm/get-deps
+# cargo build --release --bin wezterm-mux-server
+# cp ./wezterm/target/release/wezterm-mux-server ~/.local/bin/
 # cd ..
 
 # Install conda
