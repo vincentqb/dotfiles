@@ -11,10 +11,11 @@ if status is-interactive
     abbr s "kitty +kitten ssh"
     abbr icat "kitty +kitten icat"
 
-    for motd in /run/motd.dynamic /etc/motd
-        if test -e $motd
-            cat $motd
-        end
-    end
+    # Incompatible with wezterm-mux-server
+    # for motd in /run/motd.dynamic /etc/motd
+    #     if test -e $motd
+    #         cat $motd
+    #     end
+    # end
 
 end
