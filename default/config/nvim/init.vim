@@ -47,6 +47,7 @@ set wildoptions+=fuzzy
 
 " Add vertical line to highlight column were row is too long
 set colorcolumn=120
+set synmaxcol=1200
 
 " Add horizontal line
 " set cursorline

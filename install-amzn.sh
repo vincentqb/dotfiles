@@ -21,7 +21,7 @@ sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/sh
 sudo yum install -y fish
 
 # Install utilities like chsh
-sudo yum install util-linux-user
+sudo yum install -y util-linux-user
 sudo chsh -u ec2-user -s /usr/bin/fish
 
 # Install cargo
