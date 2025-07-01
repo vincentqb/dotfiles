@@ -32,7 +32,7 @@ distlib==0.3.9
     # via virtualenv
 docstring-to-markdown==0.17
     # via jedi-language-server
-dot-py @ git+https://github.com/vincentqb/dot.py@c43e79b128cb4a469efe57a40047d2c7d0d4a070
+dot-py @ git+https://github.com/vincentqb/dot.py
     # via -r requirements.in
 exceptiongroup==1.3.0
     # via
@@ -74,7 +74,7 @@ lsprotocol==2023.0.1
     #   pygls
 matplotlib==3.9.4
     # via matplotlib-backend-sixel
-matplotlib-backend-sixel @ git+https://github.com/vincentqb/matplotlib-backend-sixel.git@03e87f92d956c2ee19fa619c8c7b80ae3cd52f72
+matplotlib-backend-sixel @ git+https://github.com/vincentqb/matplotlib-backend-sixel.git
     # via -r requirements.in
 matplotlib-inline==0.1.7
     # via ipython
@@ -96,12 +96,10 @@ parso==0.8.4
     # via jedi
 pexpect==4.9.0
     # via ipython
-pillow==11.2.1
+pillow==11.3.0
     # via
     #   matplotlib
     #   sixel
-pip==25.1.1
-    # via -r requirements.in
 platformdirs==4.3.8
     # via virtualenv
 pre-commit==4.2.0
@@ -162,7 +160,7 @@ urllib3==1.26.20
     # via botocore
 uv==0.7.6
     # via -r requirements.in
-vimwhisperer @ git+https://github.com/vincentqb/vimwhisperer@6eb8703648836bdd1dc29b1e2a9d35b3853eec21
+vimwhisperer @ git+https://github.com/vincentqb/vimwhisperer
     # via -r requirements.in
 virtualenv==20.31.2
     # via
