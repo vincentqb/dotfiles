@@ -157,7 +157,7 @@ command! PackClean  call PackInit() | call minpac#clean()
 command! PackStatus packadd minpac | call minpac#status()
 
 " Code completion with Amazon Q
-map <F12> :silent! call CodeWhisperer()<CR>
+" map <F12> :silent! call CodeWhisperer()<CR>
 
 " Find files using Telescope
 nnoremap <Leader>ff <cmd>Telescope find_files<cr>

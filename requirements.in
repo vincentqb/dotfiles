@@ -3,11 +3,4 @@ git+https://github.com/vincentqb/matplotlib-backend-sixel.git
 git+https://github.com/vincentqb/vimwhisperer
 git-remote-codecommit
 jedi-language-server
-nbqa
-neovim
-pip
-pre-commit
-pynvim
-ruff
-uv
 virtualenv

@@ -8,6 +8,7 @@ sudo apt -y install libfuse2
 mkdir -p ~/.local/bin
 wget https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.appimage -O ~/.local/bin/nvim
 chmod +x ~/.local/bin/nvim
+sudo apt -y install python3-pynvim python3-neovim
 # Update nvim plugins
 ~/.local/bin/nvim --headless +PackClean +qa
 ~/.local/bin/nvim --headless +PackUpdate +qa
@@ -20,12 +21,6 @@ curl -s https://api.github.com/repos/kiyoon/tmux-appimage/releases/latest \
 | tr -d \" \
 | wget -qi - \
 && chmod +x tmux.appimage && mv ./tmux.appimage ~/.local/bin/tmux
-
-# https://launchpad.net/~fish-shell/+archive/ubuntu/release-3
-sudo apt-add-repository ppa:fish-shell/release-3
-sudo apt update
-sudo apt -y install fish
-sudo chsh vincent -s /usr/bin/fish
 
 sudo apt -y install tmux shellcheck texlive node
 
@@ -73,7 +68,13 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
-cat requirements.in | xargs --max-lines=1 uv tool install
+# cat requirements.in | xargs --max-lines=1 uv tool install
 
 # Install dotfiles
-dot.py link default
+uv tool run --from dot-py dot.py link default
+
+# https://launchpad.net/~fish-shell/+archive/ubuntu/release-3
+sudo apt-add-repository ppa:fish-shell/release-4
+sudo apt update
+sudo apt -y install fish
+sudo chsh vincent -s /usr/bin/fish
