@@ -104,3 +104,10 @@ brew install --cask docker
 brew install docker docker-compose colima
 # docker replacement
 toolbox install finch
+
+# Use hibernate instead of sleep
+# Default is 3. Hibernate is 25
+# https://discussions.apple.com/thread/255421002?sortBy=rank
+pmset -g | grep hibernatemode
+sudo pmset hibernatemode 25
+pmset -g | grep hibernatemode
