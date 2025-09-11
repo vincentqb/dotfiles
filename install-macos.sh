@@ -25,13 +25,14 @@ brew install reattach-to-user-namespace
 # brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd
-brew install yarn
+# brew install yarn
 brew install wget
 brew install ruff
 brew install rsync
 brew install eza
 brew install zellij
 brew install awscli
+brew install just
 
 # brew install --cask wezterm
 # brew install --cask wezterm@nightly
@@ -100,13 +101,12 @@ xcode-select --install
 
 # install docker
 # /opt/homebrew/opt/colima/bin/colima start -f
-brew install --cask docker
-brew install docker docker-compose colima
+# brew install --cask docker
+# brew install docker docker-compose colima
 # docker replacement
-toolbox install finch
+# toolbox install finch
 
-# Use hibernate instead of sleep
-# Default is 3. Hibernate is 25
+# Use hibernate (25) instead of sleep (3, default)
 # https://discussions.apple.com/thread/255421002?sortBy=rank
 pmset -g | grep hibernatemode
 sudo pmset hibernatemode 25
