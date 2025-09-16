@@ -16,7 +16,6 @@ curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
 export PATH=$PATH:/opt/homebrew/bin
 
 brew update
-brew upgrade
 
 brew install ripgrep bat fd
 brew install nvim fish tmux
@@ -79,6 +78,11 @@ nvim --headless +DirtytalkUpdate +qa
 # brew install anaconda
 # export PATH=$PATH:/opt/homebrew/anaconda3/bin
 # conda init zsh fish
+
+# Ensure all packages are up-to-date
+brew upgrade
+cargo install cargo-update
+cargo install-update -a
 
 # AMZN
 kinit
