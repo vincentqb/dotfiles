@@ -33,6 +33,8 @@ brew install zellij
 brew install awscli
 brew install just
 
+brew install --cask amazon-q node
+
 # brew install --cask wezterm
 # brew install --cask wezterm@nightly
 cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm wezterm-gui

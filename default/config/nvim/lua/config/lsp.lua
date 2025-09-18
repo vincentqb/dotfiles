@@ -123,19 +123,18 @@ end
 
 -- local servers = { 'bashls', 'texlab', 'metals', 'jedi_language_server' }
 local servers = { 'texlab', 'jedi_language_server' }
-local lspconfig = require('lspconfig')
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
 for _, lsp in ipairs(servers) do
-    lspconfig[lsp].setup {
+    vim.lsp.config(lsp, {
         on_attach = on_attach,
         capabilities = capabilities,
-    }
+    })
 end
 
 -- omnifunc C-X C-O does not work with ruff at this point
 -- jedi_language_server is providing that functionality
-lspconfig.ruff.setup {
+vim.lsp.config("ruff", {
     on_attach = on_attach,
     capabilities = capabilities,
     -- on_init = function(client)
@@ -143,4 +142,4 @@ lspconfig.ruff.setup {
     --     client.config.settings.path = "/home/vincent/.local/bin/ruff"
     -- end,
     -- init_options = { settings = { lint = { preview = true } } }
-}
+})

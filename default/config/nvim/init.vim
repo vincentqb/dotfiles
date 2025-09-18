@@ -147,9 +147,11 @@ function! PackInit() abort
 
     " call minpac#add('Julian/lean.nvim')
 
-    call minpac#add("MunifTanjim/nui.nvim")
-    call minpac#add("folke/trouble.nvim") " optional
-    call minpac#add('jackMort/ChatGPT.nvim')
+    " call minpac#add("MunifTanjim/nui.nvim")
+    " call minpac#add("folke/trouble.nvim") " optional
+    " call minpac#add('jackMort/ChatGPT.nvim')
+
+    call minpac#add('awslabs/amazonq.nvim')
 endfunction
 
 command! PackUpdate call PackInit() | call minpac#update()
