@@ -6,10 +6,12 @@ git submodule update --init --recursive
 dot.py link default
 
 # Install latest neovim
+sudo dnf install nodejs
 sudo yum install -y fuse
 mkdir -p ~/.local/bin
-wget https://github.com/neovim/neovim/releases/download/stable/nvim.appimage -O ~/.local/bin/nvim
-chmod +x ~/.local/bin/nvim
+curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
+mv nvim-linux-x86_64.appimage ~/.local/bin/nvim
+chmod u+x ~/.local/bin/nvim
 
 # Update nvim plugins
 ~/.local/bin/nvim --headless +PackClean +qa
