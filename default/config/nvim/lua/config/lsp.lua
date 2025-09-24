@@ -130,6 +130,7 @@ for _, lsp in ipairs(servers) do
         on_attach = on_attach,
         capabilities = capabilities,
     })
+    vim.lsp.enable(lsp)
 end
 
 -- omnifunc C-X C-O does not work with ruff at this point
@@ -142,4 +143,7 @@ vim.lsp.config("ruff", {
     --     client.config.settings.path = "/home/vincent/.local/bin/ruff"
     -- end,
     -- init_options = { settings = { lint = { preview = true } } }
+    -- init_options = { settings = { logLevel = 'debug' } }
 })
+
+vim.lsp.enable("ruff")
