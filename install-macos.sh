@@ -36,9 +36,13 @@ brew install just
 brew install node
 brew install --cask amazon-q
 
+# https://wezterm.org/install/source.html#installing-from-source
 # brew install --cask wezterm
 # brew install --cask wezterm@nightly
-cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm wezterm-gui
+# cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm wezterm-gui
+#
+# ./ci/deploy.sh macos
+# Drag and Drop WezTerm
 
 # sshfs https://github.com/telepresenceio/telepresence/issues/1654#issuecomment-873538291
 # brew install --cask macfuse

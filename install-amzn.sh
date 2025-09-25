@@ -5,6 +5,9 @@ git submodule update --init --recursive
 /usr/bin/pip3 install --user -r requirements.txt
 dot.py link default
 
+# Install tmux plugin manager
+~/.tmux/plugins/tpm/bin/install_plugins
+
 # Install latest neovim
 sudo dnf install nodejs
 sudo yum install -y fuse
@@ -39,7 +42,7 @@ sudo dnf install -y clang
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
 
 # Install wezterm server only
-cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes wezterm-mux-server
+# cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes wezterm-mux-server
 # git clone --depth=1 --branch=main --recursive https://github.com/wezterm/wezterm.git
 # cd wezterm
 # git submodule update --init --recursive wezterm/
