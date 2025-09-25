@@ -66,6 +66,13 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
 ~/.cargo/bin/cargo install --locked --git https://github.com/latex-lsp/texlab
 
+# zenith
+sudo apt install curl
+curl -sL https://raw.githubusercontent.com/wimpysworld/deb-get/main/deb-get | sudo -E bash -s install deb-get
+deb-get install zenith
+deb-get update
+deb-get upgrade
+
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # cat requirements.in | xargs --max-lines=1 uv tool install
@@ -77,4 +84,4 @@ uv tool run --from dot-py dot.py link default
 sudo apt-add-repository ppa:fish-shell/release-4
 sudo apt update
 sudo apt -y install fish
-sudo chsh vincent -s /usr/bin/fish
+sudo chsh ubuntu -s /usr/bin/fish
