@@ -33,7 +33,8 @@ brew install zellij
 brew install awscli
 brew install just
 
-brew install --cask amazon-q node
+brew install node
+brew install --cask amazon-q
 
 # brew install --cask wezterm
 # brew install --cask wezterm@nightly
