@@ -110,6 +110,8 @@ toolbox update
 toolbox install ada axe
 xcode-select --install
 
+toolbox install brazilcli cr
+
 # install docker
 # /opt/homebrew/opt/colima/bin/colima start -f
 # brew install --cask docker
