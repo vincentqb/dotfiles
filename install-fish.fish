@@ -1,10 +1,13 @@
-#!/usr/bin/fish
+#!/opt/homebrew/bin/fish
 
 # Extend $PATH
 fish_add_path $HOME/bin $HOME/.local/bin
 fish_add_path $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin
 fish_add_path $HOME/.toolbox/bin
 fish_add_path $HOME/.cargo/bin
+fish_add_path /home/linuxbrew/.linuxbrew/bin/
+
+# fish_add_path /System/Cryptexes/App/usr/bin /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin /Library/TeX/texbin
 
 # Install plugin manager
 curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher

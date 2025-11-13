@@ -27,20 +27,21 @@ brew install nvim
 ~/.local/bin/nvim --headless +DirtytalkUpdate +qa
 
 # Install fish
-sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
-sudo yum install -y fish
-
+# sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
+# sudo yum install -y fish
 # Install utilities like chsh
-sudo yum install -y util-linux-user
-sudo chsh -u ec2-user -s /usr/bin/fish
+# sudo yum install -y util-linux-user
+# sudo chsh -u ec2-user -s /usr/bin/fish
+brew install fish
 
 # Install cargo
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
 
 # Install zellij
-sudo yum install -y perl-IPC-Cmd
-~/.cargo/bin/cargo install --locked zellij
+# sudo yum install -y perl-IPC-Cmd
+# ~/.cargo/bin/cargo install --locked zellij
+brew install tmux
 
 # Install zenith
 sudo yum install -y clang
@@ -100,9 +101,9 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-c
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
 
 # Install dependecies for efs
-sudo yum install -y amazon-efs-utils
-sudo mkdir /efs
-sudo mount -t efs -o tls,iam fs-9c2846d5 /efs
+# sudo yum install -y amazon-efs-utils
+# sudo mkdir /efs
+# sudo mount -t efs -o tls,iam fs-9c2846d5 /efs
 
 # Ensure latest nvidia
 # sudo dnf install -y kernel-modules-extra
