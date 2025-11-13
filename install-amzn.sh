@@ -2,23 +2,22 @@
 
 git submodule sync
 git submodule update --init --recursive
-/usr/bin/pip3 install --user -r requirements.txt
-dot.py link default
-
-# Install tmux plugin manager
-~/.tmux/plugins/tpm/bin/install_plugins
-
-# Install latest neovim
-sudo dnf install nodejs
-sudo yum install -y fuse
-# mkdir -p ~/.local/bin
-# curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
-# mv nvim-linux-x86_64.appimage ~/.local/bin/nvim
-# chmod u+x ~/.local/bin/nvim
 
 # Install with brew
 # TODO add /home/linuxbrew/.linuxbrew/bin/ to PATH
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install tmux plugin manager
+brew install tmux
+# ~/.tmux/plugins/tpm/bin/install_plugins
+
+# Install latest neovim
+# sudo dnf install nodejs
+# sudo yum install -y fuse
+# mkdir -p ~/.local/bin
+# curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
+# mv nvim-linux-x86_64.appimage ~/.local/bin/nvim
+# chmod u+x ~/.local/bin/nvim
 brew install nodejs
 brew install nvim
 
@@ -44,7 +43,7 @@ sudo yum install -y perl-IPC-Cmd
 ~/.cargo/bin/cargo install --locked zellij
 
 # Install zenith
-sudo dnf install -y clang
+sudo yum install -y clang
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
 
 # Install wezterm server only
