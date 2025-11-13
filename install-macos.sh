@@ -24,10 +24,10 @@ brew install --cask mactex-no-gui
 # brew install fzf fasd
 # brew install yarn
 brew install wget
-brew install ruff
+# brew install ruff
 brew install rsync
 brew install eza
-brew install zellij
+# brew install zellij
 brew install awscli
 brew install just
 

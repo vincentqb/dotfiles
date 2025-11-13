@@ -7,6 +7,13 @@ git submodule update --init --recursive
 # TODO add /home/linuxbrew/.linuxbrew/bin/ to PATH
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
+brew update
+brew install ripgrep bat fd
+brew install eza
+brew install just
+brew install shellcheck
+brew install --cask amazon-q
+
 # Install tmux plugin manager
 brew install tmux
 # ~/.tmux/plugins/tpm/bin/install_plugins
@@ -29,10 +36,11 @@ brew install nvim
 # Install fish
 # sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
 # sudo yum install -y fish
-# Install utilities like chsh
-# sudo yum install -y util-linux-user
-# sudo chsh -u ec2-user -s /usr/bin/fish
 brew install fish
+
+# Install utilities like chsh
+sudo yum install -y util-linux-user
+sudo chsh -u ec2-user -s /usr/bin/fish
 
 # Install cargo
 curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -41,6 +49,7 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 # Install zellij
 # sudo yum install -y perl-IPC-Cmd
 # ~/.cargo/bin/cargo install --locked zellij
+# Install latex tmux
 brew install tmux
 
 # Install zenith
