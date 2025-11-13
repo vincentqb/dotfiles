@@ -4,7 +4,7 @@ git clone --recurse-submodules --remote-submodules --jobs 8 https://github.com/v
 git submodule sync
 git submodule update --init --recursive --remote
 
-# Install python packages
+# Install uv and python packages
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install -r requirements.txt
 
