@@ -11,10 +11,16 @@ dot.py link default
 # Install latest neovim
 sudo dnf install nodejs
 sudo yum install -y fuse
-mkdir -p ~/.local/bin
-curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
-mv nvim-linux-x86_64.appimage ~/.local/bin/nvim
-chmod u+x ~/.local/bin/nvim
+# mkdir -p ~/.local/bin
+# curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
+# mv nvim-linux-x86_64.appimage ~/.local/bin/nvim
+# chmod u+x ~/.local/bin/nvim
+
+# Install with brew
+# TODO add /home/linuxbrew/.linuxbrew/bin/ to PATH
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install nodejs
+brew install nvim
 
 # Update nvim plugins
 ~/.local/bin/nvim --headless +PackClean +qa
