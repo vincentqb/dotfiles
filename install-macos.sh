@@ -25,7 +25,7 @@ brew install --cask mactex-no-gui
 # brew install fzf fasd
 # brew install yarn
 brew install wget
-# brew install ruff
+brew install ruff
 brew install rsync
 brew install eza
 # brew install zellij
@@ -53,6 +53,7 @@ brew install --cask amazon-q
 # npm install -g diagnostic-languageserver
 # npm install -g neovim yarn
 # yarn global add neovim
+npm install -g neovim
 
 sudo fish -c 'echo (which fish) >> /etc/shells'
 chsh -s $(which fish)
