@@ -3,6 +3,10 @@
 git submodule sync
 git submodule update --init --recursive
 
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install -r requirements.txt
+
 # Install latest neovim
 sudo apt -y install libfuse2
 mkdir -p ~/.local/bin

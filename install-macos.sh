@@ -7,6 +7,7 @@ chmod 700 ~/.ssh
 chmod 600 ~/.ssh/*
 
 curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install -r requirements.txt
 
 curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
 

@@ -3,6 +3,9 @@
 git submodule sync
 git submodule update --init --recursive
 
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install -r requirements.txt
+
 # Install with brew
 # TODO add /home/linuxbrew/.linuxbrew/bin/ to PATH
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
