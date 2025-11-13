@@ -6,6 +6,7 @@ git submodule update --init --recursive --remote
 
 # Install python packages
 curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install -r requirements.txt
 
 # Install dotfiles (space prefix tells shell to forget command in history)
  PASSWD=github_application_password uvx --python 3.9 --from dot-py dot.py link default

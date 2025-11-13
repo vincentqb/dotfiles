@@ -5,7 +5,6 @@ fish_add_path $HOME/bin $HOME/.local/bin
 fish_add_path $HOME/homebrew/bin $HOME/homebrew/sbin /opt/homebrew/bin
 fish_add_path $HOME/.toolbox/bin
 fish_add_path $HOME/.cargo/bin
-fish_add_path $(/usr/bin/python3 -m site --user-base)/bin
 
 # Install plugin manager
 curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
