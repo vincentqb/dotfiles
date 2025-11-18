@@ -11,6 +11,7 @@ fish_add_path /home/linuxbrew/.linuxbrew/bin/
 
 # Install plugin manager
 curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
+fisher update
 
 # Configure prompt
 # fish_config prompt choose terlar
