@@ -19,7 +19,8 @@ brew update
 brew install ripgrep bat fd
 brew install nvim fish tmux
 brew install shellcheck
-brew install reattach-to-user-namespace
+brew install reattach-to-user-namespace  # tmux yank
+brew install ansifilter  # tmux logging
 # brew install texlab
 brew install --cask mactex-no-gui
 # brew install fzf fasd

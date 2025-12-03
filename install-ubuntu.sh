@@ -48,6 +48,8 @@ sudo apt install -y nodejs
 sudo npm i -g bash-language-server
 sudo apt install -y shfmt shellcheck
 
+sudo apt install xsel
+
 # scala
 # curl -fLo cs https://git.io/coursier-cli-"$(uname | tr LD ld)"
 # chmod +x cs
