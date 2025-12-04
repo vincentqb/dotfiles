@@ -23,6 +23,9 @@ set softtabstop=4
 set shiftwidth=4
 set expandtab
 
+" Enable '+' system clipboard with +yy
+set clipboard+=unnamedplus
+
 " Persistent undo tree, but careful about leaking sensitive information
 set undofile
 
