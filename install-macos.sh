@@ -6,9 +6,6 @@ git submodule update --init --recursive
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/*
 
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install -r requirements.txt
-
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 export PATH=$PATH:/opt/homebrew/bin
 
@@ -47,6 +44,8 @@ brew install --cask amazon-q
 # brew install --cask macfuse
 # brew install gromgit/fuse/sshfs-mac
 # brew link --overwrite sshfs-mac
+
+uv tool install -r requirements.txt
 
 # brew install node
 # npm install -g bash-language-server
