@@ -9,8 +9,6 @@ chmod 600 ~/.ssh/*
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install -r requirements.txt
 
-curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
-
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 export PATH=$PATH:/opt/homebrew/bin
 
@@ -32,6 +30,7 @@ brew install eza
 # brew install zellij
 brew install awscli
 brew install just
+brew install kitty
 
 brew install node
 brew install --cask amazon-q
