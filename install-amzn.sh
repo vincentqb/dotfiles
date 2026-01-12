@@ -15,6 +15,7 @@ brew install ripgrep bat fd
 brew install eza
 brew install just
 brew install shellcheck
+brew install ruff ty
 brew install --cask amazon-q
 
 # Install tmux plugin manager

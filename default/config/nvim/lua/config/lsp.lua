@@ -122,7 +122,8 @@ end
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
 
 -- local servers = { 'bashls', 'texlab', 'metals', 'jedi_language_server' }
-local servers = { 'texlab', 'jedi_language_server' }
+-- local servers = { 'texlab', 'jedi_language_server' }
+local servers = { 'texlab', 'ruff', 'ty' }
 local capabilities = require('cmp_nvim_lsp').default_capabilities()
 
 for _, lsp in ipairs(servers) do
@@ -135,15 +136,28 @@ end
 
 -- omnifunc C-X C-O does not work with ruff at this point
 -- jedi_language_server is providing that functionality
-vim.lsp.config("ruff", {
-    on_attach = on_attach,
-    capabilities = capabilities,
-    -- on_init = function(client)
-    --     client.config.settings.interpreter = lsp_python.get_python_path(client.config.root_dir)
-    --     client.config.settings.path = "/home/vincent/.local/bin/ruff"
-    -- end,
-    -- init_options = { settings = { lint = { preview = true } } }
-    -- init_options = { settings = { logLevel = 'debug' } }
-})
+-- vim.lsp.config("ruff", {
+--     on_attach = on_attach,
+--     capabilities = capabilities,
+--     -- on_init = function(client)
+--     --     client.config.settings.interpreter = lsp_python.get_python_path(client.config.root_dir)
+--     --     client.config.settings.path = "/home/vincent/.local/bin/ruff"
+--     -- end,
+--     -- init_options = { settings = { lint = { preview = true } } }
+--     -- init_options = { settings = { logLevel = 'debug' } }
+-- })
+--
+-- vim.lsp.enable("ruff")
 
-vim.lsp.enable("ruff")
+-- Optional: Only required if you need to update the language server settings
+-- vim.lsp.config('ty', {
+--   settings = {
+--     on_attach = on_attach,
+--     capabilities = capabilities,
+--     -- ty = {
+--       -- ty language server settings go here
+--     -- }
+--   }
+-- })
+--
+-- vim.lsp.enable('ty')
