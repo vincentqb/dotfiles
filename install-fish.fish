@@ -93,3 +93,6 @@ tx=36:"
 # Set up anaconda in fish
 # conda init fish
 # conda config --set changeps1 False
+
+# Disable welcome message
+set -U fish_greeting ""
