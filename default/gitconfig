@@ -54,6 +54,7 @@
 [alias]
     snatus = status -uno
     dog = log -20 --graph --abbrev-commit --decorate --date-order --color=always --color-words
+    refdog = reflog -20 --abbrev-commit --decorate --date=relative --color=always --color-words
     wiff = diff --color-words
     flame = blame --show-email --color-lines --color-by-age --date=relative --abbrev=6
 [format]
