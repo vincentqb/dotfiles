@@ -89,6 +89,7 @@ nvim --headless +DirtytalkUpdate +qa
 brew upgrade
 cargo install cargo-update
 cargo install-update -a
+# cargo install $(cargo install --list | egrep '^[a-z0-9_-]+ v[0-9.]+:$' | cut -f1 -d' ')
 
 # AMZN
 kinit
