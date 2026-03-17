@@ -128,3 +128,4 @@ pmset -g | grep hibernatemode
 
 # Apped VS Code configuration to
 # ~/Library/Application\ Support/Code/User/settings.json
+defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false
