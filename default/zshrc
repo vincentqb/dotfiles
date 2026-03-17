@@ -188,3 +188,11 @@ __git_files () {
 export PATH="$(yarn global bin):$PATH"
 
 export PATH=$PATH:$HOME/.toolbox/bin
+export CLAUDE_CODE_USE_BEDROCK="1"
+
+# https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-python-envs
+# >>> vscode python
+# if [ "$TERM_PROGRAM" = "tmux" ]; then
+#     eval "$VSCODE_BASH_ACTIVATE" || true
+# fi
+# <<< vscode python
