@@ -1,7 +1,15 @@
-"terminal.integrated.profiles.linux": {
-    "tmux-persistent": {
-        "path": "tmux",
-        "args": ["new-session", "-A", "-s", "vscode-remote", "/usr/bin/bash"]
-    }
-},
-"terminal.integrated.defaultProfile.linux": "tmux-persistent"
+{
+    "terminal.integrated.profiles.linux": {
+        "tmux-persistent": {
+            "path": "tmux",
+            "args": ["new-session", "-A", "-s", "vscode-remote"]
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "tmux-persistent",
+    "claudeCode.environmentVariables": [
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "CLAUDE_CODE_USE_BEDROCK", "value": "1" }
+    ],
+    "claudeCode.selectedModel": "sonnet",
+    "claudeCode.disableLoginPrompt": true
+}
