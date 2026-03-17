@@ -21,8 +21,7 @@ if status is-interactive
 end
 
 # >>> vscode python
-# version: 0.1.0
-if test "$TERM_PROGRAM" = "vscode"; and set -q  VSCODE_FISH_ACTIVATE
+if set -q VSCODE_FISH_ACTIVATE
     eval $VSCODE_FISH_ACTIVATE
 end
 # <<< vscode python
