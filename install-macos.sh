@@ -125,3 +125,6 @@ brazil setup completion
 pmset -g | grep hibernatemode
 sudo pmset hibernatemode 25
 pmset -g | grep hibernatemode
+
+# Apped VS Code configuration to
+# ~/Library/Application\ Support/Code/User/settings.json
