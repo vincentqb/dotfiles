@@ -96,3 +96,6 @@ tx=36:"
 
 # Disable welcome message
 set -U fish_greeting ""
+
+# Use Claude Code through Bedrock
+set -Ux CLAUDE_CODE_USE_BEDROCK 1

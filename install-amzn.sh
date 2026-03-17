@@ -82,6 +82,11 @@ sudo yum install -y clang
 # ~/miniconda/bin/conda config --set changeps1 False
 # ~/miniconda/bin/conda update -n base -c conda-forge conda
 
+# Ensure all packages are up-to-date
+brew upgrade
+cargo install cargo-update
+cargo install-update -a
+
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent
 sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOM'

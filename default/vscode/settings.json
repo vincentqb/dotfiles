@@ -1,7 +1,7 @@
 "terminal.integrated.profiles.linux": {
     "tmux-persistent": {
         "path": "tmux",
-        "args": ["new-session", "-A", "-s", "vscode-remote"]
+        "args": ["new-session", "-A", "-s", "vscode-remote", "/usr/bin/bash"]
     }
 },
 "terminal.integrated.defaultProfile.linux": "tmux-persistent"
