@@ -192,7 +192,8 @@ export CLAUDE_CODE_USE_BEDROCK="1"
 
 # https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-python-envs
 # >>> vscode python
-# if [ "$TERM_PROGRAM" = "tmux" ]; then
-#     eval "$VSCODE_BASH_ACTIVATE" || true
-# fi
+if [ "$TERM_PROGRAM" = "tmux" ]; then
+    #     eval "$VSCODE_BASH_ACTIVATE" || true
+    eval "$VSCODE_FISH_ACTIVATE" || true
+fi
 # <<< vscode python
