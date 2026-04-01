@@ -1,0 +1,6 @@
+{
+  "codeWhisperer.shareCodeWhispererContentWithAWS": false,
+  "telemetry.enabled": false,
+  "mcp.loadedBefore": true,
+  "chat.defaultModel": "claude-opus-4.6-1m"
+}
