@@ -146,7 +146,7 @@ function! PackInit() abort
     " call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
     call minpac#add('psliwka/vim-dirtytalk')
 
-    " call minpac#add('nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'})
+    call minpac#add('nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'})
 
     " call minpac#add('Julian/lean.nvim')
 
@@ -155,6 +155,8 @@ function! PackInit() abort
     " call minpac#add('jackMort/ChatGPT.nvim')
 
     call minpac#add('awslabs/amazonq.nvim')
+
+    call minpac#add('olimorris/codecompanion.nvim')
 endfunction
 
 command! PackUpdate call PackInit() | call minpac#update()
@@ -184,6 +186,9 @@ let g:tex_flavor = 'latex'
 let g:vimtex_compiler_progname = 'nvr'
 " https://github.com/lervag/vimtex/issues/1430
 let g:vimtex_indent_on_ampersands = 0
+
+" Disable line numbers in terminal and codecompanion buffers
+au FileType codecompanion setlocal nonumber norelativenumber
 
 " import lua/init.lua
 lua require("init")
