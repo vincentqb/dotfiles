@@ -10,33 +10,12 @@ chmod 600 ~/.ssh/*
 export PATH=$PATH:/opt/homebrew/bin
 
 brew update
-
-brew install ripgrep bat fd
-brew install nvim fish tmux
-brew install shellcheck
-brew install reattach-to-user-namespace  # tmux yank
-brew install ansifilter  # tmux logging
-# brew install texlab
-brew install --cask mactex-no-gui
-# brew install fzf fasd
-# brew install yarn
-brew install wget
-brew install ruff ty
-brew install rsync
-brew install eza
-# brew install zellij
-brew install awscli
-brew install just
-brew install kitty
-
-brew install node
-brew install --cask amazon-q
+brew bundle
 
 # https://wezterm.org/install/source.html#installing-from-source
 # brew install --cask wezterm
 # brew install --cask wezterm@nightly
 # cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm wezterm-gui
-#
 # ./ci/deploy.sh macos
 # Drag and Drop WezTerm
 
@@ -86,10 +65,8 @@ nvim --headless +DirtytalkUpdate +qa
 # conda init zsh fish
 
 # Ensure all packages are up-to-date
-brew upgrade
 cargo install cargo-update
 cargo install-update -a
-# cargo install $(cargo install --list | egrep '^[a-z0-9_-]+ v[0-9.]+:$' | cut -f1 -d' ')
 
 # AMZN
 kinit
@@ -129,3 +106,6 @@ pmset -g | grep hibernatemode
 # Apped VS Code configuration to
 # ~/Library/Application\ Support/Code/User/settings.json
 defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false
+
+brew install coursier && coursier setup
+cs install scala:2.11.12 && cs install scalac:2.11.12
