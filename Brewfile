@@ -21,6 +21,7 @@ brew "tree-sitter-cli"
 brew "ty"
 brew "uv"
 brew "wget"
+brew "claude-code"
 
 # GUI apps
 cask "kitty"
