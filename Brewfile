@@ -7,6 +7,7 @@ brew "fd"
 brew "fish"
 brew "fzf"
 # brew "fasd"
+brew "gh"
 brew "just"
 brew "neovim"
 brew "node"
@@ -22,11 +23,13 @@ brew "ty"
 brew "uv"
 brew "wget"
 brew "claude-code"
+brew "texlive"
+brew "biber"
 
 # GUI apps
 cask "kitty"
 cask "kiro-cli"
-cask "mactex-no-gui"
+# cask "mactex-no-gui"
 # brew "texlab"
 
 # Cargo packages
