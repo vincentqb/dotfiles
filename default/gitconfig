@@ -53,7 +53,7 @@
 #  pager = "(printf '\n\n'; cat) | delta"
 [alias]
     snatus = status -uno
-    dog = log -20 --graph --abbrev-commit --decorate --date-order --color=always --color-words
+    dog = "!git log -20 --graph --abbrev-commit --decorate --date-order --color=always --format=tformat:'%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset) %C(white)%<(80,trunc)%s%C(reset) %C(#44475a)%ae%C(reset)%C(auto)%d%C(reset)'"
     refdog = reflog -20 --abbrev-commit --decorate --date=relative --color=always --color-words
     wiff = diff --color-words
     flame = blame --show-email --color-lines --color-by-age --date=relative --abbrev=6
