@@ -59,7 +59,7 @@
     flame = blame --show-email --color-lines --color-by-age --date=relative --abbrev=6
 [format]
     # https://draculatheme.com/contribute
-    pretty = "%C(blue)%h%C(reset) %C(cyan)(%cr)%C(reset) %<(80,trunc)%s %C(brightblack)%ae%C(reset)%C(auto)%d%C(reset)"
+    pretty = "%C(blue)%h%C(reset) %C(cyan)%<(13,trunc)%cr%C(reset) %<(50,trunc)%s %C(brightblack)%ae%C(reset)%C(auto)%d%C(reset)"
 
 # Dracula Dark Theme
 # https://github.com/dracula/git/blob/master/config/gitconfig
