@@ -90,6 +90,9 @@ xcode-select --install
 toolbox install brazilcli cr
 brazil setup completion
 
+toolbox install claude-code aim
+aim plugins install AmazonBuilderCoreAIAgents
+
 # install docker
 # /opt/homebrew/opt/colima/bin/colima start -f
 # brew install --cask docker
