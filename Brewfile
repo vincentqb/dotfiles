@@ -25,6 +25,7 @@ brew "wget"
 brew "claude-code"
 brew "texlive"
 brew "biber"
+brew "pandoc"
 
 # GUI apps
 cask "kitty"
