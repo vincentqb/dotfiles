@@ -68,3 +68,9 @@
 [submodule "default/config/kitty/whiskers"]
 	path = default/config/kitty/whiskers
 	url = https://github.com/igrmk/whiskers.git
+[submodule "tmux3/tmux/plugins/tmux-resurrect"]
+	path = tmux3/tmux/plugins/tmux-resurrect
+	url = https://github.com/tmux-plugins/tmux-resurrect
+[submodule "tmux3/tmux/plugins/tmux-logging"]
+	path = tmux3/tmux/plugins/tmux-logging
+	url = https://github.com/tmux-plugins/tmux-logging

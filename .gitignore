@@ -1,6 +1,8 @@
 **/config/nvim/undodir/
 
 **/tmux/plugins
+!tmux3/tmux/plugins
+!tmux3/tmux/plugins/**
 **/vim/.netrwhist
 **/ipython/profile_default/history.sqlite
 **/config/fish/functions/_*.fish
