@@ -52,4 +52,33 @@ require'nvim-treesitter.configs'.setup {
   indent = {
     enable = true,
   },
+
+  -- Text objects via nvim-treesitter-textobjects
+  -- Select/move/swap by syntactic node (function, class, parameter, etc.)
+  textobjects = {
+    select = {
+      enable = true,
+      lookahead = true, -- jump forward to the nearest textobject
+      keymaps = {
+        ['af'] = '@function.outer',
+        ['if'] = '@function.inner',
+        ['ac'] = '@class.outer',
+        ['ic'] = '@class.inner',
+        ['aa'] = '@parameter.outer',
+        ['ia'] = '@parameter.inner',
+      },
+    },
+    move = {
+      enable = true,
+      set_jumps = true,
+      goto_next_start = {
+        [']f'] = '@function.outer',
+        [']c'] = '@class.outer',
+      },
+      goto_previous_start = {
+        ['[f'] = '@function.outer',
+        ['[c'] = '@class.outer',
+      },
+    },
+  },
 }

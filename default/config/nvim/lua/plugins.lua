@@ -77,6 +77,26 @@ return {
     event = 'VeryLazy',
   },
 
+  -- Keymap discoverability
+  {
+    'folke/which-key.nvim',
+    event = 'VeryLazy',
+    opts = {},
+  },
+
+  -- Prettier diagnostic/quickfix list
+  {
+    'folke/trouble.nvim',
+    cmd = 'Trouble',
+    keys = {
+      { '<Leader>xx', '<cmd>Trouble diagnostics toggle<cr>',              desc = 'Diagnostics (Trouble)' },
+      { '<Leader>xX', '<cmd>Trouble diagnostics toggle filter.buf=0<cr>', desc = 'Buffer Diagnostics (Trouble)' },
+      { '<Leader>xl', '<cmd>Trouble loclist toggle<cr>',                  desc = 'Location List (Trouble)' },
+      { '<Leader>xq', '<cmd>Trouble qflist toggle<cr>',                   desc = 'Quickfix List (Trouble)' },
+    },
+    opts = {},
+  },
+
   -- Spell dictionary is now self-maintained at spell/programming.utf-8.add
   -- (collated from vim-dirtytalk master + open PR #45; plugin removed)
 
