@@ -77,8 +77,8 @@ return {
     event = 'VeryLazy',
   },
 
-  -- Spell dictionary
-  'psliwka/vim-dirtytalk',
+  -- Spell dictionary is now self-maintained at spell/programming.utf-8.add
+  -- (collated from vim-dirtytalk master + open PR #45; plugin removed)
 
   -- Treesitter (pin to master; main branch removed the `configs` module API)
   {
