@@ -79,14 +79,6 @@ set omnifunc=syntaxcomplete#Complete
 " imap <c-n> <c-o><c-n>
 set pumheight=7
 
-" https://vi.stackexchange.com/questions/454/whats-the-simplest-way-to-strip-trailing-whitespace-from-all-lines-in-a-file
-fun! TrimWhitespace()
-    let l:save = winsaveview()
-    keeppatterns %s/\s\+$//e
-    call winrestview(l:save)
-endfun
-noremap <F6> <cmd>call TrimWhitespace()<CR>
-
 " Plugins are managed by lazy.nvim (see lua/plugins.lua).
 " Telescope keymaps, dracula colorscheme, and plugin setup are declared there.
 
