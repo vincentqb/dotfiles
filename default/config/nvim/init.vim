@@ -87,96 +87,11 @@ fun! TrimWhitespace()
 endfun
 noremap <F6> <cmd>call TrimWhitespace()<CR>
 
-function! PackInit() abort
-    packadd minpac
-
-    call minpac#init()
-    call minpac#add('k-takata/minpac', {'type': 'opt'})
-    call minpac#add('dracula/vim', {'name': 'dracula'})
-
-    call minpac#add('thinca/vim-visualstar')
-    " call minpac#add('ervandew/supertab')
-    call minpac#add('AndrewRadev/linediff.vim')
-    call minpac#add('tpope/vim-surround')
-    call minpac#add('mbbill/undotree')
-    call minpac#add('chrisbra/Recover.vim')
-    " call minpac#add('christoomey/vim-tmux-navigator')
-
-    call minpac#add('tpope/vim-dadbod')
-
-    " call minpac#add('tpope/vim-fugitive')
-    " call minpac#add('airblade/vim-gitgutter')
-    call minpac#add('lewis6991/gitsigns.nvim')
-
-    " call minpac#add('lervag/vimtex')
-
-    call minpac#add('nvim-lua/plenary.nvim')
-    call minpac#add('nvim-telescope/telescope.nvim', { 'tag': '0.1.8' })
-
-    call minpac#add('neovim/nvim-lspconfig')
-
-    " Autocompletion plugin
-    " https://github.com/neovim/nvim-lspconfig/issues/130#issuecomment-992678432
-    " Plug 'maralla/completor.vim'  " enables code completion - https://github.com/maralla/completor.vim
-    " Plug 'prabirshrestha/asyncomplete.vim'  " code completion with support for LSP
-    " Plug 'ervandew/supertab'  " enables tab actions i.e. autocomplete by using <tab> insert mode
-    " Plug 'lifepillar/vim-mucomplete'  " enables code completion (popup)
-
-    " Autocompletion plugin
-    " https://github.com/hrsh7th/nvim-cmp/
-    call minpac#add('hrsh7th/nvim-cmp')
-    call minpac#add('hrsh7th/cmp-nvim-lsp')
-    call minpac#add('hrsh7th/cmp-buffer')
-    call minpac#add('hrsh7th/cmp-path')
-    call minpac#add('hrsh7th/cmp-cmdline')
-    call minpac#add('hrsh7th/cmp-vsnip')
-    call minpac#add('hrsh7th/vim-vsnip')
-    " https://github.com/neovim/nvim-lspconfig/wiki/Autocompletion
-    " call minpac#add('saadparwaiz1/cmp_luasnip') " Snippets source for nvim-cmp
-    " call minpac#add('L3MON4D3/LuaSnip') " Snippets plugin
-    call minpac#add('petertriho/cmp-git') " for cmp_git completion, requires plenary
-
-    call minpac#add('nvim-lualine/lualine.nvim')
-    " call minpac#add('nvim-tree/nvim-web-devicons')
-
-    " call minpac#add('vincentqb/vimwhisperer')
-
-    " Run :DirtytalkUpdate manually
-    " https://github.com/psliwka/vim-dirtytalk/issues/1
-    " call minpac#add('psliwka/vim-dirtytalk', {'do': 'DirtytalkUpdate'})
-    call minpac#add('psliwka/vim-dirtytalk')
-
-    call minpac#add('nvim-treesitter/nvim-treesitter', {'do': 'TSUpdate'})
-
-    " call minpac#add('Julian/lean.nvim')
-
-    " call minpac#add("MunifTanjim/nui.nvim")
-    " call minpac#add("folke/trouble.nvim") " optional
-    " call minpac#add('jackMort/ChatGPT.nvim')
-
-    call minpac#add('awslabs/amazonq.nvim')
-
-    call minpac#add('olimorris/codecompanion.nvim')
-endfunction
-
-command! PackUpdate call PackInit() | call minpac#update()
-command! PackClean  call PackInit() | call minpac#clean()
-command! PackStatus packadd minpac | call minpac#status()
+" Plugins are managed by lazy.nvim (see lua/plugins.lua).
+" Telescope keymaps, dracula colorscheme, and plugin setup are declared there.
 
 " Code completion with Amazon Q
 " map <F12> :silent! call CodeWhisperer()<CR>
-
-" Find files using Telescope
-nnoremap <Leader>ff <cmd>Telescope find_files<cr>
-nnoremap <Leader>fg <cmd>Telescope live_grep<cr>
-nnoremap <Leader>fb <cmd>Telescope buffers<cr>
-nnoremap <Leader>fh <cmd>Telescope help_tags<cr>
-
-" Enable theme
-" https://github.com/dracula/vim/issues/96
-" let g:dracula_italic = 0
-let g:dracula_colorterm = 0
-colorscheme dracula
 
 " Toggle show undo tree
 nnoremap <F2> <cmd>UndotreeToggle<CR>

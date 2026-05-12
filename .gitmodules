@@ -56,12 +56,6 @@
 [submodule "default/vim/pack/plugins/start/vim-tmux-navigator"]
 	path = default/vim/pack/plugins/start/vim-tmux-navigator
 	url = https://github.com/christoomey/vim-tmux-navigator.git
-[submodule "default/vim/pack/minpack/opt/minpac"]
-	path = default/config/nvim/pack/minpac/opt/minpac
-	url = https://github.com/k-takata/minpac.git
-[submodule "/home/vincent/dotfiles/default/config/nvim/pack/minpac/opt/minpac"]
-	path = /home/vincent/dotfiles/default/config/nvim/pack/minpac/opt/minpac
-	url = https://github.com/k-takata/minpac.git
 [submodule "default/zgen"]
 	path = default/zgen
 	url = https://github.com/tarjoilija/zgen.git
