@@ -1,8 +1,8 @@
 " Set <Leader> to be something else than default \\ below
 " let g:mapleader="\\"
 
-" Specify Python 3 to use
-let g:python3_host_prog = '/usr/bin/python3'
+" Specify Python 3 to use (pynvim installed via `uv tool install pynvim`)
+let g:python3_host_prog = expand('~/.local/bin/pynvim-python')
 " Specify Python 2 to use
 " let g:python_host_prog = '/usr/bin/python'
 
