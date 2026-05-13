@@ -29,7 +29,7 @@ brew "uv"
 brew "ruff"
 
 # AI tooling
-brew "claude-code"
+cask "claude-code"
 cask "kiro-cli"
 
 # Docs / writing
