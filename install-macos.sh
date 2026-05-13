@@ -49,7 +49,3 @@ sudo pmset hibernatemode 25
 
 # VS Code: disable press-and-hold so vim keybindings repeat
 defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false
-
-# Scala
-coursier setup
-cs install scala:2.11.12 scalac:2.11.12

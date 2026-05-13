@@ -1,55 +1,67 @@
-brew "awscli"
+# Shell / terminal
+brew "fish"
+brew "tmux"
+brew "ansifilter"   # tmux-logging
+cask "kitty"
+
+# CLI core
 brew "bat"
-brew "coursier"
 brew "eza"
 brew "fd"
-brew "fish"
 brew "fzf"
-brew "fasd"
-brew "gh"
 brew "just"
-brew "neovim"
-brew "node"
-brew "reattach-to-user-namespace"  # tmux yank
 brew "ripgrep"
 brew "rsync"
-brew "ruff"
-brew "rustup"
-brew "shellcheck"
-brew "tmux"
-brew "ansifilter"  # tmux logging
-brew "tree-sitter-cli"
-brew "ty"
-brew "uv"
 brew "wget"
-brew "claude-code"
-brew "texlive"
-# cask "mactex-no-gui"
-# brew "texlab"
-brew "biber"
-brew "pandoc"
-brew "zellij"
 
-cask "kitty"
+# Git
+brew "gh"
+
+# Editors / nvim provider
+brew "neovim"
+
+# Languages / toolchains
+brew "node"
+brew "rustup"
+brew "uv"
+
+# Python tooling
+brew "ruff"
+
+# AI tooling
+brew "claude-code"
 cask "kiro-cli"
 
+# Docs / writing
+brew "biber"        # biblatex bibliographies
+brew "pandoc"
+brew "texlive"
+
+# Shell scripting
+brew "shellcheck"
+
+# Cloud
+brew "awscli"
+
+# Cargo
 cargo "cargo-update"
 
+# uv tools
 uv "dot-py"
 uv "pre-commit"
 uv "pynvim"
 
-
+# Optional — uncomment as needed
 # brew "colima"
 # brew "docker", link: false
 # brew "docker-compose"
-# cask "docker-desktop"
 # brew "imagemagick"
 # brew "maven"
-# brew "python-tk@3.14"
 # brew "python@3.14"
+# brew "python-tk@3.14"
 # brew "yarn"
 # cask "amazon-q"
+# cask "docker-desktop"
 # cask "tabby"
 # cask "wezterm@nightly"
 # cargo "generate-bidi"
