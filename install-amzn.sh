@@ -3,8 +3,8 @@
 git submodule sync
 git submodule update --init --recursive
 
-# Distro prereqs (chsh; clang for zenith)
-sudo yum install -y util-linux-user clang
+# Distro prereqs (clang for zenith)
+sudo yum install -y clang
 
 # Homebrew + everything in the Brewfile (formulae, cargo, uv tools)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -14,9 +14,6 @@ brew bundle
 
 # Neovim plugins via lazy.nvim
 nvim --headless "+Lazy! sync" +qa
-
-# Fish as default shell
-sudo chsh -u $USER -s $(which fish)
 
 # Cargo + zenith (not packaged in brew with nvidia feature)
 curl https://sh.rustup.rs -sSf | sh -s -- -y
