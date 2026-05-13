@@ -1,4 +1,3 @@
-# CLI tools
 brew "awscli"
 brew "bat"
 brew "coursier"
@@ -6,7 +5,7 @@ brew "eza"
 brew "fd"
 brew "fish"
 brew "fzf"
-# brew "fasd"
+brew "fasd"
 brew "gh"
 brew "just"
 brew "neovim"
@@ -18,45 +17,39 @@ brew "ruff"
 brew "rustup"
 brew "shellcheck"
 brew "tmux"
+brew "ansifilter"  # tmux logging
 brew "tree-sitter-cli"
 brew "ty"
 brew "uv"
 brew "wget"
 brew "claude-code"
 brew "texlive"
-brew "biber"
-brew "pandoc"
-
-# GUI apps
-cask "kitty"
-cask "kiro-cli"
 # cask "mactex-no-gui"
 # brew "texlab"
+brew "biber"
+brew "pandoc"
+brew "zellij"
 
-# Cargo packages
+cask "kitty"
+cask "kiro-cli"
+
 cargo "cargo-update"
 
-# UV tools (Python CLI apps in isolated envs; see https://docs.astral.sh/uv/)
 uv "dot-py"
 uv "pre-commit"
 uv "pynvim"
 
-brew "ansifilter"  # tmux logging
 
-# Additional — uncomment as needed
 # brew "colima"
 # brew "docker", link: false
 # brew "docker-compose"
+# cask "docker-desktop"
 # brew "imagemagick"
 # brew "maven"
 # brew "python-tk@3.14"
 # brew "python@3.14"
 # brew "yarn"
-# brew "zellij"
-# brew "zenith"
-# cask "anaconda"
 # cask "amazon-q"
-# cask "docker-desktop"
 # cask "tabby"
 # cask "wezterm@nightly"
 # cargo "generate-bidi"
