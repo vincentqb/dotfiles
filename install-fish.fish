@@ -1,4 +1,4 @@
-#!/home/linuxbrew/.linuxbrew/bin/fish
+#!/usr/bin/env fish
 
 # Extend $PATH
 fish_add_path $HOME/bin $HOME/.local/bin
