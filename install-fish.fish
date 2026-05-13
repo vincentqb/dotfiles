@@ -12,6 +12,9 @@ curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
 fisher update
 set -U async_prompt_functions _pure_prompt_git
 
+# Pure prompt: red symbol on error is enough; hide the exit-status number
+set -U pure_show_exit_status false
+
 # Return to default keybindings
 fish_default_key_bindings
 rm -f ~/.config/fish/functions/fish_user_key_bindings.fish
