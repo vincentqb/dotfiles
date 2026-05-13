@@ -6,69 +6,23 @@ git submodule update --init --recursive
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/*
 
+# Homebrew + everything in the Brewfile (formulae, casks, cargo, uv tools)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-export PATH=$PATH:/opt/homebrew/bin
-
+eval "$(/opt/homebrew/bin/brew shellenv)"
 brew update
 brew bundle
 
-# https://wezterm.org/install/source.html#installing-from-source
-# brew install --cask wezterm
-# brew install --cask wezterm@nightly
-# cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes sync-color-schemes wezterm wezterm-gui
-# ./ci/deploy.sh macos
-# Drag and Drop WezTerm
+# Neovim plugins via lazy.nvim
+nvim --headless "+Lazy! sync" +qa
 
-# sshfs https://github.com/telepresenceio/telepresence/issues/1654#issuecomment-873538291
-# brew install --cask macfuse
-# brew install gromgit/fuse/sshfs-mac
-# brew link --overwrite sshfs-mac
-
-uv tool install -r requirements.txt
-
-# brew install node
-# npm install -g bash-language-server
-# npm install -g diagnostic-languageserver
-# npm install -g neovim yarn
-# yarn global add neovim
-npm install -g neovim
-
+# Fish as default shell
 sudo fish -c 'echo (which fish) >> /etc/shells'
 chsh -s $(which fish)
 
-# Update nvim plugins
-nvim --headless +PackClean +qa
-nvim --headless +PackUpdate +qa
-nvim --headless +DirtytalkUpdate +qa
-
-# Spell checker for pylint
-# brew install enchant
-# export PYENCHANT_LIBRARY_PATH=/Users/vincentqb/homebrew/lib/libenchant-2.dylib
-# pylint --disable all --enable spelling --spelling-dict en_US file.py
-
-~/.tmux/plugins/tpm/bin/update_plugins all	# prefix + U
-~/.tmux/plugins/tpm/bin/clean_plugins	    # prefix + alt + u
-~/.tmux/plugins/tpm/bin/install_plugins	    # prefix + I
-
-# Only use UTF-8 in Terminal.app
-# defaults write com.apple.terminal StringEncodings -array 4
-
-# Use a modified version of the Pro theme by default in Terminal.app
-# open "$HOME/dotfiles/terminal-app/Dracula.terminal"
-# sleep 1  # Wait a bit to make sure the theme is loaded
-# defaults write com.apple.terminal "Default Window Settings" -string "Dracula"
-# defaults write com.apple.terminal "Startup Window Settings" -string "Dracula"
-
-# Install anaconda
-# brew install anaconda
-# export PATH=$PATH:/opt/homebrew/anaconda3/bin
-# conda init zsh fish
-
-# Ensure all packages are up-to-date
-cargo install cargo-update
+# Keep cargo crates fresh
 cargo install-update -a
 
-# AMZN
+# AMZN toolbox
 kinit
 mwinit -o
 touch ~/toolbox-bootstrap.sh && \
@@ -84,31 +38,18 @@ bash ~/toolbox-bootstrap.sh
 rm ~/toolbox-bootstrap.sh
 source ~/.$(basename "$SHELL")rc
 toolbox update
-toolbox install ada axe
+toolbox install ada axe brazilcli cr claude-code aim
+brazil setup completion
+aim plugins install AmazonBuilderCoreAIAgents
 xcode-select --install
 
-toolbox install brazilcli cr
-brazil setup completion
-
-toolbox install claude-code aim
-aim plugins install AmazonBuilderCoreAIAgents
-
-# install docker
-# /opt/homebrew/opt/colima/bin/colima start -f
-# brew install --cask docker
-# brew install docker docker-compose colima
-# docker replacement
-# toolbox install finch
-
-# Use hibernate (25) instead of sleep (3, default)
-# https://discussions.apple.com/thread/255421002?sortBy=rank
-pmset -g | grep hibernatemode
+# Hibernate (25) instead of sleep (3) on lid close
+# https://discussions.apple.com/thread/255421002
 sudo pmset hibernatemode 25
-pmset -g | grep hibernatemode
 
-# Apped VS Code configuration to
-# ~/Library/Application\ Support/Code/User/settings.json
+# VS Code: disable press-and-hold so vim keybindings repeat
 defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false
 
-brew install coursier && coursier setup
-cs install scala:2.11.12 && cs install scalac:2.11.12
+# Scala
+coursier setup
+cs install scala:2.11.12 scalac:2.11.12

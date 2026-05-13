@@ -36,12 +36,10 @@ cask "kiro-cli"
 # Cargo packages
 cargo "cargo-update"
 
-# UV tools
+# UV tools (Python CLI apps in isolated envs; see https://docs.astral.sh/uv/)
 uv "dot-py"
-# uv "jedi-language-server"
+uv "pre-commit"
 uv "pynvim"
-uv "pytest"
-uv "ruff"
 
 brew "ansifilter"  # tmux logging
 

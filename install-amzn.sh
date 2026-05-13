@@ -3,90 +3,27 @@
 git submodule sync
 git submodule update --init --recursive
 
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install -r requirements.txt
+# Distro prereqs (chsh; clang for zenith)
+sudo yum install -y util-linux-user clang
 
-# Install with brew
-# TODO add /home/linuxbrew/.linuxbrew/bin/ to PATH
+# Homebrew + everything in the Brewfile (formulae, cargo, uv tools)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 brew update
-brew install ripgrep bat fd
-brew install eza
-brew install just
-brew install shellcheck
-brew install ruff ty
-brew install --cask amazon-q
+brew bundle
 
-# Install tmux plugin manager
-brew install tmux
-# ~/.tmux/plugins/tpm/bin/install_plugins
+# Neovim plugins via lazy.nvim
+nvim --headless "+Lazy! sync" +qa
 
-# Install latest neovim
-# sudo dnf install nodejs
-# sudo yum install -y fuse
-# mkdir -p ~/.local/bin
-# curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage
-# mv nvim-linux-x86_64.appimage ~/.local/bin/nvim
-# chmod u+x ~/.local/bin/nvim
-brew install nodejs
-brew install nvim
+# Fish as default shell
+sudo chsh -u $USER -s $(which fish)
 
-# Update nvim plugins
-~/.local/bin/nvim --headless +PackClean +qa
-~/.local/bin/nvim --headless +PackUpdate +qa
-~/.local/bin/nvim --headless +DirtytalkUpdate +qa
-
-# Install fish
-# sudo yum-config-manager --add-repo https://download.opensuse.org/repositories/shells:fish:release:3/CentOS_7/shells:fish:release:3.repo
-# sudo yum install -y fish
-brew install fish
-
-# Install utilities like chsh
-sudo yum install -y util-linux-user
-sudo chsh -u ec2-user -s /usr/bin/fish
-
-# Install cargo
+# Cargo + zenith (not packaged in brew with nvidia feature)
 curl https://sh.rustup.rs -sSf | sh -s -- -y
-~/.cargo/bin/cargo install --locked bat fd-find ripgrep eza
-
-# Install zellij
-# sudo yum install -y perl-IPC-Cmd
-# ~/.cargo/bin/cargo install --locked zellij
-# Install latex tmux
-brew install tmux
-
-# Install zenith
-sudo yum install -y clang
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
+~/.cargo/bin/cargo install-update -a
 
-# Install wezterm server only
-# cargo install --branch=main --git https://github.com/wezterm/wezterm.git generate-bidi strip-ansi-escapes wezterm-mux-server
-# git clone --depth=1 --branch=main --recursive https://github.com/wezterm/wezterm.git
-# cd wezterm
-# git submodule update --init --recursive wezterm/
-# ./wezterm/get-deps
-# cargo build --release --bin wezterm-mux-server
-# cp ./wezterm/target/release/wezterm-mux-server ~/.local/bin/
-# cd ..
-
-# Install conda
-# wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
-# bash ~/miniconda.sh -b -p ~/miniconda
-# eval "$(~/miniconda/bin/conda shell.bash hook)"
-# ~/miniconda/bin/conda init fish
-# ~/miniconda/bin/conda init --all
-# ~/miniconda/bin/conda init zsh
-# ~/miniconda/bin/conda init fish
-# ~/miniconda/bin/conda config --set auto_activate_base true
-# ~/miniconda/bin/conda config --set changeps1 False
-# ~/miniconda/bin/conda update -n base -c conda-forge conda
-
-# Ensure all packages are up-to-date
-brew upgrade
-cargo install cargo-update
-cargo install-update -a
-
+# CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent
 sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOM'
@@ -106,10 +43,7 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'E
         "aggregation_dimensions": [["InstanceId"]],
         "metrics_collected": {
             "nvidia_gpu": {
-                "measurement": [
-                    "utilization_gpu",
-                    "utilization_memory"
-                ]
+                "measurement": ["utilization_gpu", "utilization_memory"]
             }
         }
     }
@@ -117,17 +51,3 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'E
 EOM
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
-
-# Install dependecies for efs
-# sudo yum install -y amazon-efs-utils
-# sudo mkdir /efs
-# sudo mount -t efs -o tls,iam fs-9c2846d5 /efs
-
-# Ensure latest nvidia
-# sudo dnf install -y kernel-modules-extra
-# sudo dnf install -y nvidia-release
-# sudo dnf install -y nvidia-driver
-# sudo dnf install -y cuda-toolkit
-# Check drivers are installed properly
-# nvidia-smi
-# python -c "import torch; assert torch.cuda.is_available()"
