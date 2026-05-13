@@ -3,9 +3,6 @@
 git submodule sync
 git submodule update --init --recursive
 
-# Distro prereqs (clang for zenith)
-sudo yum install -y clang
-
 # Homebrew + everything in the Brewfile (formulae, cargo, uv tools)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
