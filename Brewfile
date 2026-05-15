@@ -19,6 +19,7 @@ brew "gh"
 
 # Editors / nvim provider
 brew "neovim"
+brew "tree-sitter-cli"  # parser compiler for nvim-treesitter (main branch)
 
 # Languages / toolchains
 brew "node"

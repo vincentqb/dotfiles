@@ -100,11 +100,19 @@ return {
   -- Spell dictionary is now self-maintained at spell/programming.utf-8.add
   -- (collated from vim-dirtytalk master + open PR #45; plugin removed)
 
-  -- Treesitter (pin to master; main branch removed the `configs` module API)
+  -- Treesitter (main branch; master is unmaintained and broken on nvim 0.12).
+  -- The rewrite drops the `configs` module: parsers install via :TSInstall or
+  -- the install_dir setup, and highlighting is started per-buffer by us.
   {
     'nvim-treesitter/nvim-treesitter',
-    branch = 'master',
+    branch = 'main',
     build = ':TSUpdate',
+    lazy = false,
+  },
+  {
+    'nvim-treesitter/nvim-treesitter-textobjects',
+    branch = 'main',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
     event = { 'BufReadPost', 'BufNewFile' },
   },
 
