@@ -6,8 +6,8 @@ let g:python3_host_prog = expand('~/.local/bin/pynvim-python')
 " Specify Python 2 to use
 " let g:python_host_prog = '/usr/bin/python'
 
-" Fold using indentation
-au FileType python set foldmethod=indent foldnestmax=1 foldminlines=10
+" Fold using treesitter (Python only)
+au FileType python setlocal foldmethod=expr foldexpr=v:lua.vim.treesitter.foldexpr() foldnestmax=1 foldminlines=10
 " Open/close folds with space
 au FileType python nnoremap <space> za
 
