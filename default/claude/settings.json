@@ -1,0 +1,45 @@
+{
+  "env": {
+    "AWS_PROFILE": "claude-code-DO-NOT-DELETE",
+    "AWS_REGION": "us-west-2"
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Bash(npm run *)",
+      "Bash(git status)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "mcp__arcc__search_arcc",
+      "mcp__arcc-mcp__search_arcc",
+      "mcp__plugin_local-ARCCBaselineCapability-all_arcc-mcp__search_arcc"
+      "WebFetch",
+    ],
+    "ask": [
+      "Bash(git push)",
+    ],
+  },
+  "model": "global.anthropic.claude-opus-4-7[1m]",
+  "availableModels": [
+    "opus",
+    "sonnet"
+  ],
+  "enabledPlugins": {
+    "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
+    "MeshClawAICapabilities-all@aim": true
+  },
+  "extraKnownMarketplaces": {
+    "aim": {
+      "source": {
+        "source": "directory",
+        "path": "/local/home/quennv/.aim/cc-plugins"
+      }
+    }
+  },
+  "theme": "dark-ansi",
+  "effortLevel": "high"
+}
