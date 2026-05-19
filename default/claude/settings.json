@@ -11,17 +11,17 @@
       "Glob",
       "Grep",
       "Bash(npm run *)",
-      "Bash(git status)"
+      "Bash(git status)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "mcp__arcc__search_arcc",
       "mcp__arcc-mcp__search_arcc",
-      "mcp__plugin_local-ARCCBaselineCapability-all_arcc-mcp__search_arcc"
-      "WebFetch",
+      "mcp__plugin_local-ARCCBaselineCapability-all_arcc-mcp__search_arcc",
+      "WebFetch"
     ],
     "ask": [
-      "Bash(git push)",
-    ],
+      "Bash(git push)"
+    ]
   },
   "model": "global.anthropic.claude-opus-4-7[1m]",
   "availableModels": [
