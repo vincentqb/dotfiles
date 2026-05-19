@@ -5,27 +5,63 @@
   },
   "includeCoAuthoredBy": false,
   "permissions": {
+    "defaultMode": "auto",
     "allow": [
-      "Read",
-      "Edit",
-      "Glob",
-      "Grep",
-      "Bash(npm run *)",
-      "Bash(git status)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(uv:*)",
+      "WebFetch",
       "mcp__arcc__search_arcc",
       "mcp__arcc-mcp__search_arcc",
-      "mcp__plugin_local-ARCCBaselineCapability-all_arcc-mcp__search_arcc",
-      "WebFetch"
+      "mcp__plugin_local-ARCCBaselineCapability-all_arcc-mcp__search_arcc"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Reading any file on the machine",
+      "Running Python, Node, scripts, REPLs, and language toolchains",
+      "Running tests, builds, linters, formatters, and type checkers (brazil-build, npm test, cargo test, pytest, etc.)",
+      "Git read-only operations (status, log, diff, blame, show, fetch)",
+      "Local commits, branch creation, and switching branches",
+      "Project-local package installs (pip install in venv, npm install, cargo build, brazil-build)",
+      "AWS read-only operations via the claude-code-DO-NOT-DELETE profile (describe-*, list-*, get-*)",
+      "Background processes and long-running daemons (nohup, trailing &, starting local dev servers)",
+      "Binding network listeners on localhost / 127.0.0.1 / ::1"
     ],
-    "ask": [
-      "Bash(git push)"
+    "soft_deny": [
+      "$defaults",
+      "git push, including to feature branches",
+      "git operations that rewrite or discard history (reset --hard, rebase, commit --amend, branch -D, clean -f, checkout --, restore --)",
+      "Publishing or distributing packages (npm publish, pip publish, cargo publish, docker push, brazil-build publish)",
+      "Submitting code reviews (cr submit), merging or closing PRs, creating GitHub releases",
+      "Posting to Slack, sending email or calendar invites, creating or modifying tickets, commenting on CRs",
+      "Editing wiki pages or Quip documents",
+      "Any AWS write, modify, or delete operation — assume production when uncertain",
+      "Modifying CI/CD configuration: pipeline definitions, CDK deploy, CloudFormation deploy, GitHub Actions workflows",
+      "Editing files under ~/.aws/, ~/.ssh/, ~/.gnupg/, ~/.password-store/",
+      "System-wide or user-global package installs (pip install --user, npm install -g, brew install, apt, dnf)",
+      "Deleting more than a single file or directory at a time",
+      "Binding network listeners on non-localhost interfaces (0.0.0.0, public IPs)",
+      "docker run with --privileged, --network=host, or bind-mounting host paths outside the workspace"
     ],
-    "deny": [
-      "Bash(rm -rf *)",
-      "Bash(sudo *)"
+    "hard_deny": [
+      "$defaults",
+      "sudo or any privilege escalation",
+      "Piping curl or wget output directly into a shell (curl ... | sh, wget ... | bash)",
+      "rm -rf targeting /, $HOME, ~, or with --no-preserve-root",
+      "dd writing to block devices, mkfs, shutdown, reboot, halt, poweroff",
+      "Disabling git hooks (--no-verify) or commit signing (--no-gpg-sign), or globally rerouting core.hooksPath",
+      "Force-pushing to main, master, mainline, or any protected branch",
+      "Writes to ~/.aws/credentials, ~/.ssh/id_*, ~/.gnupg/, ~/.password-store/",
+      "Mass IAM changes: attaching AdministratorAccess or *FullAccess, creating broadly-privileged users or roles",
+      "Modifying security groups to allow 0.0.0.0/0 ingress (ARCC governance)",
+      "Deleting or terminating AWS resources tagged or named with prod, production, or prd",
+      "Disabling production safeguards: S3 versioning, MFA delete, termination protection, deletion protection, backup retention policies"
+    ],
+    "environment": [
+      "$defaults",
+      "User is an Amazon internal developer working in the dotfiles repo and Brazil workspaces",
+      "AWS profile claude-code-DO-NOT-DELETE may have production access — when in doubt, assume production",
+      "ARCC governance applies to credentials, user data, network exposure, IAM, and infrastructure changes — search_arcc must be queried first for those domains",
+      "Inclusive language required: avoid master/slave, whitelist/blacklist in code, comments, and docs"
     ]
   },
   "model": "global.anthropic.claude-opus-4-7[1m]",
@@ -48,6 +84,7 @@
   },
   "theme": "dark-ansi",
   "effortLevel": "high",
+  "skipAutoPermissionPrompt": true,
   "statusLine": {
     "type": "command",
     "command": "bash /home/quennv/.claude/statusline-command.sh"
