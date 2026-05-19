@@ -17,8 +17,8 @@
     "allow": [
       "$defaults",
       "Reading any file on the machine",
-      "Running Python, Node, scripts, REPLs, and language toolchains",
-      "Running tests, builds, linters, formatters, and type checkers (brazil-build, npm test, cargo test, pytest, etc.)",
+      "Running Python, Node, scripts, REPLs, and language toolchains (uv, python, node, etc.)",
+      "Running tests, builds, linters, formatters, and type checkers (uv, brazil-build, npm test, cargo test, pytest, etc.)",
       "Git read-only operations (status, log, diff, blame, show, fetch)",
       "Local commits, branch creation, and switching branches",
       "Project-local package installs (pip install in venv, npm install, cargo build, brazil-build)",
