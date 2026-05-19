@@ -23,7 +23,8 @@
       "Project-local package installs (pip install in venv, npm install, cargo build, brazil-build)",
       "AWS read-only operations via the claude-code-DO-NOT-DELETE profile (describe-*, list-*, get-*)",
       "Background processes and long-running daemons (nohup, trailing &, starting local dev servers)",
-      "Binding network listeners on localhost / 127.0.0.1 / ::1"
+      "Binding network listeners on localhost / 127.0.0.1 / ::1",
+      "Read-only access to Amazon internal resources via MCP (ReadInternalWebsites, InternalSearch, InternalCodeSearch, ticketing/CR/pipeline/Apollo/Taskei reads, Slack search/read, Outlook calendar/email reads, Quip/wiki reads, acronym/software-recommendation lookups)"
     ],
     "soft_deny": [
       "$defaults",
