@@ -10,6 +10,9 @@ if status is-interactive
     # abbr view "nvim -RO"
     abbr s "kitty +kitten ssh"
     abbr icat "kitty +kitten icat"
+    abbr lz "eza -lm --no-user --no-permissions --time-style long-iso -s modified -r --grid --color=always"
+    abbr pcp "rsync -ahrz --info=progress2"
+    abbr ssa "AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M 0"
 
     # Incompatible with wezterm-mux-server
     # for motd in /run/motd.dynamic /etc/motd
@@ -33,3 +36,6 @@ if set -q VSCODE_FISH_ACTIVATE
     eval $VSCODE_FISH_ACTIVATE
 end
 # <<< vscode python
+
+# Added by AIM CLI
+set -gx PATH "/local/home/quennv/.aim/mcp-servers" $PATH

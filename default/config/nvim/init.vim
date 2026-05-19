@@ -23,8 +23,8 @@ set softtabstop=4
 set shiftwidth=4
 set expandtab
 
-" Enable '+' system clipboard with +yy
-set clipboard+=unnamedplus
+" System clipboard via explicit "+y / "+p (avoids per-yank cost on remote sessions;
+" tmux's set-clipboard already handles OSC52 for selections).
 
 " Persistent undo tree, but careful about leaking sensitive information
 set undofile
@@ -73,10 +73,7 @@ au FileType gitcommit set spell
 " Toggle spellchecking
 noremap <F3> :setlocal spell! spelllang=en_us,programming<CR>
 
-" https://vim.fandom.com/wiki/Omni_completion
-set omnifunc=syntaxcomplete#Complete
-" imap <c-n> <c-x><c-o>
-" imap <c-n> <c-o><c-n>
+" LSP sets omnifunc to vim.lsp.omnifunc on attach; no global default needed.
 set pumheight=7
 
 " Plugins are managed by lazy.nvim (see lua/plugins.lua).

@@ -9,11 +9,11 @@ require('codecompanion').setup({
   interactions = {
     chat = {
       adapter = "kiro",
-      model = "claude-opus-4.6-1m",
+      model = "claude-opus-4.7-1m",
     },
     inline = {
       adapter = "anthropic",
-      model = "claude-opus-4-6",
+      model = "claude-opus-4-7",
     },
     cli = {
       agent = "kiro",
@@ -21,7 +21,7 @@ require('codecompanion').setup({
         kiro = {
           cmd = "kiro-cli",
           args = { "chat" },
-          description = "Kiro (Claude Opus 4.6 1M)",
+          description = "Kiro (Claude Opus 4.7 1M)",
           provider = "terminal",
         },
       },

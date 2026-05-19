@@ -4,6 +4,7 @@
 **/vim/.netrwhist
 **/ipython/profile_default/history.sqlite
 **/config/fish/functions/_*.fish
+**/config/fish/fish_variables
 
 **/ssh/id_*
 **/ssh/id_*.pub
