@@ -8,7 +8,7 @@ fish_add_path $HOME/.cargo/bin
 fish_add_path /home/linuxbrew/.linuxbrew/bin/
 
 # Install fisher + plugins declared in default/config/fish/fish_plugins
-curl -sL https://git.io/fisher | source; and fisher install jorgebucaran/fisher
+curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source; and fisher install jorgebucaran/fisher
 fisher update
 set -U async_prompt_functions _pure_prompt_git
 
