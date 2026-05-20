@@ -123,7 +123,12 @@
       "Bash(git tag:*)",
       "Bash(git checkout:*)",
       "Bash(git switch:*)",
-      "Bash(git rm --cached:*)"
+      "Bash(git rm --cached:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git commit --amend:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git revert:*)"
     ],
     "defaultMode": "auto"
   },
