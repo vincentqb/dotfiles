@@ -21,6 +21,10 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 claude plugin marketplace add moazbuilds/claudeclaw
 claude plugin install claudeclaw
 
+toolbox install aim
+aim mcp install quicksight-mcp
+claude mcp add --scope user quicksight-mcp -- aim mcp start-server quicksight-mcp
+
 # CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent
