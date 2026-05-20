@@ -4,20 +4,6 @@
     "AWS_REGION": "us-west-2"
   },
   "includeCoAuthoredBy": false,
-  "mcpServers": {
-    "slack-mcp": {
-      "command": "/local/home/quennv/.aim/mcp-servers/slack-mcp",
-      "args": []
-    },
-    "aws-outlook-mcp": {
-      "command": "/home/quennv/.toolbox/bin/aws-outlook-mcp",
-      "args": []
-    },
-    "moptech": {
-      "type": "http",
-      "url": "https://moptech-gamma.mcp.mop.amazon.dev/mcp/"
-    }
-  },
   "permissions": {
     "allow": [
       "WebFetch",
