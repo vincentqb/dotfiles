@@ -2,6 +2,7 @@ history.jsonl
 agents
 backups
 file-history
+plugins
 projects
 session-env
 sessions

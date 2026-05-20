@@ -1,18 +1,50 @@
 {
+  "awsCredentialExport": "\"/home/quennv/.toolbox/bin/claude\" default-credential-export",
   "env": {
-    "AWS_PROFILE": "claude-code-DO-NOT-DELETE",
     "AWS_REGION": "us-west-2"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "WebFetch",
       "mcp__arcc__search_arcc",
       "mcp__arcc-mcp__search_arcc",
       "mcp__plugin_local-ARCCBaselineCapability-all_arcc-mcp__search_arcc"
-    ]
+    ],
+    "defaultMode": "auto"
   },
+  "model": "global.anthropic.claude-opus-4-7[1m]",
+  "availableModels": [
+    "opus",
+    "sonnet"
+  ],
+  "statusLine": {
+    "type": "command",
+    "command": "bash /home/quennv/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
+    "MeshClawAICapabilities-all@aim": true,
+    "AmazonBuilderCoreAIAgents-core@aim": true,
+    "claudeclaw@claudeclaw": true
+  },
+  "extraKnownMarketplaces": {
+    "aim": {
+      "source": {
+        "source": "directory",
+        "path": "/local/home/quennv/.aim/cc-plugins"
+      }
+    },
+    "claudeclaw": {
+      "source": {
+        "source": "github",
+        "repo": "moazbuilds/claudeclaw"
+      }
+    }
+  },
+  "effortLevel": "high",
+  "theme": "dark-ansi",
+  "skipAutoPermissionPrompt": true,
   "autoMode": {
     "allow": [
       "$defaults",
@@ -63,30 +95,5 @@
       "ARCC governance applies to credentials, user data, network exposure, IAM, and infrastructure changes — search_arcc must be queried first for those domains",
       "Inclusive language required: avoid master/slave, whitelist/blacklist in code, comments, and docs"
     ]
-  },
-  "model": "global.anthropic.claude-opus-4-7[1m]",
-  "availableModels": [
-    "opus",
-    "sonnet"
-  ],
-  "enabledPlugins": {
-    "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
-    "MeshClawAICapabilities-all@aim": true,
-    "AmazonBuilderCoreAIAgents-core@aim": true
-  },
-  "extraKnownMarketplaces": {
-    "aim": {
-      "source": {
-        "source": "directory",
-        "path": "/local/home/quennv/.aim/cc-plugins"
-      }
-    }
-  },
-  "theme": "dark-ansi",
-  "effortLevel": "high",
-  "skipAutoPermissionPrompt": true,
-  "statusLine": {
-    "type": "command",
-    "command": "bash /home/quennv/.claude/statusline-command.sh"
   }
 }

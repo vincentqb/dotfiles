@@ -17,6 +17,10 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
 ~/.cargo/bin/cargo install-update -a
 
+# Start assistant with /claudeclaw:start
+claude plugin marketplace add moazbuilds/claudeclaw
+claude plugin install claudeclaw
+
 # CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent
