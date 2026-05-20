@@ -23,7 +23,7 @@ claude plugin install claudeclaw
 
 toolbox install aim
 aim mcp install quicksight-mcp
-claude mcp add --scope user quicksight-mcp -- aim mcp start-server quicksight-mcp
+claude mcp add --scope user quicksight-mcp /local/home/quennv/.aim/mcp-servers/quicksight-mcp
 
 # CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
