@@ -26,6 +26,7 @@ aim mcp install quicksight-mcp
 claude mcp add --scope user quicksight-mcp /local/home/quennv/.aim/mcp-servers/quicksight-mcp
 
 toolbox install AndesCli
+aim mcp install andes-mcp
 
 # CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
