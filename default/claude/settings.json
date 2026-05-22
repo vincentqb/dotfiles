@@ -132,7 +132,30 @@
       "Bash(npm test:*)",
       "Bash(npm run:*)",
       "Bash(cargo build:*)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(*)"
+    ],
+    "ask": [
+      "Bash(*rm*-rf*)",
+      "Bash(*rm*-fr*)",
+      "Bash(*rm *-r*-f*)",
+      "Bash(*rm *--recursive*)",
+      "Bash(* push *)",
+      "Bash(git push:*)",
+      "Bash(*publish*)",
+      "Bash(*--force*)",
+      "Bash(* -f *)",
+      "Bash(*sudo*)",
+      "Bash(*curl*|*sh*)",
+      "Bash(*wget*|*bash*)",
+      "Bash(*--no-verify*)",
+      "Bash(*aws iam *)",
+      "Bash(*aws * delete-*)",
+      "Bash(*aws * terminate-*)",
+      "Bash(*aws s3 rb*)",
+      "Bash(*shutdown*)",
+      "Bash(*mkfs*)",
+      "Bash(*dd *of=/dev/*)"
     ],
     "defaultMode": "auto"
   },
