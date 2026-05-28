@@ -53,15 +53,15 @@
 #  pager = "(printf '\n\n'; cat) | delta"
 [alias]
     snatus = status -uno
-    dog = log -20 --graph --abbrev-commit --decorate --date-order --date=human --color=always
+    dog = log -20 --graph --abbrev-commit --decorate --date-order --color=always
     refdog = reflog -20 --abbrev-commit --decorate --date=relative --color=always --color-words
     wiff = diff --color-words
     flame = blame --show-email --color-lines --color-by-age --date=relative --abbrev=6
 [format]
     # https://draculatheme.com/contribute
-    pretty = "%C(blue)%h%C(reset) %C(cyan)%<(20,trunc)%cd%C(reset) %<(50,trunc)%s %C(brightblack)%ae%C(reset)%C(auto)%d%C(reset)"
+    pretty = "%C(blue)%h%C(reset) %C(cyan)%<(15,trunc)%cd%C(reset) %<(50,trunc)%s %C(brightblack)%ae%C(reset)%C(auto)%d%C(reset)"
 [log]
-    date = iso-local
+    date = human
 
 # Dracula Dark Theme
 # https://github.com/dracula/git/blob/master/config/gitconfig
