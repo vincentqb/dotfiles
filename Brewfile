@@ -32,6 +32,7 @@ brew "ruff"
 # AI tooling
 cask "claude-code"
 cask "kiro-cli"
+cask "codex"
 
 # Docs / writing
 brew "biber"        # biblatex bibliographies

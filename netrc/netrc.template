@@ -1,7 +1,11 @@
 machine github.com
 login vincentqb
-password $PASSWD
+password $GITHUB
 
 machine api.github.com
 login vincentqb
-password $PASSWD
+password $GITHUB
+
+machine git.overleaf.com
+login git
+password $OVERLEAF

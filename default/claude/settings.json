@@ -113,7 +113,8 @@
     "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
     "MeshClawAICapabilities-all@aim": true,
     "AmazonBuilderCoreAIAgents-core@aim": true,
-    "claudeclaw@claudeclaw": true
+    "claudeclaw@claudeclaw": true,
+    "clangd-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "aim": {
