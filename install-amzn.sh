@@ -29,6 +29,12 @@ aim mcp install andes-mcp
 toolbox install arcc-cli
 aim mcp install arcc-mcp
 
+aim install amazon-sharepoint-mcp
+# toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
+# toolbox install grasp-mcp
+# grasp-mcp config initialize
+# grasp-mcp login
+
 # CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent
