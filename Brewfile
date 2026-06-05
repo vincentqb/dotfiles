@@ -34,6 +34,7 @@ tap "anomalyco/tap"             # OpenCode (custom tap, always up to date)
 brew "anomalyco/tap/opencode"
 cask "claude-code"
 cask "kiro-cli"
+brew "bubblewrap"
 cask "codex"
 
 # Docs / writing
