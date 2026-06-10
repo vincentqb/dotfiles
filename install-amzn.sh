@@ -21,6 +21,7 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 claude plugin marketplace add moazbuilds/claudeclaw
 claude plugin install claudeclaw
 
+toolbox install kiro-cli
 toolbox install aim
 aim mcp install quicksight-mcp
 claude mcp add --scope user quicksight-mcp /local/home/quennv/.aim/mcp-servers/quicksight-mcp
@@ -28,6 +29,8 @@ toolbox install AndesCli
 aim mcp install andes-mcp
 toolbox install arcc-cli
 aim mcp install arcc-mcp
+# aim mcp install local-chorus-mcp
+aim agents install ChorusAIM
 
 aim install amazon-sharepoint-mcp
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
