@@ -36,6 +36,7 @@ cask "claude-code"
 cask "kiro-cli"
 brew "bubblewrap"
 cask "codex"
+brew "ollama"
 
 # Docs / writing
 brew "biber"        # biblatex bibliographies
