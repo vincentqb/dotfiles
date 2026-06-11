@@ -100,7 +100,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "global.anthropic.claude-opus-4-8",
+  "model": "global.anthropic.claude-opus-4-6-v1",
   "availableModels": [
     "opus",
     "sonnet"
