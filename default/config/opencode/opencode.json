@@ -1,11 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "amazon-bedrock/global.anthropic.claude-opus-4-8",
+  "share": "disabled",
+  "enabled_providers": ["amazon-bedrock", "bedrock-mantle-openai"],
   "provider": {
     "amazon-bedrock": {
       "npm": "@ai-sdk/amazon-bedrock",
-      "name": "Amazon Bedrock (us-west-2, AWS creds via credential_process)",
+      "name": "Amazon Bedrock (Cecelia, us-west-2)",
       "options": {
+        "profile": "claude",
         "region": "us-west-2"
       },
       "models": {
@@ -67,6 +70,12 @@
           }
         }
       }
+    }
+  },
+  "mcp": {
+    "builder-mcp": {
+      "type": "local",
+      "command": ["builder-mcp"]
     }
   }
 }
