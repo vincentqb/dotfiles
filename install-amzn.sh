@@ -38,6 +38,10 @@ aim install amazon-sharepoint-mcp
 # grasp-mcp config initialize
 # grasp-mcp login
 
+aim agents update
+aim mcp update
+aim skills update
+
 # CloudWatch agent with GPU metrics
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
 sudo yum install -y amazon-cloudwatch-agent
