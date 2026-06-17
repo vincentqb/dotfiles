@@ -30,10 +30,15 @@ aim mcp install andes-mcp
 toolbox install arcc-cli
 aim mcp install arcc-mcp
 aim agents install ChorusAIM
+aim install amazon-sharepoint-mcp
+
+aim agents install StoreGenAICapabilities
+aim skills install StoreGenAICapabilities
+aim plugins install StoreGenAICapabilities-1.0
+
 aim agents install IRRGenAICapabilities
 aim skills install IRRGenAICapabilities
 
-aim install amazon-sharepoint-mcp
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
 # toolbox install grasp-mcp
 # grasp-mcp config initialize
