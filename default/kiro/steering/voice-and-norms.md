@@ -1,0 +1,1 @@
+/local/home/quennv/notes/voice-and-norms.md
