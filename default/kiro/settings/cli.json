@@ -1,6 +1,13 @@
 {
-  "codeWhisperer.shareCodeWhispererContentWithAWS": false,
-  "telemetry.enabled": false,
-  "mcp.loadedBefore": true,
-  "chat.defaultModel": "claude-opus-4.6-1m"
+  "chat.defaultAgent": "stores-builder",
+  "chat.defaultModel": "claude-opus-4.8",
+  "chat.modelDefaults": {
+    "claude-opus-4.8": {
+      "output_config": {
+        "effort": "max"
+      }
+    }
+  },
+  "chat.showThinking": true,
+  "chat.enableThinking": true
 }
