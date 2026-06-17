@@ -31,6 +31,7 @@ toolbox install arcc-cli
 aim mcp install arcc-mcp
 aim agents install ChorusAIM
 aim agents install IRRGenAICapabilities
+aim skills install IRRGenAICapabilities
 
 aim install amazon-sharepoint-mcp
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
