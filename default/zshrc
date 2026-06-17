@@ -185,8 +185,6 @@ __git_files () {
 # 	[[ -z $TMUX ]] || conda deactivate; conda activate base
 # fi
 
-export PATH="$(yarn global bin):$PATH"
-
 export PATH=$PATH:$HOME/.toolbox/bin
 export CLAUDE_CODE_USE_BEDROCK="1"
 

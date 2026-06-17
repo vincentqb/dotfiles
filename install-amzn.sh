@@ -29,8 +29,8 @@ toolbox install AndesCli
 aim mcp install andes-mcp
 toolbox install arcc-cli
 aim mcp install arcc-mcp
-# aim mcp install local-chorus-mcp
 aim agents install ChorusAIM
+aim agents install IRRGenAICapabilities
 
 aim install amazon-sharepoint-mcp
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json

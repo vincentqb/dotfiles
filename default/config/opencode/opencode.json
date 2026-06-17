@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "amazon-bedrock/global.anthropic.claude-opus-4-6-v1",
+  "model": "amazon-bedrock/global.anthropic.claude-opus-4-8",
   "share": "disabled",
   "enabled_providers": ["amazon-bedrock", "bedrock-mantle-openai"],
   "provider": {
@@ -11,8 +11,8 @@
         "region": "us-west-2"
       },
       "models": {
-        "global.anthropic.claude-opus-4-6-v1": {
-          "name": "Claude Opus 4.6 (Bedrock, 1M context)",
+        "global.anthropic.claude-opus-4-8": {
+          "name": "Claude Opus 4.8 (Bedrock, 1M context)",
           "limit": { "context": 1000000, "output": 64000 },
           "options": {
             "thinking": { "type": "adaptive" },
