@@ -1,5 +1,5 @@
 {
-  "chat.defaultAgent": "nitrogen-dev-v2-plus",
+  "chat.defaultAgent": "nitrogen-dev-plus",
   "chat.defaultModel": "claude-opus-4.8",
   "chat.modelDefaults": {
     "claude-opus-4.8": {
