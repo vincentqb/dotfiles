@@ -32,6 +32,9 @@ aim mcp install arcc-mcp
 aim agents install ChorusAIM
 aim install amazon-sharepoint-mcp
 
+aim agents install InventoryTransferServiceAgentAIM
+aim plugins install InventoryTransferServiceAgentAIM
+
 aim agents install StoreGenAICapabilities
 aim skills install StoreGenAICapabilities
 aim plugins install StoreGenAICapabilities-1.0
