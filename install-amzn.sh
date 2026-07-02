@@ -25,11 +25,16 @@ toolbox install kiro-cli
 toolbox install aim
 aim mcp install quicksight-mcp
 claude mcp add --scope user quicksight-mcp /local/home/quennv/.aim/mcp-servers/quicksight-mcp
+
 toolbox install AndesCli
 aim mcp install andes-mcp
+
 toolbox install arcc-cli
 aim mcp install arcc-mcp
+
 aim agents install ChorusAIM
+
+aim mcp install amazon-sharepoint-mcp
 aim install amazon-sharepoint-mcp
 
 aim agents install InventoryTransferServiceAgentAIM
@@ -41,6 +46,9 @@ aim plugins install StoreGenAICapabilities-1.0
 
 aim agents install IRRGenAICapabilities
 aim skills install IRRGenAICapabilities
+
+aim agents install OptimusPrimeKiro
+aim skills install OptimusPrimeKiro
 
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
 # toolbox install grasp-mcp
