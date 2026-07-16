@@ -77,34 +77,59 @@
       "Bash(*)"
     ],
     "ask": [
-      "Bash(*rm*-rf*)",
-      "Bash(*rm*-fr*)",
-      "Bash(*rm *-r*-f*)",
-      "Bash(*rm *--recursive*)",
-      "Bash(* push *)",
-      "Bash(git push:*)",
-      "Bash(*publish*)",
-      "Bash(*--force*)",
-      "Bash(* -f *)",
-      "Bash(*sudo*)",
-      "Bash(*curl*|*sh*)",
-      "Bash(*wget*|*bash*)",
-      "Bash(*--no-verify*)",
-      "Bash(*aws iam *)",
-      "Bash(*aws * delete-*)",
-      "Bash(*aws * terminate-*)",
-      "Bash(*aws s3 rb*)",
-      "Bash(*shutdown*)",
-      "Bash(*mkfs*)",
-      "Bash(*dd *of=/dev/*)"
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -r -f *)",
+      "Bash(git push*)",
+      "Bash(* --force*)",
+      "Bash(sudo *)",
+      "Bash(* --no-verify*)",
+      "Bash(aws iam *)",
+      "Bash(aws * delete-*)",
+      "Bash(aws * terminate-*)",
+      "Bash(aws s3 rb*)",
+      "Bash(shutdown*)",
+      "Bash(mkfs*)",
+      "Bash(dd *of=/dev/*)"
     ],
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "additionalDirectories": [
+      "/local/home/quennv"
+    ]
   },
-  "model": "us.anthropic.claude-opus-4-8[1m]",
-  "availableModels": [
-    "opus",
-    "sonnet"
+  "model": "global.anthropic.claude-fable-5[1m]",
+  "fallbackModel": [
+    "global.anthropic.claude-opus-4-8[1m]"
   ],
+  "availableModels": [
+    "claude-opus-4-6[1m]",
+    "claude-opus-4-6",
+    "claude-opus-4-7[1m]",
+    "claude-opus-4-7",
+    "claude-opus-4-8[1m]",
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
+    "claude-sonnet-4-6[1m]",
+    "claude-sonnet-5",
+    "claude-fable-5",
+    "claude-fable-5[1m]",
+    "claude-haiku-4-5"
+  ],
+  "enforceAvailableModels": true,
+  "modelOverrides": {
+    "claude-opus-4-6[1m]": "global.anthropic.claude-opus-4-6-v1[1m]",
+    "claude-opus-4-6": "global.anthropic.claude-opus-4-6-v1",
+    "claude-opus-4-7[1m]": "global.anthropic.claude-opus-4-7[1m]",
+    "claude-opus-4-7": "global.anthropic.claude-opus-4-7",
+    "claude-opus-4-8[1m]": "global.anthropic.claude-opus-4-8[1m]",
+    "claude-opus-4-8": "global.anthropic.claude-opus-4-8",
+    "claude-sonnet-4-6": "global.anthropic.claude-sonnet-4-6",
+    "claude-sonnet-4-6[1m]": "global.anthropic.claude-sonnet-4-6[1m]",
+    "claude-sonnet-5": "global.anthropic.claude-sonnet-5",
+    "claude-fable-5": "global.anthropic.claude-fable-5[1m]",
+    "claude-fable-5[1m]": "global.anthropic.claude-fable-5[1m]",
+    "claude-haiku-4-5": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+  },
   "statusLine": {
     "type": "command",
     "command": "bash /home/quennv/.claude/statusline-command.sh"
@@ -114,7 +139,10 @@
     "MeshClawAICapabilities-all@aim": true,
     "AmazonBuilderCoreAIAgents-core@aim": true,
     "claudeclaw@claudeclaw": true,
-    "clangd-lsp@claude-plugins-official": true
+    "clangd-lsp@claude-plugins-official": true,
+    "StoreGenAICapabilities-all@aim": true,
+    "InventoryTransferServiceAgentAIM-its@aim": true,
+    "OptimusPrimeKiro-all@aim": true
   },
   "extraKnownMarketplaces": {
     "aim": {
@@ -131,6 +159,10 @@
     }
   },
   "effortLevel": "high",
+  "companyAnnouncements": [
+    "Claude Code usage is cleared for Business Data per the AI For Me Guidance.\nITAR, PII, Customer Data, and more are strictly prohibited for use within this tool.\nRead more: https://w.amazon.com/bin/view/Security/AI-Security/AIforMe-Guidance#HDATAANDEXAMPLESQUICKREFERENCETABLE"
+  ],
+  "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
   "skipAutoPermissionPrompt": true,
   "autoMode": {
