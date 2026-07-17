@@ -1,4 +1,5 @@
 # Shell / terminal
+brew "coreutils"
 brew "fish"
 brew "tmux"
 brew "ansifilter"   # tmux-logging
@@ -32,10 +33,10 @@ brew "ruff"
 # AI tooling
 tap "anomalyco/tap"             # OpenCode (custom tap, always up to date)
 brew "anomalyco/tap/opencode"
-cask "claude-code"
-cask "kiro-cli"
+# cask "claude-code"
+# cask "kiro-cli"
 brew "bubblewrap"
-cask "codex"
+# cask "codex"
 brew "ollama"
 brew "ccusage"
 

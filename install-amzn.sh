@@ -17,11 +17,14 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 ~/.cargo/bin/cargo install --features nvidia --git https://github.com/bvaisvil/zenith.git
 ~/.cargo/bin/cargo install-update -a
 
+toolbox install codex
+toolbox install claude-code --channel head
+
 # Start assistant with /claudeclaw:start
 claude plugin marketplace add moazbuilds/claudeclaw
 claude plugin install claudeclaw
 
-toolbox install kiro-cli
+toolbox install kiro-cli --force
 toolbox install aim
 aim mcp install quicksight-mcp
 claude mcp add --scope user quicksight-mcp /local/home/quennv/.aim/mcp-servers/quicksight-mcp
