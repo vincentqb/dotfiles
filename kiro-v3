@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# V3 on AL2: run KAS with brew's node; shim ldd so the glibc>=2.28 gate passes.
+s=~/.local/share/kiro-v3-shim
+mkdir -p "$s" && ln -sf /home/linuxbrew/.linuxbrew/opt/glibc/bin/ldd "$s/ldd"
+export KIRO_KAS_NODE_PATH=/home/linuxbrew/.linuxbrew/bin/node PATH="$s:$PATH"
+exec kiro-cli --v3 "$@"
