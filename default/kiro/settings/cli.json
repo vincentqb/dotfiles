@@ -1,13 +1,39 @@
 {
   "chat.defaultAgent": "nitrogen-dev-plus",
-  "chat.defaultModel": "claude-opus-4.8",
+  "chat.defaultModel": "claude-fable-5",
   "chat.modelDefaults": {
     "claude-opus-4.8": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
+    "claude-opus-5": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
+    "openai-gpt-5.5": {
+      "reasoning": {
+        "effort": "xhigh"
+      }
+    },
+    "openai-gpt-5.4": {
+      "reasoning": {
+        "effort": "xhigh"
+      }
+    },
+    "gpt-5.6-sol": {
+      "reasoning": {
+        "effort": "max"
+      }
+    },
+    "claude-fable-5": {
       "output_config": {
         "effort": "max"
       }
     }
   },
   "chat.showThinking": true,
-  "chat.enableThinking": true
+  "chat.enableThinking": true,
+  "mcp.loadedBefore": true
 }
