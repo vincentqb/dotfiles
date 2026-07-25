@@ -99,6 +99,7 @@
   },
   "model": "global.anthropic.claude-fable-5[1m]",
   "fallbackModel": [
+    "global.anthropic.claude-opus-5[1m]",
     "global.anthropic.claude-opus-4-8[1m]"
   ],
   "availableModels": [
@@ -108,6 +109,8 @@
     "claude-opus-4-7",
     "claude-opus-4-8[1m]",
     "claude-opus-4-8",
+    "claude-opus-5[1m]",
+    "claude-opus-5",
     "claude-sonnet-4-6",
     "claude-sonnet-4-6[1m]",
     "claude-sonnet-5",
@@ -123,6 +126,8 @@
     "claude-opus-4-7": "global.anthropic.claude-opus-4-7",
     "claude-opus-4-8[1m]": "global.anthropic.claude-opus-4-8[1m]",
     "claude-opus-4-8": "global.anthropic.claude-opus-4-8",
+    "claude-opus-5[1m]": "global.anthropic.claude-opus-5[1m]",
+    "claude-opus-5": "global.anthropic.claude-opus-5",
     "claude-sonnet-4-6": "global.anthropic.claude-sonnet-4-6",
     "claude-sonnet-4-6[1m]": "global.anthropic.claude-sonnet-4-6[1m]",
     "claude-sonnet-5": "global.anthropic.claude-sonnet-5",
@@ -158,7 +163,7 @@
       }
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "xhigh",
   "companyAnnouncements": [
     "Claude Code usage is cleared for Business Data per the AI For Me Guidance.\nITAR, PII, Customer Data, and more are strictly prohibited for use within this tool.\nRead more: https://w.amazon.com/bin/view/Security/AI-Security/AIforMe-Guidance#HDATAANDEXAMPLESQUICKREFERENCETABLE"
   ],
