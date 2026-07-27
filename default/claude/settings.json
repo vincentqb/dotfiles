@@ -1,5 +1,5 @@
 {
-  "awsCredentialExport": "\"/home/quennv/.toolbox/bin/claude\" default-credential-export",
+  "awsCredentialExport": "\"/Users/quennv/.toolbox/bin/claude\" default-credential-export",
   "env": {
     "AWS_REGION": "us-west-2"
   },
@@ -100,7 +100,9 @@
   "model": "global.anthropic.claude-fable-5[1m]",
   "fallbackModel": [
     "global.anthropic.claude-opus-5[1m]",
-    "global.anthropic.claude-opus-4-8[1m]"
+    "global.anthropic.claude-opus-4-8[1m]",
+    "global.anthropic.claude-opus-4-7[1m]",
+    "global.anthropic.claude-opus-4-6-v1[1m]"
   ],
   "availableModels": [
     "claude-opus-4-6[1m]",
@@ -137,7 +139,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/quennv/.claude/statusline-command.sh"
+    "command": "bash $HOME/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
     "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
