@@ -1,5 +1,5 @@
 {
-  "awsCredentialExport": "\"/Users/quennv/.toolbox/bin/claude\" default-credential-export",
+  "awsCredentialExport": "\"$HOME/.toolbox/bin/claude\" default-credential-export",
   "env": {
     "AWS_REGION": "us-west-2"
   },
@@ -94,7 +94,8 @@
     ],
     "defaultMode": "auto",
     "additionalDirectories": [
-      "/local/home/quennv"
+      "/local/home/quennv",
+      "/Users/quennv/"
     ]
   },
   "model": "global.anthropic.claude-fable-5[1m]",
