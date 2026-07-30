@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# kitty icat on a host where two separate things are broken:
+#
+# 1. System glibc is 2.26; the kitty *cask* ships a prebuilt binary linked against
+#    /lib64 and needs GLIBC_2.28/2.33/2.34/2.35. Brew has glibc 2.39, so invoke the
+#    brew loader explicitly with --library-path. (A brew-compiled bottle would not
+#    need this; a Caskroom prebuilt does.)
+# 2. ImageMagick has ZERO fonts configured (`magick -list font` -> 0), so its
+#    internal SVG renderer dies on any <text> element -- which is every axis label
+#    on every chart. icat delegates SVG to magick, so an SVG fails with a
+#    misleading "unable to read font ''". rsvg-convert is the correct rasterizer
+#    and is installed, so pre-rasterize SVG -> PNG and hand icat the PNG.
+#
+# Paths resolve at runtime so a brew upgrade does not stale this.
+set -euo pipefail
+
+G=/home/linuxbrew/.linuxbrew/opt/glibc
+KD=$(dirname "$(readlink -f "$(command -v kitty)")")
+
+# Rasterize any .svg argument, leaving every other argument untouched.
+args=()
+tmpdir=""
+for a in "$@"; do
+    case "$a" in
+        *.svg | *.SVG)
+            if [[ -f $a ]] && command -v rsvg-convert >/dev/null; then
+                [[ -n $tmpdir ]] || tmpdir=$(mktemp -d)
+                png="$tmpdir/$(basename "${a%.*}").png"
+                # -z 2: a 735px-wide chart is unreadable at 1:1 in a pane.
+                rsvg-convert -z 2 -f png -o "$png" "$a"
+                args+=("$png")
+            else
+                args+=("$a")
+            fi
+            ;;
+        *) args+=("$a") ;;
+    esac
+done
+
+exec "$G/lib/ld-linux-x86-64.so.2" \
+    --library-path "$G/lib:/home/linuxbrew/.linuxbrew/lib:$KD/../lib" \
+    "$KD/kitten" icat "${args[@]}"
