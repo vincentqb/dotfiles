@@ -6,6 +6,7 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
+      "Read",
       "WebFetch",
       "mcp__arcc__search_arcc",
       "mcp__arcc-mcp__search_arcc",
@@ -95,6 +96,7 @@
     "defaultMode": "auto",
     "additionalDirectories": [
       "/local/home/quennv",
+      "/home/quennv",
       "/Users/quennv/"
     ]
   },
