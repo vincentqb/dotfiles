@@ -103,6 +103,11 @@ checkout. Everything below runs from your working directory.
    your slice, and if a sibling ignores a different directory the two
    `.gitignore` edits conflict during integration.
 
+   Delete with plain `rm -r` — never `rm -rf` or any `-f`/`--force` form, which
+   stalls the run on a permission prompt. `rm -r` removes an existing dir fine
+   (read-only git objects included); if the dir might not exist, guard with
+   `[ -d "$D" ] && rm -r "$D"` instead of forcing.
+
    If `git status --short` is clean, say nothing about cleanup — a gitignored
    `__pycache__/` on disk does **not** block removal, so don't report it as a
    problem or suggest the integrator needs `--force`. Only if status is *not*
