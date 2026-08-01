@@ -58,12 +58,26 @@ checkout. Everything below runs from your working directory.
    ```bash
    git fetch origin || true      # its own command — see below
    git rebase "$DEFAULT"
+   git merge-base --is-ancestor "$DEFAULT" HEAD   # the post-condition — MUST pass
    ```
 
    Run `fetch` as a separate command, never chained with `&&` — in a repo with
    no remote it exits non-zero, which would skip the rebase entirely and leave
    you reporting one that never happened. Check the *rebase's* own exit code and
    report what it actually did.
+
+   **The rebase's exit code does not tell you the rebase happened.** Rebasing
+   onto your *own* branch — which is what `$DEFAULT` holds if you resolved it
+   with `symbolic-ref` (step 1) — prints "Current branch … is up to date" and
+   exits **0** while your branch stays rooted at the old mainline (verified).
+   Every "rebased: onto <sha>" report in a fan-out can be a lie in exactly this
+   way, and the integrator only finds out when `--ff-only` refuses.
+
+   So assert the post-condition, don't infer it: `merge-base --is-ancestor
+   "$DEFAULT" HEAD` must exit 0. That is the definition of "my branch sits on
+   top of mainline", and it's true only if the replay actually moved you. If it
+   fails, your rebase silently no-opped — re-resolve `$DEFAULT` per step 1 and
+   rebase again. Report `rebased:` only after this check passes.
 
    On conflict:
 
@@ -114,11 +128,13 @@ Reply with only these lines, in this order, one line each:
 ```
 branch:       <branch name>
 commits:      <sha> <subject>          (repeat the line per commit)
-rebased:      onto <sha> | NO — conflict in <paths>: <what conflicts>
+rebased:      onto <sha> (is-ancestor OK) | NO — conflict in <paths>: <what conflicts>
 verified:     <command> -> <result> | not run: <why>
 out-of-scope: <one line>               (omit entirely if nothing)
 ```
 
 Report `verified:` honestly — "not run: no test suite in repo" is a fine answer;
-implying a check you skipped is not. Nothing else: no diffs, no file contents, no
+implying a check you skipped is not. The same goes for `rebased:` — write
+`onto <sha> (is-ancestor OK)` only if step 4's post-condition actually passed,
+and `NO` otherwise. The integrator plans the landing order from that line. Nothing else: no diffs, no file contents, no
 worktree paths, no narration of what you edited (the branch carries that).
