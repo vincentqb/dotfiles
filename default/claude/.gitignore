@@ -1,5 +1,8 @@
 history.jsonl
-agents
+# agents/ is mostly AIM-managed drops; track only the ones we author.
+# Needs the `agents/*` form — an excluded *directory* can't be re-included.
+agents/*
+!agents/parallel-writer.md
 backups
 file-history
 plugins
