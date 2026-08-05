@@ -98,3 +98,4 @@ brew install tmux uv python@3.13
 uv tool install --upgrade \
   --python /home/linuxbrew/.linuxbrew/bin/python3.13 \
   git+https://github.com/awslabs/cli-agent-orchestrator.git@main
+cao install code_supervisor
