@@ -37,6 +37,7 @@ aim mcp install arcc-mcp
 
 aim agents install ChorusAIM
 
+aim skills install AmazonSharePointMCP
 aim mcp install amazon-sharepoint-mcp
 aim install amazon-sharepoint-mcp
 
@@ -90,3 +91,10 @@ sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'E
 EOM
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
+
+# CAO
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+brew install tmux uv python@3.13
+uv tool install --upgrade \
+  --python /home/linuxbrew/.linuxbrew/bin/python3.13 \
+  git+https://github.com/awslabs/cli-agent-orchestrator.git@main
