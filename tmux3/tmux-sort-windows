@@ -1,0 +1,51 @@
+#!/bin/sh
+# tmux-sort-windows SESSION HEURISTIC
+#
+# Reorder the windows (tabs) of SESSION *in place* by a chosen heuristic -- the
+# tmux answer to Firefox's "Sort tabs by...". This is on demand: it runs once
+# when you pick it from the prefix+s menu and leaves the new order alone. It
+# does not watch anything or keep re-sorting.
+#
+# HEURISTIC picks the tmux format to key on. It is a symbolic word, never a raw
+# #{...}, so the caller can pass it through a tmux command string without tmux
+# expanding it against the *current* window (the same expansion trap the popup
+# and _arc blocks in tmux.conf are written around).
+#
+# Windows are moved by their stable #{window_id} (@N), not by index: swapping a
+# window into slot 3 renumbers others, so index-based moves would clobber each
+# other mid-sort. @ids never change, so each window lands exactly once.
+
+sess=$1
+case $2 in
+  name)    key='#{window_name}';         flags='-f'  ;; # A -> Z, case-insensitive
+  active)  key='#{window_activity}';     flags='-rn' ;; # most recently active first
+  command) key='#{pane_current_command}'; flags='-f'  ;; # group like tools together
+  path)    key='#{pane_current_path}';   flags='-f'  ;; # by directory, like "by domain"
+  index)   key='#{window_index}';        flags='-n'  ;; # identity -- a no-op / undo
+  *) echo "tmux-sort-windows: unknown heuristic '$2'" >&2; exit 1 ;;
+esac
+
+[ -n "$sess" ] || { echo "tmux-sort-windows: no session given" >&2; exit 1; }
+
+# The slots to fill: the session's current indices, ascending. Reading them
+# (rather than assuming 1..N) keeps this correct under any base-index and any
+# gaps that exist before renumber-windows fires.
+positions=$(tmux list-windows -t "$sess" -F '#{window_index}' | sort -n)
+
+# The window ids in the order we want them to end up. Sort on the key column
+# only (-k1,1) so the @id tie-breaker column never perturbs the ordering.
+desired=$(tmux list-windows -t "$sess" -F "$key	#{window_id}" \
+            | sort -t'	' -k1,1 $flags | cut -f2)
+
+# Selection sort: for each slot in ascending order, swap the window that belongs
+# there into place. Slots already filled are never targeted again, and we always
+# re-query the wanted window's live index, so a prior swap that displaced it is
+# handled correctly.
+set -- $desired
+for pos in $positions; do
+  want=$1; shift
+  cur=$(tmux display-message -p -t "$want" '#{window_index}')
+  [ "$cur" = "$pos" ] || tmux swap-window -d -s "$want" -t "$sess:$pos"
+done
+
+tmux display-message "sorted windows by $2"
