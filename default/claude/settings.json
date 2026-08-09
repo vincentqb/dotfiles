@@ -80,13 +80,16 @@
     "deny": [
       "Bash(sudo *)",
       "Bash(* --no-verify*)",
+      "Bash(* --no-gpg-sign*)",
+      "Bash(git config * core.hooksPath*)"
     ],
     "ask": [
       "Bash(rm -rf *)",
       "Bash(rm -fr *)",
       "Bash(rm -r -f *)",
       "Bash(git push*)",
-      "Bash(* --force*)",
+      "Bash(* --force)",
+      "Bash(* --force *)",
       "Bash(aws iam *)",
       "Bash(aws * delete-*)",
       "Bash(aws * terminate-*)",
@@ -145,6 +148,25 @@
   "statusLine": {
     "type": "command",
     "command": "bash $HOME/.claude/statusline-command.sh"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(rm *)",
+            "command": "$HOME/.claude/hooks/advise.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "command": "$HOME/.claude/hooks/advise.sh"
+          }
+        ]
+      }
+    ]
   },
   "enabledPlugins": {
     "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
