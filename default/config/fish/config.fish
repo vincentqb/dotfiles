@@ -39,3 +39,4 @@ end
 
 # Added by AIM CLI
 set -gx PATH "/local/home/quennv/.aim/mcp-servers" $PATH
+alias finch='sudo HOME=/home/quennv DOCKER_CONFIG=/home/quennv/.docker finch'

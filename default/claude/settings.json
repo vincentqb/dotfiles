@@ -1,5 +1,5 @@
 {
-  "awsCredentialExport": "\"$HOME/.toolbox/bin/claude\" default-credential-export",
+  "awsCredentialExport": "\"/home/quennv/.toolbox/bin/claude\" default-credential-export",
   "env": {
     "AWS_REGION": "us-west-2"
   },
@@ -77,14 +77,16 @@
       "mcp__plugin_claude-mem_mcp-search__get_observations",
       "Bash(*)"
     ],
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(* --no-verify*)",
+    ],
     "ask": [
       "Bash(rm -rf *)",
       "Bash(rm -fr *)",
       "Bash(rm -r -f *)",
       "Bash(git push*)",
       "Bash(* --force*)",
-      "Bash(sudo *)",
-      "Bash(* --no-verify*)",
       "Bash(aws iam *)",
       "Bash(aws * delete-*)",
       "Bash(aws * terminate-*)",
@@ -100,7 +102,7 @@
       "/Users/quennv/"
     ]
   },
-  "model": "global.anthropic.claude-fable-5[1m]",
+  "model": "global.anthropic.claude-opus-5[1m]",
   "fallbackModel": [
     "global.anthropic.claude-opus-5[1m]",
     "global.anthropic.claude-opus-4-8[1m]",

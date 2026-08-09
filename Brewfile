@@ -39,6 +39,7 @@ brew "bubblewrap"
 # cask "codex"
 brew "ollama"
 brew "ccusage"
+uv "cli-agent-orchestrator", source: "git+https://github.com/awslabs/cli-agent-orchestrator.git@main"
 
 # Docs / writing
 brew "biber"        # biblatex bibliographies
