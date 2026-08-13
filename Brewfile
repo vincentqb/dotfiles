@@ -14,6 +14,7 @@ brew "just"
 brew "ripgrep"
 brew "rsync"
 brew "wget"
+brew "lean-toolchain"
 
 # Git
 brew "gh"
