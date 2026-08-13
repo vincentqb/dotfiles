@@ -14,7 +14,6 @@ brew "just"
 brew "ripgrep"
 brew "rsync"
 brew "wget"
-brew "lean-toolchain"
 
 # Git
 brew "gh"
@@ -27,6 +26,8 @@ brew "tree-sitter-cli"  # parser compiler for nvim-treesitter (main branch)
 brew "node"
 brew "rustup"
 brew "uv"
+brew "lean-cli"
+brew "glibc"
 
 # Python tooling
 brew "ruff"
