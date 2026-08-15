@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""One usage table across every coding harness: Kiro, Claude Code, Codex, ...
+
+Three tools already know pieces of this and none knows all of it:
+
+  * ccusage reads REAL token counts from Claude Code / Codex / opencode logs and
+    prices them at published per-model list rates it pulls from LiteLLM
+    (`model_prices_and_context_window.json`, models.dev fallback, embedded
+    snapshot offline). Token counts are ground truth; the rate is the provider's
+    list price. But ccusage prices any model LiteLLM has never heard of at
+    *exactly $0* -- silently. On this machine that zeroes `claude-opus-5`, the
+    single largest consumer (23B tokens -> $0.00).
+
+  * l3m (~/CodebaseQUENNV/.../l3m) hardcodes the same published Bedrock/Anthropic
+    list prices as a dated, Lean-proof-pinned snapshot (cents/1M, split
+    in/out/cache-read/cache-write). Narrower than LiteLLM but it COVERS the
+    frontier models LiteLLM misses -- opus-5 included. Same source (published
+    list price), curated instead of fetched.
+
+  * kiro-ccusage handles Kiro, which exposes no tokens at all -- only credits.
+    Its $/credit is derived (credits->tokens->dollars, FINDINGS.md), anchored to
+    those same published prices, and carries a wide -13%/+88% band because the
+    token count and the input/output mix are unmeasured.
+
+So the trustworthy quantity is always (real tokens) x (published list price).
+For Claude/Codex the tokens are logged, so cost is near-exact IF the price table
+has the model. LiteLLM has the breadth; l3m has this box's frontier models.
+Hence the default `--rates l3m`: l3m prices the Claude-family models it lists
+(this is what recovers opus-5), LiteLLM prices everything else. `--rates litellm`
+is pure ccusage, which reproduces the $0-opus-5 undercount -- kept so the gap is
+visible, not hidden.
+
+Kiro is the one harness with no token ground truth, so its column is credits and
+its dollar figure is the only true *estimate* here -- the -13%/+88% band rides on
+the Kiro subtotal alone; token costs are shown as points.
+
+Columns: Date | Harness | Model | Consumed | Unit | Rate | Cost (USD), where
+Consumed x Rate = Cost on every row. `Unit` is `credits` for Kiro (metered) and
+`Mtok` (millions of tokens) for the token-logged harnesses -- the two are not
+commensurable, so `Consumed` sums only within a harness; `Cost (USD)` is the one
+column comparable and summable across all of them. Token `Rate` is the effective
+blended $/Mtok (cache-read pulls it below the input list price).
+
+Usage:
+  ccusage-all                     # unified daily table, l3m rates, Kiro estimated
+  ccusage-all --rates litellm     # price everything the way ccusage does
+  ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
+  ccusage-all --since 2026-08-01 --until 2026-08-14
+  ccusage-all --json              # machine-readable rows + totals
+  ccusage-all --online            # let ccusage refresh LiteLLM prices (network)
+"""
+
+import argparse
+import collections
+import glob
+import json
+import pathlib
+import subprocess
+import sys
+
+HERE = pathlib.Path(__file__).resolve().parent
+KIRO_CCUSAGE = HERE / "kiro-ccusage"
+KIRO_EXPORT = pathlib.Path("~/.local/share/kiro-ccusage").expanduser()
+
+# Kept in sync with kiro-ccusage. USD per Kiro credit (default) and the
+# asymmetric band multipliers printed beside the Kiro estimate. See FINDINGS.md.
+USD_PER_CREDIT = 0.0747
+KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
+
+# l3m's model price table, transcribed from
+# src/LlmProvider/Defs/Registry.lean (rates snapshot 2026-07-23), cents per 1M
+# tokens, with the four Bedrock/Anthropic cache tiers. Keyed by a canonicalised
+# model name (region/geo/provider prefixes stripped). Only the Claude family is
+# re-priced from l3m: l3m lists the GPT models too, but its mantle price shape
+# has no cache-read tier while ccusage reports cache-read for GPT separately, so
+# re-pricing GPT from l3m would misprice cached input. LiteLLM covers the GPT
+# models seen here, so l3m mode defers all non-Claude models to LiteLLM.
+L3M_CLAUDE = {
+    # canonical prefix          (in,   out,  cacheRead, cacheWrite)
+    "claude-opus-4-8":          (500,  2500, 50,  625),
+    "claude-sonnet-4-6":        (300,  1500, 30,  375),
+    "claude-haiku-4-5":         (100,  500,  10,  125),
+    "claude-fable-5":           (1000, 5000, 100, 1250),
+    "claude-opus-5":            (500,  2500, 50,  625),   # PROVISIONAL (borrowed opus-4.8)
+}
+
+
+def canon(model):
+    """Reduce a ccusage model name to an l3m-comparable key.
+
+    ccusage keeps a provider prefix on some names (`openai.gpt-5.6-sol`) and a
+    region/geo prefix on others is already stripped (`claude-opus-4-8`), while
+    l3m ids carry `us.anthropic.` / `global.anthropic.` / `openai.`. Strip all of
+    them so the cores line up, and drop a trailing dated/versioned snapshot
+    (`claude-haiku-4-5-20251001-v1:0`) down to the family key.
+    """
+    key = (model or "").lower()
+    for prefix in ("us.", "eu.", "apac.", "global.", "anthropic.", "openai."):
+        while key.startswith(prefix):
+            key = key[len(prefix):]
+    return key
+
+
+def l3m_claude_rates(model):
+    """The l3m Claude rate tuple for a model name, or None if l3m doesn't list it.
+
+    Exact canonical match first, then longest-prefix (so the haiku snapshot id
+    resolves to `claude-haiku-4-5`)."""
+    key = canon(model)
+    if key in L3M_CLAUDE:
+        return L3M_CLAUDE[key]
+    for name in sorted(L3M_CLAUDE, key=len, reverse=True):
+        if key.startswith(name):
+            return L3M_CLAUDE[name]
+    return None
+
+
+def l3m_cost_usd(rates, tokens):
+    """l3m costCents on Bedrock/Anthropic usage -> USD. Mirrors the Lean
+    `costCents` exactly, including its round-to-nearest-cent (+500000)//1e6."""
+    in_c, out_c, cr_c, cw_c = rates
+    cents = (
+        tokens.get("inputTokens", 0) * in_c
+        + tokens.get("outputTokens", 0) * out_c
+        + tokens.get("cacheReadTokens", 0) * cr_c
+        + tokens.get("cacheCreationTokens", 0) * cw_c
+        + 500000
+    ) // 1000000
+    return cents / 100.0
+
+
+def refresh_kiro():
+    """Refresh the kiro-ccusage export (credits per turn). Non-fatal if absent."""
+    if not KIRO_CCUSAGE.is_file():
+        return False
+    try:
+        subprocess.run([sys.executable, str(KIRO_CCUSAGE), "--quiet"],
+                       check=False, capture_output=True)
+        return True
+    except OSError:
+        return False
+
+
+def kiro_rows(credit_rate):
+    """Per (day, model) Kiro credits, read from the kiro-ccusage export.
+
+    The export keeps `kiroCredits` verbatim beside each turn, so the dollar
+    figure is recomputed here at the rate in force rather than trusting the
+    cost the export was last written with."""
+    days = collections.defaultdict(lambda: collections.defaultdict(float))
+    for path in glob.glob(str(KIRO_EXPORT / "projects/*/*.jsonl")):
+        with open(path) as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                day = (record.get("timestamp") or "")[:10]
+                credits = record.get("kiroCredits", 0.0)
+                model = record.get("message", {}).get("model", "kiro-unknown")
+                if day and credits:
+                    days[day][model] += credits
+    rows = []
+    for day, models in days.items():
+        for model, credits in models.items():
+            rows.append({
+                "day": day, "harness": "kiro", "model": model,
+                "consumed": credits, "unit": "credits", "rate": credit_rate,
+                "cost": credits * credit_rate, "tokens": None,
+                "priced_by": "kiro-credit",
+            })
+    return rows
+
+
+def ccusage_rows(rates, since, until, offline):
+    """Per (day, harness, model) token rows from `ccusage daily --json --by-agent`.
+
+    ccusage is the token ground truth (Claude/Codex/opencode/...); this only
+    chooses which price table turns those tokens into dollars."""
+    cmd = ["ccusage", "daily", "--json", "--by-agent"]
+    if offline:
+        cmd.append("--offline")
+    if since:
+        cmd += ["--since", since.replace("-", "")]
+    if until:
+        cmd += ["--until", until.replace("-", "")]
+    try:
+        out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"warning: ccusage unavailable ({exc}); Kiro-only table", file=sys.stderr)
+        return []
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        print("warning: could not parse ccusage JSON; Kiro-only table", file=sys.stderr)
+        return []
+
+    rows = []
+    for day in data.get("daily", []):
+        period = day.get("period")
+        for agent in day.get("agents", []):
+            harness = agent.get("agent", "unknown")
+            for mb in agent.get("modelBreakdowns", []):
+                model = mb.get("modelName") or "unknown"
+                tokens = {k: mb.get(k, 0) for k in
+                          ("inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTokens")}
+                litellm_cost = mb.get("cost", 0.0) or 0.0
+
+                cost, priced_by = litellm_cost, "litellm"
+                if rates == "l3m":
+                    l3m = l3m_claude_rates(model)
+                    if l3m is not None:
+                        cost, priced_by = l3m_cost_usd(l3m, tokens), "l3m"
+                # A token model that priced to $0 means the source has no entry
+                # for it -- flag rather than silently undercount.
+                if cost == 0.0 and any(tokens.values()):
+                    priced_by += "!"
+
+                # Consumed is in Mtok so it shares a scale with the $/Mtok rate;
+                # the rate is effective (cost / tokens) so Consumed x Rate == Cost.
+                mtok = sum(tokens.values()) / 1e6
+                rate = (cost / mtok) if mtok else 0.0
+                rows.append({
+                    "day": period, "harness": harness, "model": model,
+                    "consumed": mtok, "unit": "Mtok", "rate": rate,
+                    "cost": cost, "tokens": tokens, "priced_by": priced_by,
+                })
+    return rows
+
+
+def render(rows, credit_rate, rates, offline, stream=sys.stdout):
+    def money(value):
+        return f"${value:,.2f}"
+
+    def qty(value):
+        return f"{value:,.2f}"
+
+    def fmt_rate(value):
+        # Significant-figures format so the constant Kiro rate ($0.0747) and the
+        # $/Mtok token rates ($0.76 .. $12.8) both read cleanly in one column.
+        return "$0" if not value else f"${value:.3g}"
+
+    header = (f"Unified CLI Usage - Daily   "
+              f"[token rates: {'LiteLLM (ccusage)' if rates == 'litellm' else 'l3m + LiteLLM fallback'}"
+              f"{' offline' if offline else ''}; "
+              f"Kiro: est. ${credit_rate:g}/credit]")
+    print(header, file=stream)
+    print("=" * len(header), file=stream)
+    if not rows:
+        print("No usage data found.", file=stream)
+        return
+
+    cols = ["Date", "Day Total", "Harness", "Model", "Consumed", "Unit", "Rate", "Cost (USD)"]
+    aligns = ["<", ">", "<", "<", ">", "<", ">", ">"]
+
+    day_totals = collections.defaultdict(float)
+    for row in rows:
+        day_totals[row["day"] or "-"] += row["cost"]
+
+    body = []
+    for row in sorted(rows, key=lambda r: (r["day"] or "", r["harness"], -r["cost"])):
+        # Surface the "$0 because the price source lacks this model" flag on the
+        # model cell, so the marker appears on the row it applies to.
+        model = row["model"] + (" (!)" if row["priced_by"].endswith("!") else "")
+        day = row["day"] or "-"
+        body.append([day, money(day_totals[day]), row["harness"], model,
+                     qty(row["consumed"]), row["unit"], fmt_rate(row["rate"]), money(row["cost"])])
+
+    # Subtotals per harness, then the grand total. Consumed sums only within a
+    # harness (one unit each); across harnesses only Cost is summable. Only the
+    # Kiro subtotal carries the estimate band -- token costs are list-price points.
+    agg = collections.defaultdict(lambda: {"consumed": 0.0, "cost": 0.0, "unit": ""})
+    for row in rows:
+        bucket = agg[row["harness"]]
+        bucket["consumed"] += row["consumed"]
+        bucket["cost"] += row["cost"]
+        bucket["unit"] = row["unit"]
+    subtotals, band = [], {}
+    grand = 0.0
+    for harness, bucket in sorted(agg.items()):
+        grand += bucket["cost"]
+        rate = bucket["cost"] / bucket["consumed"] if bucket["consumed"] else 0.0
+        subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]), bucket["unit"],
+                          fmt_rate(rate), money(bucket["cost"])])
+        if harness == "kiro":
+            low, high = (bucket["cost"] * b for b in KIRO_BAND)
+            band[len(subtotals) - 1] = f"{money(bucket['cost'])} [{low:,.0f}, {high:,.0f}]"
+    total = ["TOTAL", "", "", "", "", "", "", money(grand)]
+
+    # Width over everything except the band suffix, which rides the last column
+    # (always rightmost) and may overflow it without disturbing the rest.
+    sizing = [cols] + body + subtotals + [total]
+    widths = [max(len(r[i]) for r in sizing) for i in range(len(cols))]
+
+    def line(cells):
+        print("  ".join(f"{cells[i]:{aligns[i]}{widths[i]}}" for i in range(len(cells))),
+              file=stream)
+
+    line(cols)
+    line(["-" * w for w in widths])
+    last_day = None
+    for cells in body:
+        # Blank the repeated date and its day total so a day reads as one block.
+        if cells[0] == last_day:
+            cells = ["", "", *cells[2:]]
+        else:
+            last_day = cells[0]
+        line(cells)
+
+    print(file=stream)
+    line(["-" * w for w in widths])
+    for index, cells in enumerate(subtotals):
+        if index in band:
+            cells = [*cells[:-1], band[index]]
+        line(cells)
+    line(["-" * w for w in widths])
+    line(total)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--rates", choices=["l3m", "litellm"], default="l3m",
+                        help="token price source (default: l3m -> LiteLLM fallback; "
+                             "litellm = pure ccusage)")
+    parser.add_argument("--credit-rate", type=float, default=USD_PER_CREDIT,
+                        help=f"USD per Kiro credit (default {USD_PER_CREDIT})")
+    parser.add_argument("--since", help="filter from date (YYYY-MM-DD)")
+    parser.add_argument("--until", help="filter until date, inclusive (YYYY-MM-DD)")
+    parser.add_argument("--offline", dest="offline", action="store_true", default=True,
+                        help="use ccusage cached/embedded prices (default)")
+    parser.add_argument("--online", dest="offline", action="store_false",
+                        help="let ccusage refresh LiteLLM prices over the network")
+    parser.add_argument("--json", action="store_true", help="emit rows + totals as JSON")
+    args = parser.parse_args()
+
+    credit_rate = args.credit_rate
+
+    refresh_kiro()
+    rows = kiro_rows(credit_rate) + ccusage_rows(args.rates, args.since, args.until, args.offline)
+
+    # Post-filter Kiro rows by date (ccusage already filtered its own).
+    if args.since:
+        rows = [r for r in rows if not r["day"] or r["day"] >= args.since]
+    if args.until:
+        rows = [r for r in rows if not r["day"] or r["day"] <= args.until]
+
+    if args.json:
+        totals = collections.defaultdict(float)
+        for row in rows:
+            totals[row["harness"]] += row["cost"]
+        json.dump({
+            "rows": rows,
+            "totals_usd": {"by_harness": dict(totals), "grand": sum(totals.values())},
+            "config": {"rates": args.rates, "credit_rate": credit_rate,
+                       "offline": args.offline, "kiro_band": list(KIRO_BAND)},
+        }, sys.stdout, indent=2)
+        print()
+        return
+
+    render(rows, credit_rate, args.rates, args.offline)
+
+
+if __name__ == "__main__":
+    main()

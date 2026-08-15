@@ -62,10 +62,43 @@ CLAUDE_CONFIG_DIR=~/.local/share/kiro-ccusage ccusage claude monthly
 The export refreshes automatically when a `kiro-cli chat` exits, via the
 `kiro-cli` wrapper in `default/config/fish/functions/kiro-cli.fish`.
 
+## All harnesses at once (`ccusage-all`)
+
+`ccusage-all` puts Kiro, Claude Code, Codex (and anything else ccusage detects)
+in one daily table: `Date | Day Total | Harness | Model | Consumed | Unit | Rate | Cost (USD)`,
+where **Cost = Consumed × Rate** on every row and `Day Total` is that date's total
+across all harnesses (shown once per day). It reuses
+`ccusage daily --json --by-agent` for the token-metered harnesses and this tool
+for Kiro's credits, then re-prices.
+
+```fish
+ccusage-all                     # default: l3m rates, Kiro estimated
+ccusage-all --rates litellm     # price everything the way ccusage does
+ccusage-all --since 2026-08-01 --until 2026-08-14
+ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
+ccusage-all --json              # rows + totals
+ccusage-all --online            # let ccusage refresh LiteLLM prices (network)
+```
+
+The trustworthy cost is always *real tokens × published list price*. Claude and
+Codex log real tokens, so their cost is near-exact — **if** the price table has
+the model. ccusage's LiteLLM table has the breadth but prices any model it lacks
+at a silent **$0**; here that zeroes `claude-opus-5`, the largest consumer.
+l3m's curated snapshot covers exactly those frontier models. So the default
+`--rates l3m` prices the Claude family from l3m and defers everything else to
+LiteLLM; `--rates litellm` is pure ccusage, kept so the $0 gap stays visible.
+
+Kiro is the exception: no token counts, only credits, so its dollars are the one
+real *estimate* — the −13%/+88% band rides on the Kiro subtotal alone. The `Unit`
+column names what `Consumed` counts — `credits` for Kiro (metered), `Mtok`
+(millions of tokens) for Claude/Codex (logged) — so the two never masquerade as
+one number; `Cost (USD)` is the only column comparable across harnesses.
+
 ## Install
 
 ```fish
 ln -sf ~/dotfiles/kiro-ccusage/kiro-ccusage ~/.local/bin/kiro-ccusage
+ln -sf ~/dotfiles/kiro-ccusage/ccusage-all ~/.local/bin/ccusage-all
 ```
 
 Needs `ccusage` on PATH (in the Brewfile) and Python 3.9+.
