@@ -35,5 +35,32 @@
   },
   "chat.showThinking": true,
   "chat.enableThinking": true,
-  "mcp.loadedBefore": true
+  "mcp.loadedBefore": true,
+  "chat.verbosity.tui": {
+    "filters": [
+      "all",
+      "-subagent"
+    ],
+    "display": {
+      "showToolReasoning": false,
+      "toolArgsMode": "block",
+      "showElapsed": false,
+      "subagent": {
+        "pipeline": false,
+        "prompts": false,
+        "roles": false,
+        "deps": false,
+        "responses": false
+      },
+      "thinkingDisplay": "collapsed",
+      "showThinkingContent": true,
+      "showWriteDiffs": true,
+      "showTasks": true,
+      "persistOutput": false,
+      "argsMaxLines": null,
+      "outputMaxLines": 5,
+      "argsMaxChars": null,
+      "outputMaxChars": null
+    }
+  }
 }
