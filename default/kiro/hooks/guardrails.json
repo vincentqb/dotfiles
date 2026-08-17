@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "Guardrail fragment injected into the active Kiro agent by apply-guardrails.py.",
+    "Kept separate because the AIM agent it merges into is regenerated on every",
+    "`aim agents update` — its resources/mcpServers embed a versioned eventId path,",
+    "so forking that agent would rot. Re-run the injector after an AIM update.",
+    "deniedCommands blocks without prompting (deny beats allow); the hook supplies",
+    "the reason. Rust regex: no lookahead, hence --force([^-].*|$) to spare",
+    "--force-with-lease."
+  ],
+  "toolsSettings": {
+    "shell": {
+      "deniedCommands": [
+        ".*rm -rf.*",
+        ".*rm -fr.*",
+        ".*rm -r -f.*",
+        ".*rm -f -r.*",
+        ".*\\bsudo\\b.*",
+        "^\\s*(shutdown|reboot|halt|poweroff)\\b.*",
+        ".*\\bmkfs.*",
+        ".*of=/dev/.*",
+        ".*--no-verify\\b.*",
+        ".*--no-gpg-sign\\b.*",
+        ".*core\\.hooksPath.*",
+        ".*push\\s+.*--force([^-].*|$)",
+        ".*push\\s+-f(\\s.*|$)"
+      ]
+    }
+  },
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "~/.kiro/hooks/advise.sh",
+        "description": "Deny with a reason instead of prompting; splits chained commands"
+      }
+    ]
+  }
+}
