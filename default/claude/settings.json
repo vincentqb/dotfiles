@@ -81,19 +81,10 @@
       "Bash(sudo *)",
       "Bash(* --no-verify*)",
       "Bash(* --no-gpg-sign*)",
-      "Bash(git config * core.hooksPath*)"
-    ],
-    "ask": [
+      "Bash(git config * core.hooksPath*)",
       "Bash(rm -rf *)",
       "Bash(rm -fr *)",
       "Bash(rm -r -f *)",
-      "Bash(git push*)",
-      "Bash(* --force)",
-      "Bash(* --force *)",
-      "Bash(aws iam *)",
-      "Bash(aws * delete-*)",
-      "Bash(aws * terminate-*)",
-      "Bash(aws s3 rb*)",
       "Bash(shutdown*)",
       "Bash(mkfs*)",
       "Bash(dd *of=/dev/*)"
@@ -145,10 +136,6 @@
     "claude-fable-5[1m]": "global.anthropic.claude-fable-5[1m]",
     "claude-haiku-4-5": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
   },
-  "statusLine": {
-    "type": "command",
-    "command": "bash $HOME/.claude/statusline-command.sh"
-  },
   "hooks": {
     "PreToolUse": [
       {
@@ -156,17 +143,15 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(rm *)",
-            "command": "$HOME/.claude/hooks/advise.sh"
-          },
-          {
-            "type": "command",
-            "if": "Bash(git *)",
             "command": "$HOME/.claude/hooks/advise.sh"
           }
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash $HOME/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
     "AmazonBuilderCoreAIAgents-pipeline-assistant@aim": true,
