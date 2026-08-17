@@ -1,3 +1,7 @@
+
+# Kiro CLI pre block. Keep at the top of this file.
+[[ -f "${HOME}/.local/share/kiro-cli/shell/zshrc.pre.zsh" ]] && builtin source "${HOME}/.local/share/kiro-cli/shell/zshrc.pre.zsh"
+
 source /etc/profile
 
 # Keep long command history
@@ -27,6 +31,7 @@ case "$(uname -s)" in
         ;;
 
     Linux)
+        export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
         alias ls="ls --color=always"
         ;;
 
@@ -62,18 +67,19 @@ bindkey -v
 # User-install bin
 PATH="/usr/local/bin/":"$HOME/bin":"$HOME/.local/bin":$PATH
 
-if p=`command -v nvim`
-then
-    alias vi="$p"
-    alias vim="$p"
-    alias view="$p -R"
-    alias vimdiff="$p -d"
-    alias view="$p -R"
-    export VISUAL="$p"
-    export TEXEDIT="$p %s"
-else
-    export VISUAL="vim"
-fi
+export VISUAL="vim"
+# if p=`command -v nvim`
+# then
+#     alias vi="$p"
+#     alias vim="$p"
+#     alias view="$p -R"
+#     alias vimdiff="$p -d"
+#     alias view="$p -R"
+#     export VISUAL="$p"
+#     export TEXEDIT="$p %s"
+# else
+#     export VISUAL="vim"
+# fi
 
 alias v="$VISUAL"
 export EDITOR="$VISUAL"
@@ -195,3 +201,73 @@ if [ "$TERM_PROGRAM" = "tmux" ]; then
     eval "$VSCODE_FISH_ACTIVATE" || true
 fi
 # <<< vscode python
+
+export BRAZIL_WORKSPACE_DEFAULT_LAYOUT=short
+
+export AUTO_TITLE_SCREENS="NO"
+
+# if you wish to use IMDS set AWS_EC2_METADATA_DISABLED=false
+export AWS_EC2_METADATA_DISABLED=true
+
+set-title() {
+    echo -e "\e]0;$*\007"
+}
+
+ssh() {
+    set-title $*;
+    /usr/bin/ssh -2 $*;
+    set-title $HOST;
+}
+
+alias e=emacs
+alias bb=brazil-build
+
+alias bba='brazil-build apollo-pkg'
+alias bre='brazil-runtime-exec'
+alias brc='brazil-recursive-cmd'
+alias bws='brazil ws'
+alias bwsuse='bws use -p'
+alias bwscreate='bws create -n'
+alias brc=brazil-recursive-cmd
+alias bbr='brc brazil-build'
+alias bball='brc --allPackages'
+alias bbb='brc --allPackages brazil-build'
+alias bbra='bbr apollo-pkg'
+
+
+. "$HOME/.local/bin/env"
+
+export PATH=$HOME/.toolbox/bin:$PATH
+# eval "$(/bin/brew shellenv)"
+autoload -Uz compinit && compinit
+
+# Set up mise for runtime management
+eval "$(/home/quennv/.local/bin/mise activate zsh)"
+source ~/.local/share/mise/completions.zsh
+
+
+# Kiro CLI post block. Keep at the bottom of this file.
+[[ -f "${HOME}/.local/share/kiro-cli/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/.local/share/kiro-cli/shell/zshrc.post.zsh"
+
+# Added by AIM CLI
+export PATH="/local/home/quennv/.aim/mcp-servers:$PATH"
+
+# bun completions
+[ -s "/local/home/quennv/.bun/_bun" ] && source "/local/home/quennv/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+alias finch='sudo HOME=/home/quennv DOCKER_CONFIG=/home/quennv/.docker finch'
+
+# Non-interactive safety net for cp/mv/rm.
+# oh-my-zsh's common-aliases plugin sets `cp -i`/`mv -i`/`rm -i`. In a shell with no
+# TTY (Claude Code's Bash tool, cron, CI) the overwrite prompt has nothing to answer it,
+# so the command HANGS forever (observed: a `cp -i` blocked an agent shell for ~2 days).
+# Replace the aliases with functions that keep the interactive `-i` guard ONLY when stdin
+# is a terminal and run bare otherwise. Call-time `-t 0` check → correct regardless of how
+# the shell snapshot was captured. `command` bypasses the function on the inner call.
+for _c in cp mv rm; do unalias $_c 2>/dev/null; done; unset _c
+cp() { if [[ -t 0 ]]; then command cp -i "$@"; else command cp "$@"; fi; }
+mv() { if [[ -t 0 ]]; then command mv -i "$@"; else command mv "$@"; fi; }
+rm() { if [[ -t 0 ]]; then command rm -i "$@"; else command rm "$@"; fi; }
