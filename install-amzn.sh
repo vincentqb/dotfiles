@@ -63,35 +63,6 @@ aim agents update
 aim mcp update
 aim skills update
 
-# CloudWatch agent with GPU metrics
-# https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-commandline-fleet.html
-sudo yum install -y amazon-cloudwatch-agent
-sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOM'
-{
-    "agent": {
-        "metrics_collection_interval": 60,
-        "run_as_user": "root"
-    },
-    "metrics": {
-        "namespace": "Custom/GPU",
-        "append_dimensions": {
-            "AutoScalingGroupName": "${aws:AutoScalingGroupName}",
-            "ImageId": "${aws:ImageId}",
-            "InstanceId": "${aws:InstanceId}",
-            "InstanceType": "${aws:InstanceType}"
-        },
-        "aggregation_dimensions": [["InstanceId"]],
-        "metrics_collected": {
-            "nvidia_gpu": {
-                "measurement": ["utilization_gpu", "utilization_memory"]
-            }
-        }
-    }
-}
-EOM
-sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
-sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status
-
 # CAO
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 brew install tmux uv python@3.13
