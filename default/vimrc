@@ -11,6 +11,8 @@ source $VIMRUNTIME/defaults.vim
 " Enable syntax highlighting
 syntax enable
 
+colorscheme evening
+
 " Activate spellchecker
 " set spell spelllang=en_us
 
