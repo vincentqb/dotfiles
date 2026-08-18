@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# Drive sssh against a stub ssh, so the parts that only run when the network is
+# broken can be tested while it works.
+#
+# The stub records its argv and fails to a script (STUB_PLAN, one "rc:stderr" per
+# call), which is what makes the interesting cases reachable: a changed host key,
+# an expired certificate, a drop halfway through a remote command. Two of them
+# need a real terminal -- the credential refresh deliberately refuses to run
+# without one -- so those go through `script`.
+#
+# Usage: ./test-sssh
+
+set -uo pipefail
+
+SSSH=$(cd "$(dirname "$0")" && pwd)/sssh
+T=$(mktemp -d "${TMPDIR:-/tmp}/sssh-test.XXXXXX")
+trap 'rm -rf "$T"' EXIT
+mkdir -p "$T/bin"
+
+cat >"$T/bin/ssh" <<'STUB'
+#!/usr/bin/env bash
+# `-G` answers config questions without connecting, exactly as ssh does; every
+# other invocation is a session (or a probe, which is a session too) and consumes
+# the next step of STUB_PLAN, repeating the last step once it runs out.
+if [[ " $* " == *" -G "* ]]; then
+    printf 'hostname %s\nport 22\nuser tester\n' "${STUB_HOST:-testhost}"
+    exit 0
+fi
+n=$(cat "$STUB_COUNT" 2>/dev/null || echo 0)
+n=$((n + 1))
+echo "$n" >"$STUB_COUNT"
+printf '%d\t%s\n' "$n" "$*" >>"$STUB_LOG"
+IFS=';' read -ra plan <<<"$STUB_PLAN"
+step=${plan[$((n - 1))]:-${plan[$((${#plan[@]} - 1))]}}
+rc=${step%%:*}
+msg=${step#*:}
+[[ -n $msg && $msg != "$step" ]] && printf '%s\n' "$msg" >&2
+exit "$rc"
+STUB
+chmod +x "$T/bin/ssh"
+
+export PATH="$T/bin:$PATH"
+export STUB_COUNT=$T/count STUB_LOG=$T/log
+# No real certificate, no keypress window, short timeouts: the point is the
+# control flow, not the clock.
+export SSSH_CERT=/nonexistent SSSH_GRACE=0 SSSH_PROBE_TIMEOUT=2 SSSH_MAX_WAIT=8
+
+pass=0 fail=0
+check() { # check LABEL WANT GOT
+    if [[ $2 == "$3" ]]; then
+        pass=$((pass + 1))
+        printf 'ok   %s\n' "$1"
+    else
+        fail=$((fail + 1))
+        printf 'FAIL %s\n       want: %s\n       got:  %s\n' "$1" "$2" "$3"
+    fi
+}
+reset() { : >"$T/log"; echo 0 >"$STUB_COUNT"; }
+sessions() { grep -c . "$T/log"; }
+first_argv() { awk -F'\t' 'NR == 1 { print $2 }' "$T/log"; }
+
+# --- exit status is the remote's, not ours -----------------------------------
+
+reset
+STUB_PLAN='3:' $SSSH host true >/dev/null 2>&1
+check "remote exit 3 passes through" 3 $?
+
+reset
+STUB_PLAN='0:' $SSSH host >/dev/null 2>&1
+check "clean exit 0" 0 $?
+check "clean exit does not reconnect" 1 "$(sessions)"
+
+# --- failures that must not be retried ---------------------------------------
+
+reset
+out=$(STUB_PLAN='255:@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED @@@' \
+    $SSSH host 2>&1)
+check "changed host key exits 255" 255 $?
+check "changed host key is not retried" 1 "$(sessions)"
+case $out in
+    *changed*) check "changed host key explains itself" y y ;;
+    *) check "changed host key explains itself" y "n: $out" ;;
+esac
+
+# --- failures that must be retried -------------------------------------------
+
+reset
+out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;0:;0:' \
+    $SSSH host 2>&1)
+check "reconnect after a timeout exits 0" 0 $?
+case $out in
+    *"is back after"*) check "reconnect is announced" y y ;;
+    *) check "reconnect is announced" y "n: $out" ;;
+esac
+if grep -q 'BatchMode=yes' "$T/log"; then
+    check "reconnect probes quietly first" y y
+else
+    check "reconnect probes quietly first" y n
+fi
+
+# --- a remote command that may have half-run ---------------------------------
+
+reset
+out=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' \
+    $SSSH host 'make deploy' 2>&1)
+check "dropped remote command exits 255" 255 $?
+check "dropped remote command runs once" 1 "$(sessions)"
+case $out in
+    *"already run"*) check "dropped remote command explains itself" y y ;;
+    *) check "dropped remote command explains itself" y "n: $out" ;;
+esac
+
+reset
+STUB_PLAN='255:Connection to host closed by remote host.;0:;0:' \
+    $SSSH --retry-command host 'tail -F log' >/dev/null 2>&1
+check "--retry-command opts back in" 0 $?
+
+# --- bounded waiting --------------------------------------------------------
+
+reset
+start=$(date +%s)
+STUB_PLAN='255:ssh: connect to host port 22: Connection refused;255:' \
+    $SSSH --max-wait=4 host >/dev/null 2>&1
+check "max-wait gives up with 255" 255 $?
+elapsed=$(($(date +%s) - start))
+if [[ $elapsed -lt 20 ]]; then verdict=bounded; else verdict="${elapsed}s"; fi
+check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
+
+# --- argument handling ------------------------------------------------------
+
+reset
+STUB_PLAN='0:' $SSSH --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
+check "ssh keeps its flags, tmux is appended" \
+    "-p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
+
+reset
+STUB_PLAN='0:' $SSSH -tp2222 host uptime >/dev/null 2>&1
+check "clustered -tp2222 stays intact" "-tp2222 host uptime" "$(first_argv)"
+
+reset
+STUB_PLAN='0:' $SSSH host 'echo *' >/dev/null 2>&1
+check "remote command is not globbed locally" "host echo *" "$(first_argv)"
+
+reset
+STUB_PLAN='0:' $SSSH --tmux host uptime >/dev/null 2>&1
+check "--tmux plus a command is refused" 255 $?
+
+reset
+STUB_PLAN='0:' $SSSH --nonsense host >/dev/null 2>&1
+check "unknown long option is refused" 255 $?
+
+$SSSH --help >/dev/null 2>&1
+check "--help exits 0" 0 $?
+
+# --- credentials ------------------------------------------------------------
+
+reset
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSSH_REFRESH_CMD=false \
+    $SSSH host 2>&1)
+check "rejected credentials exit 255" 255 $?
+case $out in
+    *"no terminal here"* | *failed*) check "rejected credentials name the refresh" y y ;;
+    *) check "rejected credentials name the refresh" y "n: $out" ;;
+esac
+
+# A live certificate cannot be forged, so stub the reader instead.
+cat >"$T/bin/ssh-keygen" <<'STUB'
+#!/usr/bin/env bash
+echo "        Valid: from 2020-01-01T00:00:00 to 2020-01-02T00:00:00"
+STUB
+chmod +x "$T/bin/ssh-keygen"
+: >"$T/cert"
+
+reset
+out=$(STUB_PLAN='0:' SSSH_CERT=$T/cert SSSH_REFRESH_CMD=true \
+    $SSSH host </dev/null 2>&1)
+check "expired cert without a tty exits 255" 255 $?
+check "expired cert without a tty never connects" 0 "$(sessions)"
+case $out in
+    *"no terminal here"*) check "expired cert says what to run" y y ;;
+    *) check "expired cert says what to run" y "n: $out" ;;
+esac
+
+reset
+rm -f "$T/refreshed"
+export STUB_PLAN='0:' SSSH_CERT=$T/cert SSSH_REFRESH_CMD="touch $T/refreshed"
+script -qec "$SSSH host" /dev/null >/dev/null 2>&1
+check "expired cert refreshes first" y "$([[ -f $T/refreshed ]] && echo y || echo n)"
+check "expired cert then connects" 1 "$(sessions)"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[[ $fail -eq 0 ]]

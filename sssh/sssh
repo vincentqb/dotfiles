@@ -1,0 +1,488 @@
+#!/usr/bin/env bash
+# sssh -- ssh that outlives the network, instead of dumping you at a local prompt.
+#
+# ssh already has ServerAliveInterval, which *detects* a dead link and then
+# exits; everything after "detect" is missing. This is that part: a supervisor
+# that decides whether the exit was yours or the network's, waits for the path
+# back, refreshes credentials that expired while you were away, and reconnects.
+# ssh still owns the terminal -- this is its parent, not a proxy -- so escape
+# sequences, window resizes, scrollback, ProxyJump and agent forwarding are
+# untouched.
+#
+# Everything hinges on two questions, and ssh answers both if asked precisely:
+#
+#   1. Whose failure was it?  Exit 255 is ssh's own; any other status came from
+#      the remote command, which means the session did its job. So only 255 ever
+#      retries -- `exit 3` on the far end still gives you 3.
+#
+#   2. Did a session exist?  ssh's stderr splits cleanly into connect-phase
+#      errors (Could not resolve, Connection refused/timed out, No route to
+#      host, ssh_exchange_identification) and mid-session ones (closed by remote
+#      host, reset by peer, "Timeout, server not responding", Broken pipe). That
+#      line is what makes retrying safe: a remote command that never started can
+#      be started, but one that may have half-run must not be re-run -- so
+#      `sssh host make deploy` refuses after a drop and says why.
+#
+# The failure modes this is for, and the signal each is read from:
+#
+#   credential expiry  ssh-keygen -L on the CA cert gives a hard `Valid: ... to
+#                      <ts>`. Expired -> run mwinit (or --refresh CMD) in the
+#                      foreground, then retry. Checked before connecting too: a
+#                      20h Midway cert usually dies while you sleep, and finding
+#                      out via a failed handshake only costs a timeout.
+#   VPN down           target unreachable while the internet probe is fine, or
+#                      its name stops resolving at all.
+#   captive portal     the probe URL answers something other than 204 -- a
+#                      redirect or a login page. Reported, never auto-solved.
+#   wifi off / no link no global address, or no default route.
+#   remote reboot      "closed by remote host", then refused/timeout, then the
+#                      port answers again. If the host key changed we stop cold:
+#                      a rebuilt host and a MITM look identical from here, so
+#                      known_hosts is never rewritten.
+#   lag / half-open    ServerAlive fires. A stale ControlMaster socket then makes
+#                      the *next* connect fail instantly, so it gets checked and
+#                      `-O exit`ed before retrying.
+#   ~. (you quit)      indistinguishable from a drop (255, usually silent), so
+#                      any mid-session exit opens a short keypress window to
+#                      stop rather than reconnect.
+#
+# Reconnecting gives you a new shell, not your old one -- only the remote end can
+# preserve that. `--tmux[=NAME]` attaches-or-creates a named tmux session so the
+# work survives; without it you get a fresh login.
+#
+# Why bash and not python/fish/lean4: README.md.
+#
+# Usage:
+#   sssh gpu2                                # like ssh, but it comes back
+#   sssh --tmux gpu2                         # ... and the session survives too
+#   sssh --tmux=build -J bastion host        # every ssh flag still works
+#   sssh --max-wait=600 gpu2                 # give up on a reconnect after 10m
+#   sssh --refresh='kinit -R' host           # non-Amazon credential refresh
+#   sssh --retry-command host 'tail -F log'  # opt in to re-running the command
+
+set -uo pipefail
+
+# Written against bash 4.2 (Amazon Linux 2): no EPOCHSECONDS, no `wait -n`, and
+# `"${arr[@]}"` on an *empty* array is an unbound-variable error under `set -u`
+# -- hence the `${arr[@]+...}` guard on every array splat below.
+
+PROG=${0##*/}
+
+# ssh short options that consume the following argument, from the OpenSSH 7.4
+# synopsis. The set has only grown compatibly since, so newer ssh parses the same.
+SSH_ARG_OPTS='bcDEeFIiJLlmOopQRSWw'
+
+# SSSH_* lets a shell profile set any of these once.
+tmux_session=${SSSH_TMUX:-}
+retry_command=0
+max_wait=${SSSH_MAX_WAIT:-0}              # per reconnect; 0 = wait forever
+grace=${SSSH_GRACE:-3}                    # keypress window to abort a reconnect
+probe_timeout=${SSSH_PROBE_TIMEOUT:-7}
+max_delay=30                              # backoff ceiling between probes
+cert=${SSSH_CERT:-$HOME/.ssh/id_rsa-cert.pub}
+refresh_cmd=${SSSH_REFRESH_CMD:-}
+portal_probe=${SSSH_PORTAL_PROBE:-http://connectivitycheck.gstatic.com/generate_204}
+
+usage() {
+    sed -n '/^# Usage:/,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+    cat <<'EOF'
+Options (everything else is passed through to ssh):
+  --tmux[=NAME]     attach-or-create remote tmux NAME (default: main) so the
+                    session survives a reconnect; implies -t
+  --retry-command   re-run the remote command after a mid-session drop
+  --max-wait=SECS   give up on one reconnect after SECS (0 = never)
+  --grace=SECS      keypress window to stop instead of reconnecting
+  --refresh=CMD     credential refresh command (default: mwinit, if present)
+  --cert=PATH       ssh certificate to read expiry from (default:
+                    ~/.ssh/id_rsa-cert.pub; ignored if absent)
+  --help
+EOF
+}
+
+say() { printf '%s: %s\n' "$PROG" "$*" >&2; }
+die() { status_clear; say "$*"; exit 255; }
+
+# Transient one-liner: rewritten in place on a terminal, appended otherwise (so
+# `sssh ... 2>log` keeps a readable history instead of a wall of \r).
+status_pending=0
+status() {
+    if [[ -t 2 ]]; then printf '\r\033[K%s: %s' "$PROG" "$*" >&2; status_pending=1
+    else printf '%s: %s\n' "$PROG" "$*" >&2; fi
+}
+# Only erase a line we wrote: a remote command whose last output has no trailing
+# newline shares that line, and clearing it unasked would eat the output.
+status_clear() {
+    ((status_pending)) || return 0
+    [[ -t 2 ]] && printf '\r\033[K' >&2
+    status_pending=0
+    return 0
+}
+
+now() { date +%s; }
+
+fmt_dur() {
+    local s=$1
+    if   ((s < 60));   then printf '%ds' "$s"
+    elif ((s < 3600)); then printf '%dm%02ds' $((s / 60)) $((s % 60))
+    else printf '%dh%02dm' $((s / 3600)) $((s % 3600 / 60)); fi
+}
+
+# --- argument scan -----------------------------------------------------------
+# One left-to-right pass, because our long options and a remote command can be
+# spelled the same: `sssh --tmux host mytool --tmux` must treat the first as ours
+# and the second as the command's. Only tokens *before* the hostname are ours.
+
+ssh_opts=()
+user_cmd=()
+host=
+
+argv=("$@")
+argc=${#argv[@]}
+i=0
+while ((i < argc)); do
+    arg=${argv[i]}
+    case $arg in
+        --help) usage; exit 0 ;;
+        --tmux) tmux_session=main ;;
+        --tmux=*) tmux_session=${arg#*=} ;;
+        --retry-command) retry_command=1 ;;
+        --max-wait=*) max_wait=${arg#*=} ;;
+        --grace=*) grace=${arg#*=} ;;
+        --refresh=*) refresh_cmd=${arg#*=} ;;
+        --cert=*) cert=${arg#*=} ;;
+        --*) die "unknown option $arg (ssh has no long options; see --help)" ;;
+        -?*)
+            # A short-flag cluster: find the first flag that takes an argument.
+            # Its value is the rest of the cluster, or the next token if the
+            # cluster ends there (`-p22`, `-p 22`, `-tp 22` are all legal).
+            rest=${arg#-}
+            takes_next=0
+            while [[ -n $rest ]]; do
+                char=${rest:0:1}
+                rest=${rest:1}
+                if [[ $SSH_ARG_OPTS == *"$char"* ]]; then
+                    [[ -z $rest ]] && takes_next=1
+                    break
+                fi
+            done
+            ssh_opts+=("$arg")
+            if ((takes_next)); then
+                ((i++))
+                ((i < argc)) || die "option $arg needs an argument"
+                ssh_opts+=("${argv[i]}")
+            fi
+            ;;
+        *)
+            host=$arg
+            ((i++))
+            # Quoted: the remote command is ssh's to interpret, not ours, so it
+            # must not be split or globbed against the *local* filesystem.
+            user_cmd=("${argv[@]:i}")
+            break
+            ;;
+    esac
+    ((i++))
+done
+
+[[ -n $host ]] || { usage; exit 2; }
+
+# `ssh -O check|exit|stop` addresses a running master rather than opening a
+# session; there is nothing to supervise, so get out of the way.
+for arg in ${ssh_opts[@]+"${ssh_opts[@]}"}; do
+    [[ $arg == -O* ]] && exec ssh ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" \
+        ${user_cmd[@]+"${user_cmd[@]}"}
+done
+
+# --- resolved target ---------------------------------------------------------
+# Let ssh parse its own config: `-G` applies every Host block, alias, Include and
+# command-line -o, then prints the result without connecting. It also validates
+# the arguments, which is why a typo dies here instead of being retried forever.
+gconf=$(ssh -G ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" 2>&1) ||
+    die "$(printf '%s' "$gconf" | tail -n1)"
+gval() { awk -v key="$1" 'tolower($1) == key { print $2; exit }' <<<"$gconf"; }
+
+target_host=$(gval hostname)
+target_port=$(gval port)
+ctlpath=$(gval controlpath)
+: "${target_host:=$host}" "${target_port:=22}"
+
+# Probes must use the user's flags (ProxyJump, port, identity) but never the -t
+# that --tmux adds, so snapshot them before touching ssh_opts.
+probe_opts=(${ssh_opts[@]+"${ssh_opts[@]}"})
+
+eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
+if [[ -n $tmux_session ]]; then
+    ((${#user_cmd[@]} == 0)) ||
+        die "--tmux replaces the remote command; pass one or the other"
+    ssh_opts+=(-t)
+    # -A is attach-or-create (tmux >= 2.0), so the first connect makes the
+    # session and every reconnect lands back in it.
+    eff_cmd=(tmux new -A -s "$tmux_session")
+fi
+
+# --- credentials -------------------------------------------------------------
+
+to_epoch() {
+    date -d "$1" +%s 2>/dev/null ||
+        date -j -f '%Y-%m-%dT%H:%M:%S' "$1" +%s 2>/dev/null
+}
+
+# Seconds until the certificate stops being accepted, or nothing if there is no
+# cert, no expiry (`Valid: forever`), or no way to read it.
+cert_remaining() {
+    [[ -r $cert ]] || return 1
+    local line stamp epoch
+    line=$(ssh-keygen -L -f "$cert" 2>/dev/null | awk '/Valid:/ { print; exit }')
+    [[ $line == *" to "* ]] || return 1
+    stamp=${line##* to }
+    stamp=${stamp%% *}
+    epoch=$(to_epoch "$stamp") || return 1
+    [[ -n $epoch ]] || return 1
+    printf '%d' $((epoch - $(now)))
+}
+
+# 30s of slack: a cert that dies mid-handshake fails the same way as one already
+# dead, and refreshing early costs a touch of the security key either way.
+creds_expired() {
+    local left
+    left=$(cert_remaining) || return 1
+    ((left < 30))
+}
+
+refreshes=0
+refresh_creds() {
+    local cmd=$refresh_cmd
+    if [[ -z $cmd ]] && command -v mwinit >/dev/null 2>&1; then cmd=mwinit; fi
+    [[ -n $cmd ]] || { say "credentials rejected and no --refresh command set"; return 1; }
+    # mwinit wants a PIN or a security-key touch; without a terminal there is
+    # nobody to provide it, so say what to run instead of hanging.
+    [[ -t 0 ]] || { say "credentials expired; run '$cmd' (no terminal here)"; return 1; }
+    status_clear
+    say "credentials expired -> $cmd"
+    refreshes=$((refreshes + 1))
+    # Unquoted so --refresh='kinit -R' splits into words.
+    # shellcheck disable=SC2086
+    $cmd || { say "$cmd failed"; return 1; }
+}
+
+# --- failure classification --------------------------------------------------
+# fatal    retrying cannot help
+# auth     the server refused our credentials
+# connect  failed before any session existed  -- always safe to retry
+# dropped  an established session died        -- safe only if nothing ran remotely
+classify() {
+    case $1 in
+        *"REMOTE HOST IDENTIFICATION HAS CHANGED"* | *"Host key verification failed"*) echo fatal ;;
+        *"Bad configuration option"* | *"illegal option"* | *"unknown option"* | \
+        *"no matching host key type"* | *"no matching cipher"* | *"no matching key exchange"*) echo fatal ;;
+        *"Permission denied"* | *"Too many authentication failures"* | \
+        *"expired"* | *"certificate invalid"* | *"Certificate invalid"* | \
+        *"agent refused operation"* | *"No supported authentication methods"*) echo auth ;;
+        *"Could not resolve"* | *"Name or service not known"* | *"name resolution"* | \
+        *"Connection refused"* | *"Connection timed out"* | *"Operation timed out"* | \
+        *"No route to host"* | *"Network is unreachable"* | *"Host is down"* | \
+        *"exchange_identification"* | *"ProxyCommand failed"* | *"open failed"* | \
+        *"Control socket connect"* | *"ControlSocket"* | *"mux_client"*) echo connect ;;
+        *"closed by remote host"* | *"reset by peer"* | *"not responding"* | \
+        *"Broken pipe"* | *"Shared connection to"*) echo dropped ;;
+        # Includes the empty case: `~.` and a killed link both exit 255 in
+        # silence. `dropped` is the conservative guess -- it is the class that
+        # declines to re-run a remote command.
+        *) echo dropped ;;
+    esac
+}
+
+# The line worth showing a human: the last real one, minus ssh's chatter.
+err_line() {
+    awk 'NF && !/^Warning: Permanently added/ && !/^Pseudo-terminal/ { last = $0 }
+         END { print last }' <<<"$1"
+}
+
+# --- reachability ------------------------------------------------------------
+
+have_link() {
+    if command -v ip >/dev/null 2>&1; then
+        ip -4 -o addr show scope global 2>/dev/null | grep -q .
+    else
+        ifconfig 2>/dev/null |
+            awk '/[ \t]inet /  { if ($2 != "127.0.0.1" && $2 != "addr:127.0.0.1") found = 1 }
+                 END { exit !found }'
+    fi
+}
+
+have_route() {
+    if command -v ip >/dev/null 2>&1; then
+        ip route show default 2>/dev/null | grep -q .
+    else
+        route -n get default >/dev/null 2>&1
+    fi
+}
+
+resolves() {
+    local name=$1
+    # A literal address needs no resolver.
+    [[ $name =~ ^[0-9.]+$ || $name == *:* ]] && return 0
+    if command -v getent >/dev/null 2>&1; then getent hosts "$name" >/dev/null 2>&1
+    elif command -v host >/dev/null 2>&1; then host "$name" >/dev/null 2>&1
+    else return 0; fi
+}
+
+# HTTP status from the portal probe: 204 is a clean internet, 000 is no answer,
+# anything else is something intercepting us (a portal login or a redirect).
+inet_code() {
+    command -v curl >/dev/null 2>&1 || { echo ""; return; }
+    curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$portal_probe" 2>/dev/null || echo 000
+}
+
+# Why we cannot get there, most specific answer first. Only ever called after a
+# probe has already failed, so a mislabel is cosmetic -- it never gates a retry.
+diagnose() {
+    have_link || { echo "no network interface up (wifi off? cable out?)"; return; }
+    have_route || { echo "no default route"; return; }
+    local code
+    code=$(inet_code)
+    case $code in
+        204 | "") ;;                    # clean, or no curl to ask with
+        000) echo "no answer from the connectivity probe -- internet down"; return ;;
+        *) echo "captive portal? probe returned HTTP $code -- sign in from a browser"; return ;;
+    esac
+    resolves "$target_host" ||
+        { echo "cannot resolve $target_host (VPN down, or DNS not up yet)"; return; }
+    echo "$target_host:$target_port not answering (host down or rebooting, or VPN down)"
+}
+
+# The probe is a real ssh, so it honours ProxyJump, aliases and ports -- but it
+# is quiet, cannot block on a passphrase, and fails on its own short timeout.
+# Our -o come first because ssh takes the *first* value it obtains for an option.
+probe_err=
+probe() {
+    probe_err=$(ssh -o BatchMode=yes -o ConnectTimeout="$probe_timeout" \
+        -o ControlMaster=no ${probe_opts[@]+"${probe_opts[@]}"} "$host" true 2>&1 >/dev/null)
+}
+
+# A master that died with the link leaves a socket behind, and the next connect
+# fails against it instantly -- which otherwise reads as "still down".
+clear_stale_master() {
+    [[ -n $ctlpath && $ctlpath != none ]] || return 0
+    ssh ${probe_opts[@]+"${probe_opts[@]}"} -O check "$host" >/dev/null 2>&1 && return 0
+    local out
+    out=$(ssh ${probe_opts[@]+"${probe_opts[@]}"} -O exit "$host" 2>&1) && return 0
+    # "refused" on a unix socket means nothing is accepting it: an orphan, safe
+    # to unlink. Any other error might be a live master, so leave it alone.
+    [[ -S $ctlpath && $out == *refused* ]] && rm -f "$ctlpath"
+    return 0
+}
+
+WAITED=0
+wait_for_target() {
+    local reason=$1 delay=1 left start
+    start=$(now)
+    while :; do
+        if probe; then status_clear; WAITED=$(($(now) - start)); return 0; fi
+        # The path can be fine while our credentials are not; the probe says so.
+        if [[ $(classify "$probe_err") == auth ]] && ((refreshes < 2)); then
+            refresh_creds && continue
+        fi
+        reason=$(diagnose)
+        WAITED=$(($(now) - start))
+        if ((max_wait > 0 && WAITED >= max_wait)); then status_clear; return 1; fi
+        # Count down in 1s steps: keeps the line alive and Ctrl-C responsive.
+        left=$delay
+        while ((left > 0)); do
+            status "$(printf '%s -- retry in %ds (waited %s)' \
+                "$reason" "$left" "$(fmt_dur "$WAITED")")"
+            sleep 1
+            left=$((left - 1))
+            WAITED=$(($(now) - start))
+        done
+        ((delay = delay * 2 > max_delay ? max_delay : delay * 2))
+    done
+}
+
+# --- run ---------------------------------------------------------------------
+
+tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/sssh.XXXXXX") || exit 255
+trap 'status_clear; rm -rf "$tmpdir"' EXIT
+trap 'status_clear; rm -rf "$tmpdir"; exit 130' INT TERM
+
+errfile=$tmpdir/stderr
+fifo=$tmpdir/stderr.fifo
+rc=0
+
+# ssh's stderr has to be both read (to classify the failure) and passed straight
+# through (a remote command's stderr arrives on it). Redirecting to a file would
+# hold that output back until exit, so tee it through a fifo instead: when ssh
+# exits the write end closes, tee sees EOF, and `wait` guarantees the file is
+# complete before we classify it.
+run_ssh() {
+    local tee_pid
+    rm -f "$fifo"
+    mkfifo "$fifo" || die "cannot create $fifo"
+    tee "$errfile" <"$fifo" >&2 &
+    tee_pid=$!
+    ssh ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" ${eff_cmd[@]+"${eff_cmd[@]}"} 2>"$fifo"
+    rc=$?
+    wait "$tee_pid" 2>/dev/null
+    rm -f "$fifo"
+}
+
+# A 20-hour cert usually expires while you are asleep, not while you are typing.
+if creds_expired; then
+    say "ssh certificate has expired"
+    refresh_creds || exit 255
+fi
+
+attempt=0
+while :; do
+    attempt=$((attempt + 1))
+    run_ssh
+
+    # Only ssh's own 255 is ours to retry; anything else is the remote command's
+    # status and has to survive intact.
+    ((rc != 255)) && exit "$rc"
+
+    err=$(<"$errfile")
+    class=$(classify "$err")
+    reason=$(err_line "$err")
+
+    case $class in
+        fatal)
+            [[ $err == *"IDENTIFICATION HAS CHANGED"* ]] &&
+                say "the host key changed -- a rebuilt host and a MITM look the same from here, so fix known_hosts by hand"
+            die "not retrying: ${reason:-ssh exited 255}"
+            ;;
+        auth)
+            ((refreshes < 2)) ||
+                die "still rejected after $refreshes credential refreshes: ${reason:-permission denied}"
+            refresh_creds || die "${reason:-permission denied}"
+            continue
+            ;;
+    esac
+
+    if ((${#user_cmd[@]} > 0)) && [[ $class == dropped ]] && ((retry_command == 0)); then
+        die "session dropped and '${user_cmd[*]}' may have already run; not repeating it (--retry-command to allow)"
+    fi
+
+    # An established session that ended may just have been you (`~.`, or the
+    # remote sshd being restarted deliberately) -- both look exactly like a drop.
+    if [[ $class == dropped && -t 0 ]]; then
+        # Drop anything the terminal buffered while the link was dead, so it is
+        # not mistaken for the keypress below.
+        read -rs -n 4096 -t 0.05 _drain 2>/dev/null
+        printf '%s: %s -- reconnecting in %ss, press a key to stop... ' \
+            "$PROG" "${reason:-session ended}" "$grace" >&2
+        status_pending=1
+        # Propagate ssh's own 255, the way `~.` does unwrapped -- the keypress
+        # means "do not reconnect", not "the session succeeded".
+        if read -rs -n 1 -t "$grace"; then printf '\n' >&2; exit 255; fi
+        status_clear
+    fi
+
+    clear_stale_master
+    wait_for_target "${reason:-unreachable}" ||
+        die "gave up on $host after $(fmt_dur "$WAITED")"
+
+    # If we waited long enough to walk away, ring on the way back.
+    ((WAITED > 30)) && printf '\a' >&2
+    say "$host is back after $(fmt_dur "$WAITED") -- reconnecting (attempt $((attempt + 1)))"
+done
