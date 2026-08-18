@@ -4,10 +4,15 @@
 # ssh already has ServerAliveInterval, which *detects* a dead link and then
 # exits; everything after "detect" is missing. This is that part: a supervisor
 # that decides whether the exit was yours or the network's, waits for the path
-# back, refreshes credentials that expired while you were away, and reconnects.
-# ssh still owns the terminal -- this is its parent, not a proxy -- so escape
-# sequences, window resizes, scrollback, ProxyJump and agent forwarding are
-# untouched.
+# back, and reconnects. ssh still owns the terminal -- this is its parent, not a
+# proxy -- so escape sequences, window resizes, scrollback, ProxyJump and agent
+# forwarding are untouched.
+#
+# It never asks you for anything. No credential prompt, no mwinit, no VPN dialog,
+# nothing to answer: it waits, says what it is waiting for, and reconnects the
+# moment that thing exists. Fix the cause in another window on your own schedule
+# -- every probe is a fresh ssh, so a certificate minted elsewhere is picked up
+# without restarting anything.
 #
 # Everything hinges on two questions, and ssh answers both if asked precisely:
 #
@@ -25,11 +30,11 @@
 #
 # The failure modes this is for, and the signal each is read from:
 #
-#   credential expiry  ssh-keygen -L on the CA cert gives a hard `Valid: ... to
-#                      <ts>`. Expired -> run mwinit (or --refresh CMD) in the
-#                      foreground, then retry. Checked before connecting too: a
-#                      20h Midway cert usually dies while you sleep, and finding
-#                      out via a failed handshake only costs a timeout.
+#   credential expiry  the server says Permission denied; ssh-keygen -L on the CA
+#                      cert then explains why, since it carries a hard
+#                      `Valid: ... to <ts>`. Reported, waited on, never refreshed
+#                      for you -- and if the cert is *not* the problem it says
+#                      that too, instead of implying another mwinit will help.
 #   VPN down           target unreachable while the internet probe is fine, or
 #                      its name stops resolving at all.
 #   captive portal     the probe URL answers something other than 204 -- a
@@ -57,7 +62,6 @@
 #   sssh --tmux gpu2                         # ... and the session survives too
 #   sssh --tmux=build -J bastion host        # every ssh flag still works
 #   sssh --max-wait=600 gpu2                 # give up on a reconnect after 10m
-#   sssh --refresh='kinit -R' host           # non-Amazon credential refresh
 #   sssh --retry-command host 'tail -F log'  # opt in to re-running the command
 
 set -uo pipefail
@@ -80,7 +84,6 @@ grace=${SSSH_GRACE:-3}                    # keypress window to abort a reconnect
 probe_timeout=${SSSH_PROBE_TIMEOUT:-7}
 max_delay=30                              # backoff ceiling between probes
 cert=${SSSH_CERT:-$HOME/.ssh/id_rsa-cert.pub}
-refresh_cmd=${SSSH_REFRESH_CMD:-}
 portal_probe=${SSSH_PORTAL_PROBE:-http://connectivitycheck.gstatic.com/generate_204}
 
 usage() {
@@ -92,10 +95,12 @@ Options (everything else is passed through to ssh):
   --retry-command   re-run the remote command after a mid-session drop
   --max-wait=SECS   give up on one reconnect after SECS (0 = never)
   --grace=SECS      keypress window to stop instead of reconnecting
-  --refresh=CMD     credential refresh command (default: mwinit, if present)
-  --cert=PATH       ssh certificate to read expiry from (default:
+  --cert=PATH       certificate to explain a rejection with (default:
                     ~/.ssh/id_rsa-cert.pub; ignored if absent)
   --help
+
+Nothing here prompts. Credentials, VPN and portals are waited on, never
+solved for you -- fix them elsewhere and the next probe picks it up.
 EOF
 }
 
@@ -148,7 +153,6 @@ while ((i < argc)); do
         --retry-command) retry_command=1 ;;
         --max-wait=*) max_wait=${arg#*=} ;;
         --grace=*) grace=${arg#*=} ;;
-        --refresh=*) refresh_cmd=${arg#*=} ;;
         --cert=*) cert=${arg#*=} ;;
         --*) die "unknown option $arg (ssh has no long options; see --help)" ;;
         -?*)
@@ -241,28 +245,16 @@ cert_remaining() {
     printf '%d' $((epoch - $(now)))
 }
 
-# 30s of slack: a cert that dies mid-handshake fails the same way as one already
-# dead, and refreshing early costs a touch of the security key either way.
-creds_expired() {
+# Why the far end is probably refusing us, or nothing if there is no readable
+# cert. Worth saying only *after* ssh has actually rejected us: the host may not
+# be using this certificate at all, which is exactly the case the second branch
+# reports rather than implying that another mwinit would help.
+cert_note() {
     local left
-    left=$(cert_remaining) || return 1
-    ((left < 30))
-}
-
-refreshes=0
-refresh_creds() {
-    local cmd=$refresh_cmd
-    if [[ -z $cmd ]] && command -v mwinit >/dev/null 2>&1; then cmd=mwinit; fi
-    [[ -n $cmd ]] || { say "credentials rejected and no --refresh command set"; return 1; }
-    # mwinit wants a PIN or a security-key touch; without a terminal there is
-    # nobody to provide it, so say what to run instead of hanging.
-    [[ -t 0 ]] || { say "credentials expired; run '$cmd' (no terminal here)"; return 1; }
-    status_clear
-    say "credentials expired -> $cmd"
-    refreshes=$((refreshes + 1))
-    # Unquoted so --refresh='kinit -R' splits into words.
-    # shellcheck disable=SC2086
-    $cmd || { say "$cmd failed"; return 1; }
+    left=$(cert_remaining) || return 0
+    if ((left < 0)); then printf 'certificate expired %s ago' "$(fmt_dur $((-left)))"
+    else printf 'certificate still good for %s, so this is not the cert' \
+        "$(fmt_dur "$left")"; fi
 }
 
 # --- failure classification --------------------------------------------------
@@ -375,15 +367,22 @@ clear_stale_master() {
 
 WAITED=0
 wait_for_target() {
-    local reason=$1 delay=1 left start
+    local reason=$1 delay=1 left start note
     start=$(now)
+    # Say why up front: the first probe can burn ConnectTimeout seconds, and
+    # silence right after a session dies reads as a hang.
+    status "$reason -- checking"
     while :; do
         if probe; then status_clear; WAITED=$(($(now) - start)); return 0; fi
-        # The path can be fine while our credentials are not; the probe says so.
-        if [[ $(classify "$probe_err") == auth ]] && ((refreshes < 2)); then
-            refresh_creds && continue
+        # The path can be fine while our credentials are not, and the probe is
+        # what tells them apart. Each probe is a fresh ssh reading the cert off
+        # disk, so a refresh done in another window lands on the next one.
+        if [[ $(classify "$probe_err") == auth ]]; then
+            note=$(cert_note)
+            reason="credentials rejected${note:+ ($note)}"
+        else
+            reason=$(diagnose)
         fi
-        reason=$(diagnose)
         WAITED=$(($(now) - start))
         if ((max_wait > 0 && WAITED >= max_wait)); then status_clear; return 1; fi
         # Count down in 1s steps: keeps the line alive and Ctrl-C responsive.
@@ -426,12 +425,6 @@ run_ssh() {
     rm -f "$fifo"
 }
 
-# A 20-hour cert usually expires while you are asleep, not while you are typing.
-if creds_expired; then
-    say "ssh certificate has expired"
-    refresh_creds || exit 255
-fi
-
 attempt=0
 while :; do
     attempt=$((attempt + 1))
@@ -445,19 +438,18 @@ while :; do
     class=$(classify "$err")
     reason=$(err_line "$err")
 
-    case $class in
-        fatal)
-            [[ $err == *"IDENTIFICATION HAS CHANGED"* ]] &&
-                say "the host key changed -- a rebuilt host and a MITM look the same from here, so fix known_hosts by hand"
-            die "not retrying: ${reason:-ssh exited 255}"
-            ;;
-        auth)
-            ((refreshes < 2)) ||
-                die "still rejected after $refreshes credential refreshes: ${reason:-permission denied}"
-            refresh_creds || die "${reason:-permission denied}"
-            continue
-            ;;
-    esac
+    if [[ $class == fatal ]]; then
+        [[ $err == *"IDENTIFICATION HAS CHANGED"* ]] &&
+            say "the host key changed -- a rebuilt host and a MITM look the same from here, so fix known_hosts by hand"
+        die "not retrying: ${reason:-ssh exited 255}"
+    fi
+
+    # Rejected credentials are something to wait for, not to solve: no prompt, no
+    # mwinit, no dead end. Refresh them whenever suits you and the loop notices.
+    if [[ $class == auth ]]; then
+        note=$(cert_note)
+        reason="credentials rejected${note:+ ($note)}"
+    fi
 
     if ((${#user_cmd[@]} > 0)) && [[ $class == dropped ]] && ((retry_command == 0)); then
         die "session dropped and '${user_cmd[*]}' may have already run; not repeating it (--retry-command to allow)"

@@ -3,10 +3,10 @@
 # broken can be tested while it works.
 #
 # The stub records its argv and fails to a script (STUB_PLAN, one "rc:stderr" per
-# call), which is what makes the interesting cases reachable: a changed host key,
-# an expired certificate, a drop halfway through a remote command. Two of them
-# need a real terminal -- the credential refresh deliberately refuses to run
-# without one -- so those go through `script`.
+# call, the last step repeating), which is what makes the interesting cases
+# reachable: a changed host key, an expired certificate, a drop halfway through a
+# remote command. The credential tests all run with stdin closed, because the one
+# thing they assert is that nothing ever waits on a human.
 #
 # Usage: ./test-sssh
 
@@ -152,41 +152,60 @@ check "unknown long option is refused" 255 $?
 $SSSH --help >/dev/null 2>&1
 check "--help exits 0" 0 $?
 
-# --- credentials ------------------------------------------------------------
+# --- credentials are waited on, never asked for ------------------------------
+# Nothing here may prompt, invoke mwinit, or dead-end on a missing terminal: a
+# rejection is a thing to wait for. Hence `</dev/null` throughout -- no tty is
+# available, and it must still reconnect on its own.
 
 reset
-out=$(STUB_PLAN='255:Permission denied (publickey).' SSSH_REFRESH_CMD=false \
-    $SSSH host 2>&1)
-check "rejected credentials exit 255" 255 $?
+out=$(STUB_PLAN='255:Permission denied (publickey).;0:;0:' $SSSH host </dev/null 2>&1)
+check "rejected credentials, then accepted, exits 0" 0 $?
 case $out in
-    *"no terminal here"* | *failed*) check "rejected credentials name the refresh" y y ;;
-    *) check "rejected credentials name the refresh" y "n: $out" ;;
+    *"credentials rejected"*) check "what it waits for is named" y y ;;
+    *) check "what it waits for is named" y "n: $out" ;;
 esac
 
-# A live certificate cannot be forged, so stub the reader instead.
-cat >"$T/bin/ssh-keygen" <<'STUB'
-#!/usr/bin/env bash
-echo "        Valid: from 2020-01-01T00:00:00 to 2020-01-02T00:00:00"
-STUB
-chmod +x "$T/bin/ssh-keygen"
+reset
+out=$(STUB_PLAN='255:Permission denied (publickey).' \
+    $SSSH --max-wait=3 host </dev/null 2>&1)
+check "rejection with no tty times out, never prompts" 255 $?
+case $out in
+    *"gave up"*) check "timing out is why it stopped" y y ;;
+    *) check "timing out is why it stopped" y "n: $out" ;;
+esac
+
+# A live certificate cannot be forged, so stub the reader instead. The cert is
+# only ever *read*, to explain a rejection.
 : >"$T/cert"
+keygen_says() {
+    cat >"$T/bin/ssh-keygen" <<STUB
+#!/usr/bin/env bash
+echo "        Valid: from 2020-01-01T00:00:00 to $1"
+STUB
+    chmod +x "$T/bin/ssh-keygen"
+}
 
+keygen_says 2020-01-02T00:00:00
 reset
-out=$(STUB_PLAN='0:' SSSH_CERT=$T/cert SSSH_REFRESH_CMD=true \
-    $SSSH host </dev/null 2>&1)
-check "expired cert without a tty exits 255" 255 $?
-check "expired cert without a tty never connects" 0 "$(sessions)"
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSSH_CERT=$T/cert \
+    $SSSH --max-wait=3 host </dev/null 2>&1)
 case $out in
-    *"no terminal here"*) check "expired cert says what to run" y y ;;
-    *) check "expired cert says what to run" y "n: $out" ;;
+    *"certificate expired"*) check "an expired cert explains the rejection" y y ;;
+    *) check "an expired cert explains the rejection" y "n: $out" ;;
 esac
 
+# A rejection with a live cert is not a cert problem, and saying so is the point:
+# another mwinit would not help.
+keygen_says 2099-01-01T00:00:00
 reset
-rm -f "$T/refreshed"
-export STUB_PLAN='0:' SSSH_CERT=$T/cert SSSH_REFRESH_CMD="touch $T/refreshed"
-script -qec "$SSSH host" /dev/null >/dev/null 2>&1
-check "expired cert refreshes first" y "$([[ -f $T/refreshed ]] && echo y || echo n)"
-check "expired cert then connects" 1 "$(sessions)"
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSSH_CERT=$T/cert \
+    $SSSH --max-wait=3 host </dev/null 2>&1)
+case $out in
+    *"not the cert"*) check "a live cert is ruled out explicitly" y y ;;
+    *) check "a live cert is ruled out explicitly" y "n: $out" ;;
+esac
+
+rm "$T/bin/ssh-keygen"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

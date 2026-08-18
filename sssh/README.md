@@ -13,6 +13,16 @@ sssh --tmux gpu2
 Close the laptop, change networks, let the VPN drop, let the Midway certificate
 expire overnight, reboot the far end: the session comes back.
 
+**It never asks you for anything.** No credential prompt, no `mwinit`, no VPN
+dialog, nothing to answer — it waits, tells you what it is waiting for, and
+reconnects the moment that thing exists. Fix the cause in another window on your
+own schedule; every probe is a fresh `ssh`, so a certificate minted elsewhere
+gets picked up without restarting anything.
+
+```
+sssh: credentials rejected (certificate expired 10h55m ago) -- retry in 4s (waited 12s)
+```
+
 ## Why bash
 
 The wrapper's entire job is process supervision plus classifying one child's exit
@@ -44,7 +54,7 @@ Two questions decide everything, and `ssh` answers both if you ask precisely:
 
 | Failure | Signal | Response |
 |---|---|---|
-| Credential expiry | `ssh-keygen -L` on the CA cert gives a hard `Valid: ... to <ts>` | `mwinit` (or `--refresh CMD`) in the foreground, then retry. Checked before connecting too — a 20 h Midway cert usually dies while you sleep |
+| Credential expiry | the server says `Permission denied`; `ssh-keygen -L` on the CA cert then explains why, from its hard `Valid: ... to <ts>` | wait. If the cert is *not* expired it says so, rather than implying another `mwinit` would help |
 | VPN down | target unreachable while the internet probe is clean, or its name stops resolving | wait, and say which |
 | Captive portal | probe URL answers something other than 204 | report it; you still sign in yourself |
 | Wifi off, cable out | no global address, or no default route | wait |
@@ -59,8 +69,13 @@ screen stays quiet: one status line, backing off 1 s → 30 s, and a bell if the
 wait was long enough that you walked away.
 
 Three things it deliberately will not do: rewrite `known_hosts`, re-run a remote
-command that may have half-run (`--retry-command` opts in), or refresh
-credentials more than twice in a row.
+command that may have half-run (`--retry-command` opts in), or run anything on
+your behalf to fix credentials, a VPN or a portal.
+
+The cost of never prompting is that a permanently broken login — a wrong
+username, a key the host has never seen — looks exactly like a certificate that
+is about to be refreshed, so it waits on that forever too. `--max-wait` bounds it
+when you want a bound; the status line tells you which one you are looking at.
 
 ## Reconnecting is not resuming
 
@@ -79,13 +94,11 @@ sssh gpu2                                # like ssh, but it comes back
 sssh --tmux gpu2                         # ... and the session survives too
 sssh --tmux=build -J bastion host        # every ssh flag still works
 sssh --max-wait=600 gpu2                 # give up on a reconnect after 10m
-sssh --refresh='kinit -R' host           # non-Amazon credential refresh
 sssh --retry-command host 'tail -F log'  # opt in to re-running a command
 ```
 
 Options, each also settable once as `SSSH_*` (`SSSH_TMUX`, `SSSH_MAX_WAIT`,
-`SSSH_GRACE`, `SSSH_REFRESH_CMD`, `SSSH_CERT`, `SSSH_PROBE_TIMEOUT`,
-`SSSH_PORTAL_PROBE`):
+`SSSH_GRACE`, `SSSH_CERT`, `SSSH_PROBE_TIMEOUT`, `SSSH_PORTAL_PROBE`):
 
 | Option | Default | |
 |---|---|---|
@@ -93,8 +106,7 @@ Options, each also settable once as `SSSH_*` (`SSSH_TMUX`, `SSSH_MAX_WAIT`,
 | `--retry-command` | off | re-run the remote command after a mid-session drop |
 | `--max-wait=SECS` | `0` | give up on one reconnect after SECS; 0 waits forever |
 | `--grace=SECS` | `3` | keypress window to stop instead of reconnecting |
-| `--refresh=CMD` | `mwinit` if present | credential refresh command |
-| `--cert=PATH` | `~/.ssh/id_rsa-cert.pub` | certificate to read expiry from; ignored if absent |
+| `--cert=PATH` | `~/.ssh/id_rsa-cert.pub` | certificate to explain a rejection with; ignored if absent |
 
 Everything else goes to `ssh` untouched.
 
@@ -110,8 +122,8 @@ ln -s ~/dotfiles/sssh/sssh ~/bin/sssh
 ./test-sssh
 ```
 
-28 checks against a stub `ssh` that fails on a script, so the paths that only run
+27 checks against a stub `ssh` that fails on a script, so the paths that only run
 when the network is broken — changed host key, expired certificate, a drop
-halfway through a remote command — are exercised while it works. Two of them go
-through `script` because the credential refresh refuses to run without a
-terminal.
+halfway through a remote command — are exercised while it works. The credential
+tests run with stdin closed, because the one thing they assert is that nothing
+ever waits on a human.
