@@ -147,8 +147,12 @@ STUB_PLAN='0:' $SSA host 'echo *' >/dev/null 2>&1
 check "remote command is not globbed locally" "host echo *" "$(first_argv)"
 
 reset
-STUB_PLAN='0:' $SSA --tmux host uptime >/dev/null 2>&1
+out=$(STUB_PLAN='0:' $SSA --tmux host uptime 2>&1)
 check "--tmux plus a command is refused" 255 $?
+case $out in
+    *"--tmux=NAME"*) check "the refusal points at --tmux=NAME" y y ;;
+    *) check "the refusal points at --tmux=NAME" y "n: $out" ;;
+esac
 
 reset
 STUB_PLAN='0:' $SSA --nonsense host >/dev/null 2>&1
@@ -179,8 +183,8 @@ out=$(STUB_ALIVE=0 STUB_PLAN='0:' $SSA host 2>&1)
 check "no ServerAliveInterval is refused" 255 $?
 check "no ServerAliveInterval never connects" 0 "$(sessions)"
 case $out in
-    *ServerAliveInterval*Host*) check "the refusal says what to add" y y ;;
-    *) check "the refusal says what to add" y "n: $out" ;;
+    *ServerAliveInterval*"Host host"*) check "the refusal names the host, not Host *" y y ;;
+    *) check "the refusal names the host, not Host *" y "n: $out" ;;
 esac
 
 reset

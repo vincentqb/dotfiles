@@ -118,7 +118,7 @@ the effective value and **refuses** when it is 0, naming the fix:
 ```
 ssa: localhost has no ServerAliveInterval, so ssh will never notice a dead link.
     Add to ~/.ssh/config:
-        Host *
+        Host localhost
             ServerAliveInterval 30
             ServerAliveCountMax 3
 ```
@@ -126,8 +126,10 @@ ssa: localhost has no ServerAliveInterval, so ssh will never notice a dead link.
 Refusing beats supplying one. The setting belongs in `ssh_config`, where plain
 `ssh` and `kitty +kitten ssh` benefit too; a wrapper that quietly rewrites
 connection parameters on every call is harder to debug later than one error you
-fix once. A `Host *` block covers every host forever, and an explicit
-`-o ServerAliveInterval=…` on the command line satisfies it too.
+fix once. It reads the value `ssh -G` resolves *for that host* and names the
+host in the fix, so a per-host block is enough — a `Host *` block covering every
+host, or an explicit `-o ServerAliveInterval=…` on the command line, satisfies
+it too.
 
 Refusing `-f` is the same lesson from the other end. autossh strips it and forces
 `gate_time = 0`; here it made ssh background itself and return 0 immediately, so

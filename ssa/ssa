@@ -86,13 +86,13 @@ done
     awk '$1 == "serveraliveinterval" { print $2; exit }') == 0 ]] &&
     die "$host has no ServerAliveInterval, so ssh will never notice a dead link.
     Add to ~/.ssh/config:
-        Host *
+        Host $host
             ServerAliveInterval 30
             ServerAliveCountMax 3"
 
 eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
 if [[ -n $tmux_session ]]; then
-    ((${#user_cmd[@]} == 0)) || die "--tmux replaces the remote command"
+    ((${#user_cmd[@]} == 0)) || die "--tmux replaces the remote command; name the session with --tmux=NAME, not --tmux NAME"
     eff_cmd=(tmux new -A -s "$tmux_session")   # -A attaches or creates
 fi
 
