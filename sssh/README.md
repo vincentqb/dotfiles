@@ -29,13 +29,13 @@ The wrapper's entire job is process supervision plus classifying one child's exi
 status and stderr, around a child that must own the terminal. In bash, `ssh` is a
 foreground child that inherits the tty directly, so window resizes, escape
 characters (`~.`), scrollback and `ProxyJump` need no code at all. The real
-"language" here is `ssh -G`, `ssh -O check`, `ssh-keygen -L`, `ip`, `curl` — a
-script that calls those is the shortest honest expression of the thing, and it
-runs on a box you just built, with no interpreter to install first.
+"language" here is `ssh -O check`, `ssh-keygen -L`, `curl` — a script that calls
+those is the shortest honest expression of the thing, and it runs on a box you
+just built, with no interpreter to install first.
 
 | | |
 |---|---|
-| **bash** | Chosen. Terminal handling is free, the dependencies are the tools it must call anyway, and 300 lines covers it. Costs: `case` globs as a classifier, and bash 4.2 (Amazon Linux 2) has sharp edges — no `EPOCHSECONDS`, and `"${arr[@]}"` on an empty array is fatal under `set -u`. |
+| **bash** | Chosen. Terminal handling is free, the dependencies are the tools it must call anyway, and ~150 lines covers it. Costs: `case` globs as a classifier, and bash 4.2 (Amazon Linux 2) has sharp edges — no `EPOCHSECONDS`, and `"${arr[@]}"` on an empty array is fatal under `set -u`. |
 | python | Needs `pty`/`termios`/`signal` work to hand the terminal over cleanly, or `subprocess` with inherited fds — at which point it is this bash script written in Python, plus an interpreter dependency in a tool whose reason to exist is that your connection is broken. Right answer if the classifier ever grows state: per-host history, structured logs, a real state machine. |
 | fish | The login shell here, but this must be callable from cron, scripts and other shells, and signal plus process-group handling (`trap`, `wait`, fifos) is more awkward in fish for no gain. |
 | lean4 | No. The property worth having — "it always reconnects" — is not a theorem about pure functions; it is about POSIX signals, termios and someone else's router. Lean would fight the IO and the artifact would need a toolchain on every host. |
@@ -97,18 +97,17 @@ sssh --max-wait=600 gpu2                 # give up on a reconnect after 10m
 sssh --retry-command host 'tail -F log'  # opt in to re-running a command
 ```
 
-Options, each also settable once as `SSSH_*` (`SSSH_TMUX`, `SSSH_MAX_WAIT`,
-`SSSH_GRACE`, `SSSH_CERT`, `SSSH_PROBE_TIMEOUT`, `SSSH_PORTAL_PROBE`):
-
 | Option | Default | |
 |---|---|---|
 | `--tmux[=NAME]` | off, `main` | remote tmux session to attach-or-create; implies `-t` |
 | `--retry-command` | off | re-run the remote command after a mid-session drop |
 | `--max-wait=SECS` | `0` | give up on one reconnect after SECS; 0 waits forever |
-| `--grace=SECS` | `3` | keypress window to stop instead of reconnecting |
-| `--cert=PATH` | `~/.ssh/id_rsa-cert.pub` | certificate to explain a rejection with; ignored if absent |
 
-Everything else goes to `ssh` untouched.
+Everything else goes to `ssh` untouched. Three more knobs have no flag, only an
+env var: `SSSH_GRACE` (keypress window before reconnect, default 3s),
+`SSSH_PROBE_TIMEOUT` (probe `ConnectTimeout`, default 7s), and `SSSH_CERT` (cert
+read to explain a rejection, default `~/.ssh/id_rsa-cert.pub`). `SSSH_MAX_WAIT`
+mirrors `--max-wait`.
 
 ## Install
 
