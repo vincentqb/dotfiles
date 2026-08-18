@@ -1,7 +1,7 @@
 # Kiro CLI usage accounting
 
 What Kiro CLI 2.16.2 records about its own consumption, how much of it is
-recoverable locally, and how `kiro-ccusage` turns that into a ccusage report.
+recoverable locally, and how `ccusage-all` turns that into a cost figure.
 Everything here was measured on 2026-08-10 against kiro-cli 2.16.2 and
 ccusage 20.0.19; `./calibrate.py` re-derives every number.
 
@@ -241,5 +241,6 @@ both would count one phenomenon twice.
   A record's own `sessionId` and `cwd` are ignored.
 - `costUSD` overrides computed pricing (except under `--mode calculate`).
 - Dedup key is `message.id`, or `(requestId, message.id)` when both exist.
-  `kiro-ccusage` uses the stable `executionId`, so re-exporting is idempotent.
+  `ccusage-all` keys Kiro turns on the stable `executionId`, so a turn recorded
+  twice counts once.
 - Timestamps must be full RFC3339; date-only strings and epoch ints are dropped.

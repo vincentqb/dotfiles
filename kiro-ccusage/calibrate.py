@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Re-derive the credits->tokens->dollars calibration from local Kiro data.
 
-Everything `kiro-ccusage` relies on is measured, not assumed, and this script
+Everything `ccusage-all` relies on for Kiro is measured, not assumed, and this script
 reproduces each measurement so the constants can be re-checked when Kiro changes
 its rates. Run it and compare against FINDINGS.md.
 
   ./calibrate.py            # all checks
   ./calibrate.py --json     # machine-readable
 
-The four steps:
+The five steps:
 
   1. CREDITS PER TOKEN. Kiro logs a per-request context-fill percentage next to
      each turn's credits. On a turn with exactly one request the billed token
@@ -28,8 +28,8 @@ The four steps:
      Bedrock cache-read rates, never touching credits, and compare totals.
 
   5. UNCERTAINTY BAND. Compose the credits-per-token spread with the anchor
-     spread to get the asymmetric band `kiro-ccusage` prints beside each cost,
-     then check that step 4's independent estimate falls inside it.
+     spread to get the asymmetric band `ccusage-all` prints beside the Kiro
+     subtotal, then check that step 4's independent estimate falls inside it.
 """
 
 import argparse
@@ -270,7 +270,7 @@ def step4_cross_check(usd_per_credit, report):
 
 
 def step5_band(ks, report, via_credits, direct_total):
-    """Derive the uncertainty band that kiro-ccusage prints beside each cost."""
+    """Derive the uncertainty band that ccusage-all prints beside the Kiro subtotal."""
     print("5. UNCERTAINTY BAND (printed next to every cost figure)")
     anchors = [MULTIPLIER[m] / price for m, price in BEDROCK_INPUT.items() if m in MULTIPLIER]
     anchor = statistics.mean(anchors)

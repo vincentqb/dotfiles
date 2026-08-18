@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One usage table across every coding harness: Kiro, l3m, Claude Code, Codex, ...
 
-Three tools already know pieces of this and none knows all of it:
+Each harness records something different, and no one source reads them all:
 
   * ccusage reads REAL token counts from Claude Code / Codex / opencode logs and
     prices them at published per-model list rates it pulls from LiteLLM
@@ -17,10 +17,11 @@ Three tools already know pieces of this and none knows all of it:
     frontier models LiteLLM misses -- opus-5 included. Same source (published
     list price), curated instead of fetched.
 
-  * kiro-ccusage handles Kiro, which exposes no tokens at all -- only credits.
-    Its $/credit is derived (credits->tokens->dollars, FINDINGS.md), anchored to
-    those same published prices, and carries a wide -13%/+88% band because the
-    token count and the input/output mix are unmeasured.
+  * Kiro exposes no tokens at all -- only credits, which it writes per turn to
+    its own session log. The $/credit applied to them is derived
+    (credits->tokens->dollars, calibrate.py and FINDINGS.md), anchored to those
+    same published prices, and carries a wide -13%/+88% band because the token
+    count and the input/output mix are unmeasured.
 
 So the trustworthy quantity is always (real tokens) x (published list price).
 For Claude/Codex the tokens are logged, so cost is near-exact IF the price table
@@ -32,7 +33,11 @@ visible, not hidden.
 
 Kiro is the one harness with no token ground truth, so its column is credits and
 its dollar figure is the only true *estimate* here -- the -13%/+88% band rides on
-the Kiro subtotal alone; token costs are shown as points.
+the Kiro subtotal alone; token costs are shown as points. Its rows come from
+`~/.kiro/sessions/<workspace>/sess_<uuid>/messages.jsonl`, where each completed
+turn appends a `usage_summary` record carrying that turn's credits; the model is
+joined on from the `assistant` records sharing the turn's `executionId`, so a
+session that switched models still attributes per turn.
 
 l3m appears here twice, in two unrelated roles: as the price TABLE above, and --
 since it burns Bedrock tokens of its own -- as a harness in its own right.
@@ -71,16 +76,13 @@ Usage:
 
 import argparse
 import collections
-import glob
 import json
 import os
 import pathlib
 import subprocess
 import sys
 
-HERE = pathlib.Path(__file__).resolve().parent
-KIRO_CCUSAGE = HERE / "kiro-ccusage"
-KIRO_EXPORT = pathlib.Path("~/.local/share/kiro-ccusage").expanduser()
+KIRO_SESSIONS = pathlib.Path(os.environ.get("KIRO_HOME", "~/.kiro")).expanduser() / "sessions"
 
 # l3m-as-a-harness. The hub is a bare repo holding one state ref per agent; the
 # sidecar under it is the session's running cost/usage record.
@@ -88,8 +90,9 @@ L3M_HOME = pathlib.Path("~/.l3m").expanduser()
 L3M_STATE_REFS = "refs/agents/state/"
 L3M_SIDECAR = "last_state.json"
 
-# Kept in sync with kiro-ccusage. USD per Kiro credit (default) and the
-# asymmetric band multipliers printed beside the Kiro estimate. See FINDINGS.md.
+# USD per Kiro credit (default) and the asymmetric band multipliers printed
+# beside the Kiro subtotal. Derived, not guessed: calibrate.py re-derives both
+# from local Kiro data, and FINDINGS.md carries the argument.
 USD_PER_CREDIT = 0.0747
 KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
 
@@ -167,37 +170,68 @@ def l3m_cost_usd(rates, tokens):
     return cents / 100.0
 
 
-def refresh_kiro():
-    """Refresh the kiro-ccusage export (credits per turn). Non-fatal if absent."""
-    if not KIRO_CCUSAGE.is_file():
-        return False
-    try:
-        subprocess.run([sys.executable, str(KIRO_CCUSAGE), "--quiet"],
-                       check=False, capture_output=True)
-        return True
-    except OSError:
-        return False
+def kiro_turns(session_dir):
+    """Yield (timestamp, execution_id, credits, model) per completed Kiro turn.
+
+    Credits arrive on a `usage_summary` record, but the model that spent them is
+    only named on the `assistant` records sharing its `executionId` -- so collect
+    both in one pass and join at the end."""
+    messages = session_dir / "messages.jsonl"
+    if not messages.is_file():
+        return
+    models, summaries = {}, []
+    with messages.open() as handle:
+        for line in handle:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            payload = record.get("payload") or {}
+            execution_id = payload.get("executionId") or record.get("id")
+
+            if payload.get("type") == "assistant" and payload.get("reasoningModelId"):
+                # Namespaced as "qdev::claude-opus-5"; keep the bare model name.
+                models.setdefault(execution_id,
+                                  payload["reasoningModelId"].rpartition("::")[2])
+                continue
+
+            if payload.get("type") != "usage_summary":
+                continue
+            credits = sum(
+                summary.get("usage", 0)
+                for summary in payload.get("promptTurnSummaries") or []
+                if str(summary.get("unit", "")).lower().startswith("credit")
+            )
+            if credits > 0:
+                summaries.append((record.get("timestamp"), execution_id, credits))
+
+    for timestamp, execution_id, credits in summaries:
+        yield timestamp, execution_id, credits, models.get(execution_id)
 
 
 def kiro_rows(credit_rate):
-    """Per (day, model) Kiro credits, read from the kiro-ccusage export.
+    """Per (day, model) Kiro credits, read straight from Kiro's session logs.
 
-    The export keeps `kiroCredits` verbatim beside each turn, so the dollar
-    figure is recomputed here at the rate in force rather than trusting the
-    cost the export was last written with."""
+    Credits are what Kiro records, so the dollar figure is derived here at the
+    rate in force. Turns key on `executionId`, which is stable across re-reads,
+    so a turn recorded twice counts once."""
     days = collections.defaultdict(lambda: collections.defaultdict(float))
-    for path in glob.glob(str(KIRO_EXPORT / "projects/*/*.jsonl")):
-        with open(path) as handle:
-            for line in handle:
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                day = (record.get("timestamp") or "")[:10]
-                credits = record.get("kiroCredits", 0.0)
-                model = record.get("message", {}).get("model", "kiro-unknown")
-                if day and credits:
-                    days[day][model] += credits
+    seen = set()
+    for session_dir in sorted(KIRO_SESSIONS.glob("*/sess_*")):
+        try:
+            meta = json.loads((session_dir / "session.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            meta = {}
+        # session.json names one model for the whole session, which is wrong for
+        # a session that switched models; the per-turn join wins where it
+        # succeeded, and this is only the fallback.
+        session_model = meta.get("modelId") or "kiro-unknown"
+        for timestamp, execution_id, credits, model in kiro_turns(session_dir):
+            day = (timestamp or "")[:10]
+            if not day or not execution_id or execution_id in seen:
+                continue
+            seen.add(execution_id)
+            days[day][model or session_model] += credits
     rows = []
     for day, models in days.items():
         for model, credits in models.items():
@@ -556,7 +590,6 @@ def main():
 
     credit_rate = args.credit_rate
 
-    refresh_kiro()
     rows = (kiro_rows(credit_rate) + l3m_rows(l3m_settings())
             + ccusage_rows(args.rates, args.since, args.until, args.offline))
 
