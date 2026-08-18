@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sssh -- ssh that waits out a broken network and reconnects. Never prompts: it
+# ssa -- ssh that waits out a broken network and reconnects. Never prompts: it
 # reports what it is waiting for and picks it up on the next probe.
 # Why bash, and how each failure mode is detected: README.md.
 
@@ -10,16 +10,16 @@ PROG=${0##*/}
 ARGOPTS='bcDEeFIiJLlmOopQRSWw'
 # bash 4.2: "${a[@]}" on an empty array dies under set -u, hence ${a[@]+...}.
 
-max_wait=${SSSH_MAX_WAIT:-0}
-grace=${SSSH_GRACE:-3}
-probe_timeout=${SSSH_PROBE_TIMEOUT:-7}
-cert=${SSSH_CERT:-$HOME/.ssh/id_rsa-cert.pub}
+max_wait=${SSA_MAX_WAIT:-0}
+grace=${SSA_GRACE:-3}
+probe_timeout=${SSA_PROBE_TIMEOUT:-7}
+cert=${SSA_CERT:-$HOME/.ssh/id_rsa-cert.pub}
 tmux_session=
 retry_command=0
 
 usage() {
     cat <<'EOF'
-usage: sssh [--tmux[=NAME]] [--retry-command] [--max-wait=SECS] [ssh args] host [cmd]
+usage: ssa [--tmux[=NAME]] [--retry-command] [--max-wait=SECS] [ssh args] host [cmd]
 
   --tmux[=NAME]    attach-or-create remote tmux NAME (default main), so the
                    session survives a reconnect too; implies -t
@@ -154,7 +154,7 @@ wait_for() {
     WAITED=$(($(now) - start))
 }
 
-tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/sssh.XXXXXX") || exit 255
+tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/ssa.XXXXXX") || exit 255
 trap 'rm -rf "$tmpdir"' EXIT
 trap 'exit 130' INT TERM
 errfile=$tmpdir/err

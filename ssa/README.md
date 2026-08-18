@@ -1,4 +1,4 @@
-# sssh
+# ssa
 
 `ssh` that outlives the network. Waits for the machine to be reachable again and
 reconnects, instead of dropping you at a local prompt.
@@ -6,8 +6,15 @@ reconnects, instead of dropping you at a local prompt.
 `ssh` already detects a dead link — that is what `ServerAliveInterval` is for —
 and then exits. This is the part after "detect".
 
+The name is inherited: `ssa` was a fish abbreviation for
+`AUTOSSH_POLL=5 autossh -M 0`, and this replaces it, keeping the muscle memory.
+`autossh -M 0` restarts `ssh` blindly whenever it dies — which means it will
+re-run a remote command that already half-ran, spin against a changed host key,
+and never tell you the certificate expired. Those three differences are most of
+what is below.
+
 ```fish
-sssh --tmux gpu2
+ssa --tmux gpu2
 ```
 
 Close the laptop, change networks, let the VPN drop, let the Midway certificate
@@ -20,7 +27,7 @@ own schedule; every probe is a fresh `ssh`, so a certificate minted elsewhere
 gets picked up without restarting anything.
 
 ```
-sssh: credentials rejected (certificate expired 10h55m ago) -- retry in 4s (waited 12s)
+ssa: credentials rejected (certificate expired 10h55m ago) -- retry in 4s (waited 12s)
 ```
 
 ## Why bash
@@ -90,11 +97,11 @@ idea without needing OpenSSH ≥ 7.6, which matters on Amazon Linux 2 (7.4p1).
 ## Usage
 
 ```fish
-sssh gpu2                                # like ssh, but it comes back
-sssh --tmux gpu2                         # ... and the session survives too
-sssh --tmux=build -J bastion host        # every ssh flag still works
-sssh --max-wait=600 gpu2                 # give up on a reconnect after 10m
-sssh --retry-command host 'tail -F log'  # opt in to re-running a command
+ssa gpu2                                # like ssh, but it comes back
+ssa --tmux gpu2                         # ... and the session survives too
+ssa --tmux=build -J bastion host        # every ssh flag still works
+ssa --max-wait=600 gpu2                 # give up on a reconnect after 10m
+ssa --retry-command host 'tail -F log'  # opt in to re-running a command
 ```
 
 | Option | Default | |
@@ -104,21 +111,21 @@ sssh --retry-command host 'tail -F log'  # opt in to re-running a command
 | `--max-wait=SECS` | `0` | give up on one reconnect after SECS; 0 waits forever |
 
 Everything else goes to `ssh` untouched. Three more knobs have no flag, only an
-env var: `SSSH_GRACE` (keypress window before reconnect, default 3s),
-`SSSH_PROBE_TIMEOUT` (probe `ConnectTimeout`, default 7s), and `SSSH_CERT` (cert
-read to explain a rejection, default `~/.ssh/id_rsa-cert.pub`). `SSSH_MAX_WAIT`
+env var: `SSA_GRACE` (keypress window before reconnect, default 3s),
+`SSA_PROBE_TIMEOUT` (probe `ConnectTimeout`, default 7s), and `SSA_CERT` (cert
+read to explain a rejection, default `~/.ssh/id_rsa-cert.pub`). `SSA_MAX_WAIT`
 mirrors `--max-wait`.
 
 ## Install
 
 ```fish
-ln -s ~/dotfiles/sssh/sssh ~/bin/sssh
+ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ```
 
 ## Tests
 
 ```fish
-./test-sssh
+./test-ssa
 ```
 
 27 checks against a stub `ssh` that fails on a script, so the paths that only run

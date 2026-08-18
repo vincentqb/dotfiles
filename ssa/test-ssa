@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Drive sssh against a stub ssh, so the parts that only run when the network is
+# Drive ssa against a stub ssh, so the parts that only run when the network is
 # broken can be tested while it works.
 #
 # The stub records its argv and fails to a script (STUB_PLAN, one "rc:stderr" per
@@ -8,12 +8,12 @@
 # remote command. The credential tests all run with stdin closed, because the one
 # thing they assert is that nothing ever waits on a human.
 #
-# Usage: ./test-sssh
+# Usage: ./test-ssa
 
 set -uo pipefail
 
-SSSH=$(cd "$(dirname "$0")" && pwd)/sssh
-T=$(mktemp -d "${TMPDIR:-/tmp}/sssh-test.XXXXXX")
+SSA=$(cd "$(dirname "$0")" && pwd)/ssa
+T=$(mktemp -d "${TMPDIR:-/tmp}/ssa-test.XXXXXX")
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
 
@@ -43,7 +43,7 @@ export PATH="$T/bin:$PATH"
 export STUB_COUNT=$T/count STUB_LOG=$T/log
 # No real certificate, no keypress window, short timeouts: the point is the
 # control flow, not the clock.
-export SSSH_CERT=/nonexistent SSSH_GRACE=0 SSSH_PROBE_TIMEOUT=2 SSSH_MAX_WAIT=8
+export SSA_CERT=/nonexistent SSA_GRACE=0 SSA_PROBE_TIMEOUT=2 SSA_MAX_WAIT=8
 
 pass=0 fail=0
 check() { # check LABEL WANT GOT
@@ -62,11 +62,11 @@ first_argv() { awk -F'\t' 'NR == 1 { print $2 }' "$T/log"; }
 # --- exit status is the remote's, not ours -----------------------------------
 
 reset
-STUB_PLAN='3:' $SSSH host true >/dev/null 2>&1
+STUB_PLAN='3:' $SSA host true >/dev/null 2>&1
 check "remote exit 3 passes through" 3 $?
 
 reset
-STUB_PLAN='0:' $SSSH host >/dev/null 2>&1
+STUB_PLAN='0:' $SSA host >/dev/null 2>&1
 check "clean exit 0" 0 $?
 check "clean exit does not reconnect" 1 "$(sessions)"
 
@@ -74,7 +74,7 @@ check "clean exit does not reconnect" 1 "$(sessions)"
 
 reset
 out=$(STUB_PLAN='255:@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED @@@' \
-    $SSSH host 2>&1)
+    $SSA host 2>&1)
 check "changed host key exits 255" 255 $?
 check "changed host key is not retried" 1 "$(sessions)"
 case $out in
@@ -86,7 +86,7 @@ esac
 
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;0:;0:' \
-    $SSSH host 2>&1)
+    $SSA host 2>&1)
 check "reconnect after a timeout exits 0" 0 $?
 case $out in
     *"is back after"*) check "reconnect is announced" y y ;;
@@ -102,7 +102,7 @@ fi
 
 reset
 out=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' \
-    $SSSH host 'make deploy' 2>&1)
+    $SSA host 'make deploy' 2>&1)
 check "dropped remote command exits 255" 255 $?
 check "dropped remote command runs once" 1 "$(sessions)"
 case $out in
@@ -112,7 +112,7 @@ esac
 
 reset
 STUB_PLAN='255:Connection to host closed by remote host.;0:;0:' \
-    $SSSH --retry-command host 'tail -F log' >/dev/null 2>&1
+    $SSA --retry-command host 'tail -F log' >/dev/null 2>&1
 check "--retry-command opts back in" 0 $?
 
 # --- bounded waiting --------------------------------------------------------
@@ -120,7 +120,7 @@ check "--retry-command opts back in" 0 $?
 reset
 start=$(date +%s)
 STUB_PLAN='255:ssh: connect to host port 22: Connection refused;255:' \
-    $SSSH --max-wait=4 host >/dev/null 2>&1
+    $SSA --max-wait=4 host >/dev/null 2>&1
 check "max-wait gives up with 255" 255 $?
 elapsed=$(($(date +%s) - start))
 if [[ $elapsed -lt 20 ]]; then verdict=bounded; else verdict="${elapsed}s"; fi
@@ -129,27 +129,27 @@ check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 # --- argument handling ------------------------------------------------------
 
 reset
-STUB_PLAN='0:' $SSSH --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
+STUB_PLAN='0:' $SSA --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
 check "ssh keeps its flags, tmux is appended" \
     "-p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
 
 reset
-STUB_PLAN='0:' $SSSH -tp2222 host uptime >/dev/null 2>&1
+STUB_PLAN='0:' $SSA -tp2222 host uptime >/dev/null 2>&1
 check "clustered -tp2222 stays intact" "-tp2222 host uptime" "$(first_argv)"
 
 reset
-STUB_PLAN='0:' $SSSH host 'echo *' >/dev/null 2>&1
+STUB_PLAN='0:' $SSA host 'echo *' >/dev/null 2>&1
 check "remote command is not globbed locally" "host echo *" "$(first_argv)"
 
 reset
-STUB_PLAN='0:' $SSSH --tmux host uptime >/dev/null 2>&1
+STUB_PLAN='0:' $SSA --tmux host uptime >/dev/null 2>&1
 check "--tmux plus a command is refused" 255 $?
 
 reset
-STUB_PLAN='0:' $SSSH --nonsense host >/dev/null 2>&1
+STUB_PLAN='0:' $SSA --nonsense host >/dev/null 2>&1
 check "unknown long option is refused" 255 $?
 
-$SSSH --help >/dev/null 2>&1
+$SSA --help >/dev/null 2>&1
 check "--help exits 0" 0 $?
 
 # --- credentials are waited on, never asked for ------------------------------
@@ -158,7 +158,7 @@ check "--help exits 0" 0 $?
 # available, and it must still reconnect on its own.
 
 reset
-out=$(STUB_PLAN='255:Permission denied (publickey).;0:;0:' $SSSH host </dev/null 2>&1)
+out=$(STUB_PLAN='255:Permission denied (publickey).;0:;0:' $SSA host </dev/null 2>&1)
 check "rejected credentials, then accepted, exits 0" 0 $?
 case $out in
     *"credentials rejected"*) check "what it waits for is named" y y ;;
@@ -167,7 +167,7 @@ esac
 
 reset
 out=$(STUB_PLAN='255:Permission denied (publickey).' \
-    $SSSH --max-wait=3 host </dev/null 2>&1)
+    $SSA --max-wait=3 host </dev/null 2>&1)
 check "rejection with no tty times out, never prompts" 255 $?
 case $out in
     *"gave up"*) check "timing out is why it stopped" y y ;;
@@ -187,8 +187,8 @@ STUB
 
 keygen_says 2020-01-02T00:00:00
 reset
-out=$(STUB_PLAN='255:Permission denied (publickey).' SSSH_CERT=$T/cert \
-    $SSSH --max-wait=3 host </dev/null 2>&1)
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=$T/cert \
+    $SSA --max-wait=3 host </dev/null 2>&1)
 case $out in
     *"certificate expired"*) check "an expired cert explains the rejection" y y ;;
     *) check "an expired cert explains the rejection" y "n: $out" ;;
@@ -198,8 +198,8 @@ esac
 # another mwinit would not help.
 keygen_says 2099-01-01T00:00:00
 reset
-out=$(STUB_PLAN='255:Permission denied (publickey).' SSSH_CERT=$T/cert \
-    $SSSH --max-wait=3 host </dev/null 2>&1)
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=$T/cert \
+    $SSA --max-wait=3 host </dev/null 2>&1)
 case $out in
     *"not the cert"*) check "a live cert is ruled out explicitly" y y ;;
     *) check "a live cert is ruled out explicitly" y "n: $out" ;;

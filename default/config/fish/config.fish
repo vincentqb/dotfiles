@@ -12,7 +12,6 @@ if status is-interactive
     abbr icat "kitty +kitten icat"
     abbr lz "eza -lm --no-user --no-permissions --time-style long-iso -s modified -r --grid --color=always"
     abbr pcp "rsync -ahrz --info=progress2"
-    abbr ssa "AUTOSSH_FIRST_POLL=5 AUTOSSH_POLL=5 autossh -M 0"
 
     # Incompatible with wezterm-mux-server
     # for motd in /run/motd.dynamic /etc/motd
