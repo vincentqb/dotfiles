@@ -14,6 +14,7 @@ brew "just"
 brew "ripgrep"
 brew "rsync"
 brew "wget"
+brew "autossh"
 
 # Git
 brew "gh"
