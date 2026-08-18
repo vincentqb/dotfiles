@@ -93,7 +93,10 @@ done
 eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
 if [[ -n $tmux_session ]]; then
     ((${#user_cmd[@]} == 0)) || die "--tmux replaces the remote command; name the session with --tmux=NAME, not --tmux NAME"
-    eff_cmd=(tmux new -A -s "$tmux_session")   # -A attaches or creates
+    # -A attaches or creates. -u because a remote command gets no login shell,
+    # so LC_* is POSIX and tmux would draw every multibyte cell as "_"; the
+    # same session entered by hand looks fine, which makes it look like our bug.
+    eff_cmd=(tmux -u new -A -s "$tmux_session")
 fi
 
 # fatal: retrying cannot help. auth: credentials refused. connect: no session

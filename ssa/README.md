@@ -162,7 +162,7 @@ ssa --retry-command host 'tail -F log'  # opt in to re-running a command
 
 | Option | Default | |
 |---|---|---|
-| `--tmux[=NAME]` | off, `main` | remote tmux session to attach-or-create; implies `-t` |
+| `--tmux[=NAME]` | off, `main` | remote tmux session to attach-or-create; implies `-t`, forces UTF-8 (`tmux -u`) |
 | `--retry-command` | off | re-run the remote command after a mid-session drop |
 | `--max-wait=SECS` | `0` | give up on one reconnect after SECS; 0 waits forever |
 
