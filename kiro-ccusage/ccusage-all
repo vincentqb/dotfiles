@@ -454,7 +454,7 @@ def ccusage_rows(rates, since, until, offline):
     return rows
 
 
-def render(rows, credit_rate, rates, offline, stream=sys.stdout):
+def render(rows, stream=sys.stdout):
     def money(value):
         return f"${value:,.2f}"
 
@@ -466,12 +466,6 @@ def render(rows, credit_rate, rates, offline, stream=sys.stdout):
         # $/Mtok token rates ($0.76 .. $12.8) both read cleanly in one column.
         return "$0" if not value else f"${value:.3g}"
 
-    header = (f"Unified CLI Usage - Daily   "
-              f"[token rates: {'LiteLLM (ccusage)' if rates == 'litellm' else 'l3m + LiteLLM fallback'}"
-              f"{' offline' if offline else ''}; "
-              f"Kiro: est. ${credit_rate:g}/credit]")
-    print(header, file=stream)
-    print("=" * len(header), file=stream)
     if not rows:
         print("No usage data found.", file=stream)
         return
@@ -586,7 +580,7 @@ def main():
         print()
         return
 
-    render(rows, credit_rate, args.rates, args.offline)
+    render(rows)
 
 
 if __name__ == "__main__":
