@@ -64,12 +64,12 @@ The export refreshes automatically when a `kiro-cli chat` exits, via the
 
 ## All harnesses at once (`ccusage-all`)
 
-`ccusage-all` puts Kiro, Claude Code, Codex (and anything else ccusage detects)
-in one daily table: `Date | Day Total | Harness | Model | Consumed | Unit | Rate | Cost (USD)`,
+`ccusage-all` puts Kiro, l3m, Claude Code, Codex (and anything else ccusage
+detects) in one daily table: `Date | Day Total | Harness | Model | Consumed | Unit | Rate | Cost (USD)`,
 where **Cost = Consumed × Rate** on every row and `Day Total` is that date's total
 across all harnesses (shown once per day). It reuses
-`ccusage daily --json --by-agent` for the token-metered harnesses and this tool
-for Kiro's credits, then re-prices.
+`ccusage daily --json --by-agent` for the token-metered harnesses, this tool for
+Kiro's credits, and l3m's own hub for l3m, then re-prices.
 
 ```fish
 ccusage-all                     # default: l3m rates, Kiro estimated
@@ -93,6 +93,22 @@ real *estimate* — the −13%/+88% band rides on the Kiro subtotal alone. The `
 column names what `Consumed` counts — `credits` for Kiro (metered), `Mtok`
 (millions of tokens) for Claude/Codex (logged) — so the two never masquerade as
 one number; `Cost (USD)` is the only column comparable across harnesses.
+
+l3m burns Bedrock tokens too, and ccusage cannot see it — it keeps no
+Claude-Code-shaped log. Its rows come from l3m's own bookkeeping instead: every
+turn boundary publishes the session sidecar (`last_state.json` — cumulative cents
+plus per-wire token counters) to `refs/agents/state/<agent>/self` in the hub
+(`$L3M_HUB`, settings `hub.path`, else `~/.l3m/hub.git`), so that ref's history is
+a dated series of running totals, and differencing consecutive samples gives daily
+usage. The dollars are l3m's own `cents`, so `--rates` does not move them: l3m
+charges each call at the model that call actually used, which the per-wire
+counters can no longer tell us. Two consequences to read the table with — the
+`Model` cell is the session's *brain*, so a `consult_model` side call to another
+model folds into its parent's row; and one row may carry no date (`-`), the
+earliest sample in a ref, which is a conversation already under way whose spend is
+real but whose days were never recorded (it is kept rather than dropped, so the
+total stays right, and it ignores `--since`/`--until`). Sessions that never
+publish to a hub aren't counted.
 
 ## Install
 

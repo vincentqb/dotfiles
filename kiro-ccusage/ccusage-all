@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One usage table across every coding harness: Kiro, Claude Code, Codex, ...
+"""One usage table across every coding harness: Kiro, l3m, Claude Code, Codex, ...
 
 Three tools already know pieces of this and none knows all of it:
 
@@ -34,6 +34,25 @@ Kiro is the one harness with no token ground truth, so its column is credits and
 its dollar figure is the only true *estimate* here -- the -13%/+88% band rides on
 the Kiro subtotal alone; token costs are shown as points.
 
+l3m appears here twice, in two unrelated roles: as the price TABLE above, and --
+since it burns Bedrock tokens of its own -- as a harness in its own right.
+ccusage cannot see it (l3m keeps no Claude-Code-shaped log), so its rows are read
+straight out of l3m's own bookkeeping: every turn boundary publishes the session
+sidecar (`last_state.json` -- cumulative `cents` plus per-wire token counters) to
+`refs/agents/state/<agent>/self` in the hub, so that ref's commit history is a
+dated series of running totals, and differencing consecutive samples gives daily
+usage. Cost comes from l3m's own `cents`, not from re-pricing here: l3m charges
+each call at the model that call actually used, which the flattened per-wire
+counters can no longer tell us. So `--rates` does not move the l3m rows, and the
+`Model` cell is the session's brain -- a `consult_model` side call to a different
+model folds into its parent's row.
+
+One l3m row can carry no date (`-`): the earliest sample in a ref's history is a
+conversation that was already running, so that much spend is real but the days it
+happened on were never recorded. It is carried undated rather than dumped on the
+day it first became visible, and it survives `--since`/`--until` like any undated
+row -- dropping it would silently shrink the total.
+
 Columns: Date | Harness | Model | Consumed | Unit | Rate | Cost (USD), where
 Consumed x Rate = Cost on every row. `Unit` is `credits` for Kiro (metered) and
 `Mtok` (millions of tokens) for the token-logged harnesses -- the two are not
@@ -54,6 +73,7 @@ import argparse
 import collections
 import glob
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -61,6 +81,12 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 KIRO_CCUSAGE = HERE / "kiro-ccusage"
 KIRO_EXPORT = pathlib.Path("~/.local/share/kiro-ccusage").expanduser()
+
+# l3m-as-a-harness. The hub is a bare repo holding one state ref per agent; the
+# sidecar under it is the session's running cost/usage record.
+L3M_HOME = pathlib.Path("~/.l3m").expanduser()
+L3M_STATE_REFS = "refs/agents/state/"
+L3M_SIDECAR = "last_state.json"
 
 # Kept in sync with kiro-ccusage. USD per Kiro credit (default) and the
 # asymmetric band multipliers printed beside the Kiro estimate. See FINDINGS.md.
@@ -82,6 +108,18 @@ L3M_CLAUDE = {
     "claude-haiku-4-5":         (100,  500,  10,  125),
     "claude-fable-5":           (1000, 5000, 100, 1250),
     "claude-opus-5":            (500,  2500, 50,  625),   # PROVISIONAL (borrowed opus-4.8)
+}
+
+# l3m's short model aliases, from the same table, needed for the l3m HARNESS
+# rows: a session that names no `--model` runs on the configured default, which
+# is normally written as one of these. A leading `a/` (direct Anthropic instead
+# of Bedrock) is stripped before lookup -- same model, different transport.
+L3M_ALIASES = {
+    "opus":   "claude-opus-4-8",
+    "sonnet": "claude-sonnet-4-6",
+    "haiku":  "claude-haiku-4-5",
+    "fable":  "claude-fable-5",
+    "gpt":    "gpt-5.6-sol",
 }
 
 
@@ -168,6 +206,194 @@ def kiro_rows(credit_rate):
                 "consumed": credits, "unit": "credits", "rate": credit_rate,
                 "cost": credits * credit_rate, "tokens": None,
                 "priced_by": "kiro-credit",
+            })
+    return rows
+
+
+def l3m_settings():
+    """`~/.l3m/settings.json`, or `{}` if it is absent or unreadable."""
+    try:
+        return json.loads((L3M_HOME / "settings.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def l3m_hub_path(settings):
+    """Where l3m's hub lives: `$L3M_HUB`, else settings `hub.path`, else the
+    default `~/.l3m/hub.git` (L3m/Runtime/HubBoot.lean)."""
+    configured = os.environ.get("L3M_HUB") or (settings.get("hub") or {}).get("path")
+    return pathlib.Path(configured).expanduser() if configured else L3M_HOME / "hub.git"
+
+
+def l3m_model(state, default_model):
+    """The session's brain: the `--model=` it was started with, else the
+    configured default (settings `llm.model`; `None` when that is unset too, and
+    l3m's own built-in default -- unknowable from out here -- applies).
+
+    Attribution is per SESSION, not per call: the sidecar's counters are keyed by
+    wire (Anthropic / Bedrock Converse / Mantle), not by model, so a
+    `consult_model` side call to another model folds into its parent's row. Only
+    the model label is approximate -- `cents` is not, since l3m charged each call
+    at the model it actually used."""
+    name = None
+    for flag in state.get("flags") or []:
+        if flag.startswith("--model="):
+            name = flag[len("--model="):]
+    name = name or default_model
+    if not name:
+        return "l3m-unknown"
+    name = name.removeprefix("a/")
+    return canon(L3M_ALIASES.get(name, name))
+
+
+def l3m_tokens(state):
+    """l3m's per-wire counters mapped onto ccusage's four token buckets.
+
+    `a_*` Anthropic native, `c_*` Bedrock Converse, `o_*` Mantle. Mantle's `o_rt`
+    is the reasoning subset, billed at the output rate, so it lands in output."""
+    def total(*keys):
+        return sum(state.get(key, 0) for key in keys)
+    return {
+        "inputTokens": total("a_in", "c_in", "o_in"),
+        "outputTokens": total("a_out", "c_out", "o_out", "o_rt"),
+        "cacheReadTokens": total("a_cr", "c_cr"),
+        "cacheCreationTokens": total("a_cw", "c_cw"),
+    }
+
+
+def l3m_git(hub, *args):
+    """Run git in the hub. `None` if git or the hub isn't there (non-fatal:
+    l3m simply contributes no rows)."""
+    try:
+        return subprocess.run(["git", "--git-dir", str(hub), *args],
+                              check=True, capture_output=True, text=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def l3m_blobs(hub, shas):
+    """Read many blobs in one `git cat-file --batch`.
+
+    The sidecar blob repeats across commits (most turn boundaries republish an
+    unchanged file), so the distinct blobs are far fewer than the commits and a
+    `git show` per commit would be hundreds of processes. Missing objects are
+    absent from the result rather than fatal."""
+    shas = sorted(shas)
+    if not shas:
+        return {}
+    try:
+        out = subprocess.run(["git", "--git-dir", str(hub), "cat-file", "--batch"],
+                             input=("\n".join(shas) + "\n").encode(),
+                             check=True, capture_output=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return {}
+    blobs, pos = {}, 0
+    while pos < len(out):
+        end = out.find(b"\n", pos)
+        if end < 0:
+            break
+        header = out[pos:end].split()
+        pos = end + 1
+        # `<sha> <type> <size>` then that many bytes and a newline; an unknown
+        # object answers `<name> missing` with no body at all.
+        if len(header) < 3:
+            continue
+        size = int(header[2])
+        blobs[header[0].decode()] = out[pos:pos + size].decode("utf-8", "replace")
+        pos += size + 1
+    return blobs
+
+
+def l3m_samples(hub, ref):
+    """[(day, sidecar)] for one state ref, oldest first.
+
+    `--raw` names the sidecar's new blob on each commit that changed it (the
+    republish-unchanged commits carry no sample), and the day is the commit's own
+    local date, matching how the other harnesses are bucketed. `--no-abbrev`
+    because `cat-file --batch` echoes full object names, and the two have to be
+    the same key."""
+    log = l3m_git(hub, "log", "--reverse", "--format=%cd", "--date=short-local",
+                  "--raw", "--no-abbrev", ref, "--", L3M_SIDECAR)
+    if not log:
+        return []
+    day, pairs = None, []
+    for line in log.splitlines():
+        if line.startswith(":"):
+            # :<oldmode> <newmode> <oldsha> <newsha> <status>\t<path>
+            fields = line.split()
+            if len(fields) > 3:
+                pairs.append((day, fields[3]))
+        elif line.strip():
+            day = line.strip()
+    blobs = l3m_blobs(hub, {sha for _, sha in pairs})
+    samples = []
+    for day, sha in pairs:
+        try:
+            samples.append((day, json.loads(blobs[sha])))
+        except (KeyError, json.JSONDecodeError):
+            continue
+    return samples
+
+
+def l3m_rows(settings):
+    """Per (day, model) l3m usage, differenced out of the hub's state refs.
+
+    Each ref is one agent's sidecar series: cumulative within a conversation,
+    back to zero when a new one starts in the same worktree. So a sample's delta
+    against its predecessor is the usage since that predecessor -- except across
+    a reset, where the whole new value is the delta.
+
+    A reset is read off the counters GOING BACKWARDS, and only that. The sidecar
+    also carries a conversation id, but it is not the reset signal it looks like:
+    a resume re-mints the id while `loadLastCost` carries the counters forward,
+    so treating an id change as a reset re-counts the whole session (11 such
+    samples in this hub, and the same pattern on a long session would double a
+    three-figure total). Cost of ignoring it: a fresh conversation whose first
+    published turn already exceeds the previous conversation's lifetime total
+    reads as a continuation, undercounting by that previous total -- which, in
+    that situation, is by construction the smaller of the two numbers."""
+    hub = l3m_hub_path(settings)
+    default_model = (settings.get("llm") or {}).get("model")
+    days = collections.defaultdict(lambda: collections.defaultdict(
+        lambda: {"cents": 0, "tokens": collections.Counter()}))
+    for ref in (l3m_git(hub, "for-each-ref", "--format=%(refname)", L3M_STATE_REFS) or "").split():
+        prev = None
+        for day, state in l3m_samples(hub, ref):
+            cents, tokens = state.get("cents", 0), l3m_tokens(state)
+            total = sum(tokens.values())
+            if prev is None:
+                # Oldest sample in this ref: a conversation already under way,
+                # whose spend is real but undated (see the module docstring).
+                delta_cents, delta_tokens, when = cents, tokens, None
+            elif cents < prev["cents"] or total < prev["total"]:
+                delta_cents, delta_tokens, when = cents, tokens, day
+            else:
+                delta_cents = cents - prev["cents"]
+                delta_tokens = {k: v - prev["tokens"][k] for k, v in tokens.items()}
+                when = day
+            prev = {"cents": cents, "tokens": tokens, "total": total}
+            if not delta_cents and not sum(delta_tokens.values()):
+                continue
+            # A session's brain is fixed for its life, so the flags name the
+            # model even for the part that predates the record -- but when they
+            # DON'T, an undated sample is old enough that today's configured
+            # default says nothing about it. Guess the default only for spend we
+            # can date.
+            bucket = days[when][l3m_model(state, default_model if when else None)]
+            bucket["cents"] += delta_cents
+            bucket["tokens"].update(delta_tokens)
+
+    rows = []
+    for day, models in days.items():
+        for model, bucket in models.items():
+            cost = bucket["cents"] / 100.0
+            mtok = sum(bucket["tokens"].values()) / 1e6
+            rows.append({
+                "day": day, "harness": "l3m", "model": model,
+                "consumed": mtok, "unit": "Mtok",
+                "rate": (cost / mtok) if mtok else 0.0,
+                "cost": cost, "tokens": dict(bucket["tokens"]),
+                "priced_by": "l3m-self",
             })
     return rows
 
@@ -337,9 +563,11 @@ def main():
     credit_rate = args.credit_rate
 
     refresh_kiro()
-    rows = kiro_rows(credit_rate) + ccusage_rows(args.rates, args.since, args.until, args.offline)
+    rows = (kiro_rows(credit_rate) + l3m_rows(l3m_settings())
+            + ccusage_rows(args.rates, args.since, args.until, args.offline))
 
-    # Post-filter Kiro rows by date (ccusage already filtered its own).
+    # Post-filter the Kiro and l3m rows by date (ccusage already filtered its
+    # own). Undated rows are kept deliberately -- see the module docstring.
     if args.since:
         rows = [r for r in rows if not r["day"] or r["day"] >= args.since]
     if args.until:
