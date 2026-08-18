@@ -77,14 +77,18 @@ done
 [[ -n $host ]] || { usage; exit 2; }
 
 # autossh's -M monitor exists because nothing reconnects if nothing notices the
-# link died. ssh's own ServerAliveInterval does that job, but its default is 0 --
-# on a dead link ssh then blocks until the kernel gives up, and there is nothing
-# to supervise. Supply one only when the config has none: any -o we passed would
-# otherwise override a configured value. 30x3 notices within ~90s.
-keepalive=()
+# link died. ssh's ServerAliveInterval is that check, and its default is 0: on a
+# dead link ssh blocks until the kernel gives up, so there is nothing to
+# supervise and this whole script does nothing. Refuse rather than inject one --
+# it belongs in ssh_config, where plain ssh benefits too, and a wrapper quietly
+# rewriting connection parameters is worse than being told once.
 [[ $(ssh -G ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" 2>/dev/null |
     awk '$1 == "serveraliveinterval" { print $2; exit }') == 0 ]] &&
-    keepalive=(-o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+    die "$host has no ServerAliveInterval, so ssh will never notice a dead link.
+    Add to ~/.ssh/config:
+        Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 3"
 
 eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
 if [[ -n $tmux_session ]]; then
@@ -186,8 +190,8 @@ run_ssh() {
     local pid
     tee "$errfile" <"$fifo" >&2 &
     pid=$!
-    ssh ${keepalive[@]+"${keepalive[@]}"} ${ssh_opts[@]+"${ssh_opts[@]}"} \
-        ${tmux_session:+-t} "$host" ${eff_cmd[@]+"${eff_cmd[@]}"} 2>"$fifo"
+    ssh ${ssh_opts[@]+"${ssh_opts[@]}"} ${tmux_session:+-t} "$host" \
+        ${eff_cmd[@]+"${eff_cmd[@]}"} 2>"$fifo"
     rc=$?
     wait "$pid" 2>/dev/null
 }

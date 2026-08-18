@@ -111,10 +111,23 @@ abbreviation used `-M 0` — but the underlying point generalises: **nothing
 reconnects if nothing notices the link died.** ssh's default
 `ServerAliveInterval` is 0, and this config sets it only for `gpu2`/`gpu3`
 (`bastions-config` has a `host *` block, but only for `PubkeyAcceptedKeyTypes`).
-On every other host ssh would block until the kernel gave up on the socket, with
-nothing to supervise. So `ssa` reads the effective value and supplies `30`x`3`
-only when the config has none — never overriding a configured one, since any `-o`
-it passed would win over `ssh_config`.
+On every other host ssh blocks until the kernel gives up on the socket, with
+nothing to supervise — the script silently does nothing at all. So `ssa` reads
+the effective value and **refuses** when it is 0, naming the fix:
+
+```
+ssa: localhost has no ServerAliveInterval, so ssh will never notice a dead link.
+    Add to ~/.ssh/config:
+        Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
+```
+
+Refusing beats supplying one. The setting belongs in `ssh_config`, where plain
+`ssh` and `kitty +kitten ssh` benefit too; a wrapper that quietly rewrites
+connection parameters on every call is harder to debug later than one error you
+fix once. A `Host *` block covers every host forever, and an explicit
+`-o ServerAliveInterval=…` on the command line satisfies it too.
 
 Refusing `-f` is the same lesson from the other end. autossh strips it and forces
 `gate_time = 0`; here it made ssh background itself and return 0 immediately, so
@@ -169,7 +182,7 @@ ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ./test-ssa
 ```
 
-33 checks against a stub `ssh` that fails on a script, so the paths that only run
+35 checks against a stub `ssh` that fails on a script, so the paths that only run
 when the network is broken — changed host key, expired certificate, a drop
 halfway through a remote command — are exercised while it works. The credential
 tests run with stdin closed, because the one thing they assert is that nothing

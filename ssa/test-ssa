@@ -45,6 +45,9 @@ export STUB_COUNT=$T/count STUB_LOG=$T/log
 # No real certificate, no keypress window, short timeouts: the point is the
 # control flow, not the clock.
 export SSA_CERT=/nonexistent SSA_GRACE=0 SSA_PROBE_TIMEOUT=2 SSA_MAX_WAIT=8
+# ssa refuses a host whose config has no ServerAliveInterval, so the stub
+# reports one; STUB_ALIVE=0 is how the two tests below exercise that refusal.
+export STUB_ALIVE=60
 
 pass=0 fail=0
 check() { # check LABEL WANT GOT
@@ -59,9 +62,7 @@ check() { # check LABEL WANT GOT
 reset() { : >"$T/log"; echo 0 >"$STUB_COUNT"; }
 sessions() { grep -c . "$T/log"; }
 first_argv() { awk -F'\t' 'NR == 1 { print $2 }' "$T/log"; }
-# ssa supplies this when the config has no ServerAliveInterval, which the
-# stub reports as 0 unless STUB_ALIVE says otherwise.
-KA="-o ServerAliveInterval=30 -o ServerAliveCountMax=3"
+
 
 # --- exit status is the remote's, not ours -----------------------------------
 
@@ -135,15 +136,15 @@ check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 reset
 STUB_PLAN='0:' $SSA --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
 check "ssh keeps its flags, tmux is appended" \
-    "$KA -p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
+    "-p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA -tp2222 host uptime >/dev/null 2>&1
-check "clustered -tp2222 stays intact" "$KA -tp2222 host uptime" "$(first_argv)"
+check "clustered -tp2222 stays intact" "-tp2222 host uptime" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA host 'echo *' >/dev/null 2>&1
-check "remote command is not globbed locally" "$KA host echo *" "$(first_argv)"
+check "remote command is not globbed locally" "host echo *" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA --tmux host uptime >/dev/null 2>&1
@@ -174,15 +175,17 @@ STUB_PLAN='0:' $SSA -i /tmp/key-for-f host >/dev/null 2>&1
 check "an -i path containing f is not mistaken for -f" 0 $?
 
 reset
-STUB_PLAN='0:' $SSA host >/dev/null 2>&1
-case "$(first_argv)" in
-    "$KA host") check "keepalive supplied when config has none" y y ;;
-    *) check "keepalive supplied when config has none" y "n: $(first_argv)" ;;
+out=$(STUB_ALIVE=0 STUB_PLAN='0:' $SSA host 2>&1)
+check "no ServerAliveInterval is refused" 255 $?
+check "no ServerAliveInterval never connects" 0 "$(sessions)"
+case $out in
+    *ServerAliveInterval*Host*) check "the refusal says what to add" y y ;;
+    *) check "the refusal says what to add" y "n: $out" ;;
 esac
 
 reset
-STUB_ALIVE=60 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
-check "a configured keepalive is left alone" "host" "$(first_argv)"
+STUB_PLAN='0:' $SSA host >/dev/null 2>&1
+check "a configured keepalive connects untouched" "host" "$(first_argv)"
 
 # --- credentials are waited on, never asked for ------------------------------
 # Nothing here may prompt, invoke mwinit, or dead-end on a missing terminal: a
