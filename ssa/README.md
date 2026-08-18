@@ -8,10 +8,7 @@ and then exits. This is the part after "detect".
 
 The name is inherited: `ssa` was a fish abbreviation for
 `AUTOSSH_POLL=5 autossh -M 0`, and this replaces it, keeping the muscle memory.
-`autossh -M 0` restarts `ssh` blindly whenever it dies — which means it will
-re-run a remote command that already half-ran, spin against a changed host key,
-and never tell you the certificate expired. Those three differences are most of
-what is below.
+[Versus autossh](#versus-autossh) is the honest comparison.
 
 ```fish
 ssa --tmux gpu2
@@ -83,6 +80,29 @@ The cost of never prompting is that a permanently broken login — a wrong
 username, a key the host has never seen — looks exactly like a certificate that
 is about to be refreshed, so it waits on that forever too. `--max-wait` bounds it
 when you want a bound; the status line tells you which one you are looking at.
+
+## Versus autossh
+
+`autossh -M 0` covers the plain cases identically: a clean logout stops, and a
+drop, timeout or reboot restarts with backoff. It differs where the *reason*
+matters. Checked against autossh 1.4g's `README` and the `ssh_wait()` switch in
+`autossh.c` — read, not run; autossh is not installed here.
+
+| | `autossh -M 0` | `ssa` |
+|---|---|---|
+| Remote command after a drop | re-run — every restart is `execvp` on the same argv | refuses unless `--retry-command` |
+| Exit status | discarded: `P_EXITERR` collapses to `exit(1)`, so only 0 or 1 ever comes out. Worse for commands, statuses 1 and 2 are treated as *restartable* after the first start | propagated — `exit 7` gives 7 |
+| Auth failure vs. dead link | indistinguishable; the source comment at `case 255` says so outright | classified from stderr, and the cert's expiry says why |
+| `~.` | 255, so it reconnects you to the session you just left | keypress window to stop |
+| Changed host key | first attempt: stops on gatetime with "ssh exited prematurely". After one good session: retries forever | stops, naming the cause |
+| Captive portal | invisible | reported |
+
+Two things autossh does that this does not. `AUTOSSH_GATETIME` (30 s) makes a
+*first* attempt that dies immediately fatal instead of waiting on it forever —
+the deliberate opposite of the choice here, and `--max-wait` is the weaker
+substitute. And `-M <port>` passes traffic through a forwarded port to catch a
+connection that is hung but still alive; `ServerAliveInterval` covers that, which
+is why the abbreviation disabled it with `-M 0`.
 
 ## Reconnecting is not resuming
 
