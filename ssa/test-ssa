@@ -24,6 +24,7 @@ cat >"$T/bin/ssh" <<'STUB'
 # the next step of STUB_PLAN, repeating the last step once it runs out.
 if [[ " $* " == *" -G "* ]]; then
     printf 'hostname %s\nport 22\nuser tester\n' "${STUB_HOST:-testhost}"
+    printf 'serveraliveinterval %s\n' "${STUB_ALIVE:-0}"
     exit 0
 fi
 n=$(cat "$STUB_COUNT" 2>/dev/null || echo 0)
@@ -58,6 +59,9 @@ check() { # check LABEL WANT GOT
 reset() { : >"$T/log"; echo 0 >"$STUB_COUNT"; }
 sessions() { grep -c . "$T/log"; }
 first_argv() { awk -F'\t' 'NR == 1 { print $2 }' "$T/log"; }
+# ssa supplies this when the config has no ServerAliveInterval, which the
+# stub reports as 0 unless STUB_ALIVE says otherwise.
+KA="-o ServerAliveInterval=30 -o ServerAliveCountMax=3"
 
 # --- exit status is the remote's, not ours -----------------------------------
 
@@ -131,15 +135,15 @@ check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 reset
 STUB_PLAN='0:' $SSA --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
 check "ssh keeps its flags, tmux is appended" \
-    "-p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
+    "$KA -p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA -tp2222 host uptime >/dev/null 2>&1
-check "clustered -tp2222 stays intact" "-tp2222 host uptime" "$(first_argv)"
+check "clustered -tp2222 stays intact" "$KA -tp2222 host uptime" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA host 'echo *' >/dev/null 2>&1
-check "remote command is not globbed locally" "host echo *" "$(first_argv)"
+check "remote command is not globbed locally" "$KA host echo *" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA --tmux host uptime >/dev/null 2>&1
@@ -151,6 +155,34 @@ check "unknown long option is refused" 255 $?
 
 $SSA --help >/dev/null 2>&1
 check "--help exits 0" 0 $?
+
+# --- borrowed from autossh ---------------------------------------------------
+# -M exists because nothing reconnects if nothing notices the link died, and -f
+# is the case autossh special-cases; here it would make the wrapper a silent no-op.
+
+reset
+STUB_PLAN='0:' $SSA -f -N -L 8080:localhost:80 host >/dev/null 2>&1
+check "-f is refused, not silently unsupervised" 255 $?
+check "-f never reaches ssh" 0 "$(sessions)"
+
+reset
+STUB_PLAN='0:' $SSA -F /dev/null host >/dev/null 2>&1
+check "-F is not mistaken for -f" 0 $?
+
+reset
+STUB_PLAN='0:' $SSA -i /tmp/key-for-f host >/dev/null 2>&1
+check "an -i path containing f is not mistaken for -f" 0 $?
+
+reset
+STUB_PLAN='0:' $SSA host >/dev/null 2>&1
+case "$(first_argv)" in
+    "$KA host") check "keepalive supplied when config has none" y y ;;
+    *) check "keepalive supplied when config has none" y "n: $(first_argv)" ;;
+esac
+
+reset
+STUB_ALIVE=60 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
+check "a configured keepalive is left alone" "host" "$(first_argv)"
 
 # --- credentials are waited on, never asked for ------------------------------
 # Nothing here may prompt, invoke mwinit, or dead-end on a missing terminal: a

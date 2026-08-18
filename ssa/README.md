@@ -59,9 +59,9 @@ Two questions decide everything, and `ssh` answers both if you ask precisely:
 | Failure | Signal | Response |
 |---|---|---|
 | Credential expiry | the server says `Permission denied`; `ssh-keygen -L` on the CA cert then explains why, from its hard `Valid: ... to <ts>` | wait. If the cert is *not* expired it says so, rather than implying another `mwinit` would help |
-| VPN down | target unreachable while the internet probe is clean, or its name stops resolving | wait, and say which |
+| VPN down | ssh's own `Could not resolve` or `No route to host` | wait |
 | Captive portal | probe URL answers something other than 204 | report it; you still sign in yourself |
-| Wifi off, cable out | no global address, or no default route | wait |
+| Wifi off, cable out | ssh's own `Network is unreachable` | wait |
 | Timeouts, lag | `ServerAlive` fires; a stale `ControlMaster` socket then fails the *next* connect instantly | `ssh -O check`, then `-O exit`, then reconnect |
 | Remote reboot | `closed by remote host`, then refused, then the port answers | wait for it, reconnect |
 | Host key changed | `REMOTE HOST IDENTIFICATION HAS CHANGED` | **stop.** A rebuilt host and a MITM are identical from here, so `known_hosts` is never rewritten |
@@ -69,7 +69,7 @@ Two questions decide everything, and `ssh` answers both if you ask precisely:
 
 Between attempts it probes with a real `ssh` (`BatchMode`, short
 `ConnectTimeout`, no mux), so aliases, ports and `ProxyJump` are honoured, but the
-screen stays quiet: one status line, backing off 1 s → 30 s, and a bell if the
+screen stays quiet: one line per retry, backing off 1 s → 30 s, and a bell if the
 wait was long enough that you walked away.
 
 Three things it deliberately will not do: rewrite `known_hosts`, re-run a remote
@@ -103,10 +103,27 @@ expires *during* a session's life, which is precisely when autossh's gate has
 stopped protecting — so the failure it handles worst is the one that happens
 daily.
 
-Two things autossh does that this does not: `AUTOSSH_GATETIME` (above), and
-`-M <port>`, which passes traffic through a forwarded port to catch a connection
-that is hung but still alive. `ServerAliveInterval` covers the latter, which is
-why the abbreviation disabled it with `-M 0`.
+### Taken from autossh
+
+`-M <port>` passes traffic through a forwarded port to catch a connection that is
+hung but still alive. `ServerAliveInterval` supersedes it — which is why the
+abbreviation used `-M 0` — but the underlying point generalises: **nothing
+reconnects if nothing notices the link died.** ssh's default
+`ServerAliveInterval` is 0, and this config sets it only for `gpu2`/`gpu3`
+(`bastions-config` has a `host *` block, but only for `PubkeyAcceptedKeyTypes`).
+On every other host ssh would block until the kernel gave up on the socket, with
+nothing to supervise. So `ssa` reads the effective value and supplies `30`x`3`
+only when the config has none — never overriding a configured one, since any `-o`
+it passed would win over `ssh_config`.
+
+Refusing `-f` is the same lesson from the other end. autossh strips it and forces
+`gate_time = 0`; here it made ssh background itself and return 0 immediately, so
+`ssa -f -N -L …` exited 0 having supervised nothing and reported success. It is
+now refused, pointing at backgrounding `ssa` instead.
+
+`AUTOSSH_GATETIME` is the third idea and the one not taken: it would stop a
+*first* attempt that dies instantly, which is the deliberate opposite of waiting
+for a certificate you are about to refresh.
 
 ## Reconnecting is not resuming
 
@@ -152,7 +169,7 @@ ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ./test-ssa
 ```
 
-27 checks against a stub `ssh` that fails on a script, so the paths that only run
+33 checks against a stub `ssh` that fails on a script, so the paths that only run
 when the network is broken — changed host key, expired certificate, a drop
 halfway through a remote command — are exercised while it works. The credential
 tests run with stdin closed, because the one thing they assert is that nothing
