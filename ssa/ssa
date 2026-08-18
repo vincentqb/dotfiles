@@ -22,7 +22,7 @@ usage() {
 usage: ssa [--tmux[=NAME]] [--retry-command] [--max-wait=SECS] [ssh args] host [cmd]
 
   --tmux[=NAME]    attach-or-create remote tmux NAME (default main), so the
-                   session survives a reconnect too; forces a pty
+                   session survives a reconnect too; implies -t
   --retry-command  re-run the remote command after a mid-session drop
   --max-wait=SECS  give up on one reconnect after SECS (0 = never)
 
@@ -190,10 +190,7 @@ run_ssh() {
     local pid
     tee "$errfile" <"$fifo" >&2 &
     pid=$!
-    # -tt, not -t: a lone -t only allocates a pty when our stdin is one, and a
-    # tmux with no pty dies "open terminal failed" and exits 1. Force it, as
-    # RequestTTY force does; tmux always needs a terminal.
-    ssh ${ssh_opts[@]+"${ssh_opts[@]}"} ${tmux_session:+-tt} "$host" \
+    ssh ${ssh_opts[@]+"${ssh_opts[@]}"} ${tmux_session:+-t} "$host" \
         ${eff_cmd[@]+"${eff_cmd[@]}"} 2>"$fifo"
     rc=$?
     wait "$pid" 2>/dev/null

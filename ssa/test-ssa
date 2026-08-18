@@ -136,7 +136,7 @@ check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 reset
 STUB_PLAN='0:' $SSA --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
 check "ssh keeps its flags, tmux is appended" \
-    "-p 2222 -J bastion -tt host tmux new -A -s build" "$(first_argv)"
+    "-p 2222 -J bastion -t host tmux new -A -s build" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA -tp2222 host uptime >/dev/null 2>&1
