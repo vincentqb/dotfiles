@@ -83,26 +83,30 @@ when you want a bound; the status line tells you which one you are looking at.
 
 ## Versus autossh
 
-`autossh -M 0` covers the plain cases identically: a clean logout stops, and a
-drop, timeout or reboot restarts with backoff. It differs where the *reason*
-matters. Checked against autossh 1.4g's `README` and the `ssh_wait()` switch in
-`autossh.c` — read, not run; autossh is not installed here.
+`autossh -M 0` restarts a dropped link with backoff, same as this. It differs
+wherever the *reason* for the drop matters. Measured against autossh 1.4g by
+pointing `AUTOSSH_PATH` at a stub `ssh` that fails on command:
 
 | | `autossh -M 0` | `ssa` |
 |---|---|---|
-| Remote command after a drop | re-run — every restart is `execvp` on the same argv | refuses unless `--retry-command` |
-| Exit status | discarded: `P_EXITERR` collapses to `exit(1)`, so only 0 or 1 ever comes out. Worse for commands, statuses 1 and 2 are treated as *restartable* after the first start | propagated — `exit 7` gives 7 |
-| Auth failure vs. dead link | indistinguishable; the source comment at `case 255` says so outright | classified from stderr, and the cert's expiry says why |
+| Remote command after a drop | re-run: `make deploy` ran **8 times in 25 s**, and would not have stopped | once, then stops (`--retry-command` opts in) |
+| Exit status | `exit 7` → **1**. Only 0 and 1 ever come out, and statuses 1 and 2 become *restartable* after the first start | `exit 7` → 7 |
+| Clean logout | **1** if the session was shorter than the 30 s gate; 0 once past it | 0 |
+| Auth failure, first attempt | stops at once — the gate's whole purpose, and it beats waiting forever | waits (bounded only by `--max-wait`) |
+| Auth failure after a good session | the gate no longer applies: **8 silent retries in 25 s**, forever, saying nothing beyond ssh's own `Permission denied` | names it, with how long ago the cert expired |
 | `~.` | 255, so it reconnects you to the session you just left | keypress window to stop |
-| Changed host key | first attempt: stops on gatetime with "ssh exited prematurely". After one good session: retries forever | stops, naming the cause |
+| Changed host key | same split as auth: stops on the first attempt, retries forever after a good session | stops, naming the cause |
 | Captive portal | invisible | reported |
 
-Two things autossh does that this does not. `AUTOSSH_GATETIME` (30 s) makes a
-*first* attempt that dies immediately fatal instead of waiting on it forever —
-the deliberate opposite of the choice here, and `--max-wait` is the weaker
-substitute. And `-M <port>` passes traffic through a forwarded port to catch a
-connection that is hung but still alive; `ServerAliveInterval` covers that, which
-is why the abbreviation disabled it with `-M 0`.
+The row that matters here is the second-to-last. A 20 h Midway certificate
+expires *during* a session's life, which is precisely when autossh's gate has
+stopped protecting — so the failure it handles worst is the one that happens
+daily.
+
+Two things autossh does that this does not: `AUTOSSH_GATETIME` (above), and
+`-M <port>`, which passes traffic through a forwarded port to catch a connection
+that is hung but still alive. `ServerAliveInterval` covers the latter, which is
+why the abbreviation disabled it with `-M 0`.
 
 ## Reconnecting is not resuming
 
