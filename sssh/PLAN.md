@@ -1,0 +1,1 @@
+Write a wrapper for ssh that wait for machine to be reachable again, and reconnects. It handles: credential expiration, VPN disconnect, timeouts, wifi captive portal, lag, remote reboot, etc. Which language makes this clean: python, bash, fish, lean4?
