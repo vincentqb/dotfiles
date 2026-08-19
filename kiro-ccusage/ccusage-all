@@ -3,19 +3,19 @@
 
 Each harness records something different, and no one source reads them all:
 
-  * ccusage reads REAL token counts from Claude Code / Codex / opencode logs and
-    prices them at published per-model list rates it pulls from LiteLLM
-    (`model_prices_and_context_window.json`, models.dev fallback, embedded
-    snapshot offline). Token counts are ground truth; the rate is the provider's
-    list price. But ccusage prices any model LiteLLM has never heard of at
-    *exactly $0* -- silently. On this machine that zeroes `claude-opus-5`, the
-    single largest consumer (23B tokens -> $0.00).
+  * Claude Code / Codex / opencode log REAL token counts, which this script now
+    reads natively (it used to shell out to ccusage, which re-parsed every log
+    -- gigabytes -- on each run and priced unknown models at a silent $0). The
+    parsers transcribe ccusage's own rules from its Rust adapters and were
+    validated token-for-token against its output; the differences are that
+    results are cached incrementally (only logs that changed since the last run
+    are re-parsed) and that pricing falls back to an embedded snapshot instead
+    of $0 when LiteLLM lacks a model.
 
-  * l3m (~/CodebaseQUENNV/.../l3m) hardcodes the same published Bedrock/Anthropic
-    list prices as a dated, Lean-proof-pinned snapshot (cents/1M, split
-    in/out/cache-read/cache-write). Narrower than LiteLLM but it COVERS the
-    frontier models LiteLLM misses -- opus-5 included. Same source (published
-    list price), curated instead of fetched.
+  * l3m (~/CodebaseQUENNV/.../l3m) hardcodes published Bedrock/Anthropic list
+    prices as a dated, Lean-proof-pinned snapshot (cents/1M, split
+    in/out/cache-read/cache-write). Narrower than LiteLLM but curated to cover
+    this box's frontier models.
 
   * Kiro exposes no tokens at all -- only credits, which it writes per turn to
     its own session log. The $/credit applied to them is derived
@@ -24,12 +24,12 @@ Each harness records something different, and no one source reads them all:
     count and the input/output mix are unmeasured.
 
 So the trustworthy quantity is always (real tokens) x (published list price).
-For Claude/Codex the tokens are logged, so cost is near-exact IF the price table
-has the model. LiteLLM has the breadth; l3m has this box's frontier models.
-Hence the default `--rates l3m`: l3m prices the Claude-family models it lists
-(this is what recovers opus-5), LiteLLM prices everything else. `--rates litellm`
-is pure ccusage, which reproduces the $0-opus-5 undercount -- kept so the gap is
-visible, not hidden.
+For Claude/Codex/opencode the tokens are logged, so cost is near-exact. Two
+price tables exist for them: `--rates l3m` (default) prices the Claude family
+from l3m's proof-pinned snapshot and everything else from the LiteLLM table;
+`--rates litellm` prices everything from the LiteLLM table alone. Since both
+tables now transcribe the same published list prices, the two modes usually
+agree; the flag survives so a divergence between the snapshots is visible.
 
 Kiro is the one harness with no token ground truth, so its column is credits and
 its dollar figure is the only true *estimate* here -- the -13%/+88% band rides on
@@ -39,12 +39,13 @@ turn appends a `usage_summary` record carrying that turn's credits; the model is
 joined on from the `assistant` records sharing the turn's `executionId`, so a
 session that switched models still attributes per turn.
 
-l3m appears here twice, in two unrelated roles: as the price TABLE above, and --
-since it burns Bedrock tokens of its own -- as a harness in its own right.
-ccusage cannot see it (l3m keeps no Claude-Code-shaped log), so its rows are read
-straight out of l3m's own bookkeeping: every turn boundary publishes the session
-sidecar (`last_state.json` -- cumulative `cents` plus per-wire token counters) to
-`refs/agents/state/<agent>/self` in the hub, so that ref's commit history is a
+l3m appears here twice, in two unrelated roles: as a price TABLE above, and --
+since it burns Bedrock tokens of its own -- as a harness in its own right. It
+keeps no Claude-Code-shaped token log the scanners above could read, so its
+rows are read straight out of l3m's own bookkeeping: every turn boundary
+publishes the session sidecar (`last_state.json` -- cumulative `cents` plus
+per-wire token counters) to `refs/agents/state/<agent>/self` in the hub, so
+that ref's commit history is a
 dated series of running totals, and differencing consecutive samples gives daily
 usage. Cost comes from l3m's own `cents`, not from re-pricing here: l3m charges
 each call at the model that call actually used, which the flattened per-wire
@@ -67,23 +68,25 @@ blended $/Mtok (cache-read pulls it below the input list price).
 
 Usage:
   ccusage-all                     # unified daily table, l3m rates, Kiro estimated
-  ccusage-all --rates litellm     # price everything the way ccusage does
+  ccusage-all --rates litellm     # price everything from the LiteLLM table
   ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
   ccusage-all --since 2026-08-01 --until 2026-08-14
   ccusage-all --json              # machine-readable rows + totals
-  ccusage-all --online            # let ccusage refresh LiteLLM prices (network)
+  ccusage-all --online            # refresh LiteLLM prices over the network
 """
 
 import argparse
 import collections
 import concurrent.futures
+import datetime
 import hashlib
 import json
 import os
 import pathlib
+import sqlite3
 import subprocess
 import sys
-import time
+import urllib.request
 
 KIRO_SESSIONS = pathlib.Path(os.environ.get("KIRO_HOME", "~/.kiro")).expanduser() / "sessions"
 
@@ -93,21 +96,46 @@ L3M_HOME = pathlib.Path("~/.l3m").expanduser()
 L3M_STATE_REFS = "refs/agents/state/"
 L3M_SIDECAR = "last_state.json"
 
-# ccusage re-reads every harness log it knows about on every invocation --
-# gigabytes of JSONL, seconds of wall clock -- and has no cache of its own. Its
-# output is pure function of those logs, so cache it keyed by a stat-only
-# fingerprint (path, size, mtime of every file under the log roots, ~100x
-# cheaper than the scan). Any write to any log busts the cache, so a hit is
-# always current -- but on a box with agents running, some log is appended every
-# few seconds, so a fingerprint hit alone would be rare. The TTL covers that: an
-# entry younger than this is served even if logs have moved, trading at most
-# TTL seconds of trailing usage (noise next to the Kiro band this table already
-# carries) for the re-run case being instant. Only the offline (default) run is
-# cached: `--online` exists to refresh prices over the network, so serving it
-# from cache would defeat it.
-CCUSAGE_CACHE = (pathlib.Path(os.environ.get("XDG_CACHE_HOME", "~/.cache")).expanduser()
-                 / "ccusage-all" / "daily.json")
-CCUSAGE_CACHE_TTL = 60.0  # seconds
+# Native token-log reading. Each harness's parse results are cached under
+# CACHE_DIR keyed by (size, mtime) stat signatures, so a run re-parses only the
+# logs that changed since the last one -- there is no cold-scan penalty after
+# the first build, and a hit is always current (any appended line moves the
+# file's signature). Cached day buckets are in this box's local timezone.
+CACHE_DIR = (pathlib.Path(os.environ.get("XDG_CACHE_HOME", "~/.cache")).expanduser()
+             / "ccusage-all")
+CACHE_VERSION = 1
+
+# LiteLLM's public price list, for the models this box has actually used --
+# USD per 1M tokens (input, output, cache-read, cache-write), transcribed from
+# model_prices_and_context_window.json (fetched 2026-08-19). `--online`
+# refreshes these from the network and caches the result; models absent from
+# both price to $0 and are flagged `(!)` on their row rather than silently
+# undercounted. Keys are canonical (see canon()); lookup is longest-prefix, so
+# dated snapshots like claude-haiku-4-5-20251001 resolve to their family.
+LITELLM_SNAPSHOT = {
+    "claude-opus-5":          (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-8":        (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-7":        (5.0, 25.0, 0.5, 6.25),
+    "claude-opus-4-6":        (5.0, 25.0, 0.5, 6.25),
+    "claude-fable-5":         (10.0, 50.0, 1.0, 12.5),
+    "claude-sonnet-4-6":      (3.0, 15.0, 0.3, 3.75),
+    "claude-haiku-4-5":       (1.0, 5.0, 0.1, 1.25),
+    "gpt-5.6-sol":            (5.0, 30.0, 0.5, 6.25),
+    "gpt-5.5":                (5.0, 30.0, 0.5, 0.0),
+    "gpt-5.4":                (2.5, 15.0, 0.25, 0.0),
+    "deepseek-v4-flash-free": (0.14, 0.28, 0.028, 0.0),
+}
+LITELLM_URL = ("https://raw.githubusercontent.com/BerriAI/litellm/main/"
+               "model_prices_and_context_window.json")
+
+CLAUDE_PROJECTS = [
+    pathlib.Path(p).expanduser() / "projects"
+    for p in (os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude,~/.config/claude").split(",")
+]
+CODEX_HOME = pathlib.Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
+OPENCODE_DB = (pathlib.Path(os.environ.get("OPENCODE_DATA_DIR",
+                                           "~/.local/share/opencode")).expanduser()
+               / "opencode.db")
 
 # USD per Kiro credit (default) and the asymmetric band multipliers printed
 # beside the Kiro subtotal. Derived, not guessed: calibrate.py re-derives both
@@ -120,7 +148,7 @@ KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
 # tokens, with the four Bedrock/Anthropic cache tiers. Keyed by a canonicalised
 # model name (region/geo/provider prefixes stripped). Only the Claude family is
 # re-priced from l3m: l3m lists the GPT models too, but its mantle price shape
-# has no cache-read tier while ccusage reports cache-read for GPT separately, so
+# has no cache-read tier while the Codex logs report cache reads separately, so
 # re-pricing GPT from l3m would misprice cached input. LiteLLM covers the GPT
 # models seen here, so l3m mode defers all non-Claude models to LiteLLM.
 L3M_CLAUDE = {
@@ -146,10 +174,10 @@ L3M_ALIASES = {
 
 
 def canon(model):
-    """Reduce a ccusage model name to an l3m-comparable key.
+    """Reduce a logged model name to an l3m-comparable key.
 
-    ccusage keeps a provider prefix on some names (`openai.gpt-5.6-sol`) and a
-    region/geo prefix on others is already stripped (`claude-opus-4-8`), while
+    Harness logs keep a provider prefix on some names (`openai.gpt-5.6-sol`)
+    and none on others (`claude-opus-4-8`), while
     l3m ids carry `us.anthropic.` / `global.anthropic.` / `openai.`. Strip all of
     them so the cores line up, and drop a trailing dated/versioned snapshot
     (`claude-haiku-4-5-20251001-v1:0`) down to the family key.
@@ -456,136 +484,540 @@ def l3m_rows(settings):
     return rows
 
 
-def ccusage_log_roots():
-    """The log directories ccusage scans on this box, for fingerprinting.
-
-    Claude Code (CLAUDE_CONFIG_DIR, comma-separable, else both default homes),
-    Codex (CODEX_HOME), opencode (OPENCODE_DATA_DIR) -- the harnesses with data
-    here. ccusage knows more harnesses; one appearing for the first time is
-    picked up on the next cache bust, which any write to these logs causes."""
-    home = pathlib.Path.home()
-    claude = os.environ.get("CLAUDE_CONFIG_DIR")
-    roots = ([pathlib.Path(p).expanduser() / "projects" for p in claude.split(",")]
-             if claude else
-             [home / ".claude" / "projects", home / ".config" / "claude" / "projects"])
-    roots.append(pathlib.Path(os.environ.get("CODEX_HOME") or home / ".codex").expanduser())
-    roots.append(pathlib.Path(os.environ.get("OPENCODE_DATA_DIR")
-                              or home / ".local" / "share" / "opencode").expanduser())
-    return roots
+def local_day(ts_iso):
+    """RFC3339 timestamp -> this box's local date, matching ccusage's bucketing."""
+    return (datetime.datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
+            .astimezone().date().isoformat())
 
 
-def ccusage_fingerprint():
-    """sha256 over (path, size, mtime) of every file under the log roots.
+def ts_millis(ts_iso):
+    """RFC3339 timestamp -> epoch ms, or None when unparseable."""
+    try:
+        return int(datetime.datetime.fromisoformat(
+            ts_iso.replace("Z", "+00:00")).timestamp() * 1000)
+    except (ValueError, AttributeError, TypeError):
+        return None
 
-    stat only, no reads: ~0.15s against the ~3s ccusage takes to parse the same
-    files. Any appended turn, new session file, or deletion changes it."""
-    entries = []
-    for root in ccusage_log_roots():
-        for dirpath, _, filenames in os.walk(root):
-            for name in filenames:
-                path = os.path.join(dirpath, name)
-                try:
-                    stat = os.stat(path)
-                except OSError:
+
+def cache_read(name):
+    """Parsed CACHE_DIR/<name>.json, or None; version mismatches read as None."""
+    try:
+        data = json.loads((CACHE_DIR / f"{name}.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if data.get("v") == CACHE_VERSION else None
+
+
+def cache_write(name, obj):
+    """Atomic write; failure is non-fatal (the data is already in hand)."""
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = CACHE_DIR / f"{name}.tmp"
+        tmp.write_text(json.dumps({"v": CACHE_VERSION, **obj}))
+        os.replace(tmp, CACHE_DIR / f"{name}.json")
+    except OSError:
+        pass
+
+
+def stat_walk(root, suffix=".jsonl"):
+    """{relpath: (size, mtime_ns, fullpath)} for matching files under root."""
+    files = {}
+    root = str(root)
+    for dirpath, _, names in os.walk(root):
+        for name in names:
+            if not name.endswith(suffix):
+                continue
+            full = os.path.join(dirpath, name)
+            try:
+                st = os.stat(full)
+            except OSError:
+                continue
+            files[os.path.relpath(full, root)] = (st.st_size, st.st_mtime_ns, full)
+    return files
+
+
+# --- Claude Code -------------------------------------------------------------
+#
+# ~/.claude/projects/<project>/**/*.jsonl, one JSON record per line; assistant
+# records carry message.usage. Rules transcribed from ccusage's Rust adapter
+# (adapters/claude/src/daily.rs) and validated against its output:
+#   * skip isApiErrorMessage, model "<synthetic>", records without usage;
+#   * dedup on (message.id, requestId) -- streaming rewrites the same message
+#     id many times with partial token counts; sidechain replays re-mint the
+#     requestId, so entries also match on message.id alone when either side is
+#     a sidechain; the winner is non-sidechain first, then larger token total.
+# Sessions resume/fork by copying history into a NEW file in the same project
+# dir, and message ids never cross project dirs (verified over this box's 4.9k
+# files), so a project dir is a self-contained dedup scope -- which is what
+# makes per-dir caching sound.
+
+def claude_file_entries(path):
+    """Within-file-deduped [mid, req, side, day, model, in, out, cr, cw] rows."""
+    keyed, anonymous = {}, []
+    try:
+        with open(path, "rb") as fh:
+            for line in fh:
+                # Cheap gate: only assistant records with usage matter (~5% of
+                # lines by count, but they are the big ones).
+                if b'"type":"assistant"' not in line or b'"usage"' not in line:
                     continue
-                entries.append((path, stat.st_size, stat.st_mtime_ns))
-    entries.sort()
-    return hashlib.sha256(repr(entries).encode()).hexdigest()
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if rec.get("type") != "assistant" or rec.get("isApiErrorMessage"):
+                    continue
+                msg = rec.get("message") or {}
+                usage = msg.get("usage") or {}
+                model = msg.get("model")
+                ts = rec.get("timestamp")
+                if not model or model == "<synthetic>" or not ts or not usage:
+                    continue
+                try:
+                    day = local_day(ts)
+                except ValueError:
+                    continue
+                entry = [msg.get("id"), rec.get("requestId"),
+                         1 if rec.get("isSidechain") else 0, day, model,
+                         usage.get("input_tokens") or 0, usage.get("output_tokens") or 0,
+                         usage.get("cache_read_input_tokens") or 0,
+                         usage.get("cache_creation_input_tokens") or 0]
+                if entry[0] is None:
+                    anonymous.append(entry)
+                    continue
+                key = (entry[0], entry[1])
+                if key not in keyed or claude_replaces(entry, keyed[key]):
+                    keyed[key] = entry
+    except OSError:
+        return []
+    return list(keyed.values()) + anonymous
 
 
-def ccusage_begin(offline):
-    """Start fetching ccusage's daily table; hand the result to ccusage_end.
+def claude_replaces(candidate, existing):
+    """ccusage's winner rule: non-sidechain beats sidechain, then more tokens."""
+    if candidate[2] != existing[2]:
+        return existing[2] == 1
+    return sum(candidate[5:9]) > sum(existing[5:9])
 
-    On a cache hit there is no subprocess at all. On a miss the scan is started
-    (not waited on) so it runs concurrently with the Kiro and l3m reads. No
-    --since/--until: they don't reduce ccusage's scan, and an unfiltered result
-    serves every date window from one cache entry (main's post-filter applies
-    to these rows like any other)."""
-    fingerprint = ccusage_fingerprint() if offline else None
-    if fingerprint:
-        try:
-            fresh = time.time() - CCUSAGE_CACHE.stat().st_mtime < CCUSAGE_CACHE_TTL
-            cached = json.loads(CCUSAGE_CACHE.read_text())
-            if fresh or cached.get("fingerprint") == fingerprint:
-                return ("hit", cached["data"])
-        except (OSError, json.JSONDecodeError):
-            pass
-    cmd = ["ccusage", "daily", "--json", "--by-agent"]
-    if offline:
-        cmd.append("--offline")
+
+def claude_dir_sums(file_entries):
+    """Cross-file dedup over one project dir -> {day\\x00model: [4 tokens]}."""
+    exact = {}                               # (mid, req) -> entry
+    by_mid = collections.defaultdict(list)   # mid -> [(mid, req), ...]
+    anonymous = []
+    for rel in sorted(file_entries):
+        for entry in file_entries[rel]["entries"]:
+            mid, req = entry[0], entry[1]
+            if mid is None:
+                anonymous.append(entry)
+                continue
+            key = (mid, req)
+            match = key if key in exact else None
+            if match is None:
+                # sidechain replays re-mint requestId: match mid alone
+                for cand in by_mid.get(mid, ()):
+                    if entry[2] or exact[cand][2]:
+                        match = cand
+                        break
+            if match is not None:
+                if claude_replaces(entry, exact[match]):
+                    exact[match] = entry
+                continue
+            exact[key] = entry
+            by_mid[mid].append(key)
+    sums = collections.defaultdict(lambda: [0, 0, 0, 0])
+    for entry in list(exact.values()) + anonymous:
+        bucket = sums[f"{entry[3]}\x00{entry[4]}"]
+        for i in range(4):
+            bucket[i] += entry[5 + i]
+    return dict(sums)
+
+
+def claude_sums():
+    """{day\\x00model: [4 tokens]} across all project dirs, incrementally cached.
+
+    Two cache layers: per-dir day/model sums (tiny, always loaded) validated by
+    a stat signature of the dir's files, and per-dir entry lists (bigger,
+    loaded only when a dir changed) so an appended session file re-parses just
+    itself, not its whole dir."""
+    dirs = collections.defaultdict(dict)     # dirkey -> {relpath: (sz, mt, full)}
+    for root in CLAUDE_PROJECTS:
+        for rel, stat3 in stat_walk(root).items():
+            top = rel.split(os.sep, 1)[0] if os.sep in rel else "."
+            dirs[str(root / top)][rel] = stat3
+    cached = (cache_read("claude-sums") or {}).get("dirs", {})
+    out, totals = {}, collections.defaultdict(lambda: [0, 0, 0, 0])
+    for dirkey, files in dirs.items():
+        sig = hashlib.sha256(repr(sorted(
+            (rel, sz, mt) for rel, (sz, mt, _) in files.items())).encode()).hexdigest()
+        entry = cached.get(dirkey)
+        if not entry or entry["sig"] != sig:
+            entry = {"sig": sig, "sums": claude_rebuild_dir(dirkey, files)}
+        out[dirkey] = entry
+        for key, tok in entry["sums"].items():
+            bucket = totals[key]
+            for i in range(4):
+                bucket[i] += tok[i]
+    if out != cached:
+        cache_write("claude-sums", {"dirs": out})
+        keep = {claude_entries_name(dirkey) + ".json" for dirkey in out}
+        for stale in CACHE_DIR.glob("claude-entries-*.json"):
+            if stale.name not in keep:
+                stale.unlink(missing_ok=True)
+    return totals
+
+
+def claude_entries_name(dirkey):
+    return "claude-entries-" + hashlib.sha256(dirkey.encode()).hexdigest()[:16]
+
+
+def claude_rebuild_dir(dirkey, files):
+    """Re-derive one project dir's sums, re-parsing only its changed files."""
+    name = claude_entries_name(dirkey)
+    old = (cache_read(name) or {}).get("files", {})
+    new = {}
+    for rel, (size, mtime, full) in files.items():
+        prev = old.get(rel)
+        if prev and prev["sig"] == [size, mtime]:
+            new[rel] = prev
+        else:
+            new[rel] = {"sig": [size, mtime], "entries": claude_file_entries(full)}
+    cache_write(name, {"files": new})
+    return claude_dir_sums(new)
+
+
+# --- Codex -------------------------------------------------------------------
+#
+# ~/.codex/sessions/**/*.jsonl (rollout files; archived_sessions too), one
+# `token_count` event per turn carrying cumulative and per-turn usage. Rules
+# transcribed from ccusage's adapters/codex/src/{parser,aggregate,replay}.rs
+# and validated token-for-token against its output:
+#   * an event counts only when the cumulative totals advanced; its usage is
+#     last_token_usage, else the delta of cumulative totals;
+#   * a forked session file replays its parent's history with rewritten
+#     timestamps -- skip the prefix of events matching the parent's stream up
+#     to the fork instant; without a parent log, skip the opening burst of
+#     events written <=1s apart (a real first turn follows a pause);
+#   * dedup across everything on (timestamp, model, full usage tuple);
+#   * reported input excludes cached tokens, which count as cache reads.
+
+CODEX_USAGE_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens",
+                    "reasoning_output_tokens", "total_tokens")
+CODEX_BURST_MS = 1000
+
+# OpenAI's two-stage pricing: a turn whose logged input exceeds the threshold
+# is billed entirely at the long-context rates (USD/1M, same tiers). Rates and
+# the 272K boundary from models.dev / LiteLLM `*_above_272k_tokens` entries;
+# `--online` does not refresh these (they change even more rarely than the
+# base rates). Known deliberate divergence from ccusage: its pricing entry for
+# the provider-prefixed key `openai.gpt-5.5` carries no tier data, so ccusage
+# silently applies its generic 200K default to that model and overprices turns
+# in the 200K-272K band (~$15 here); this table uses the published 272K
+# boundary for the whole family instead.
+CODEX_LONG_CONTEXT = {
+    "gpt-5.6-sol": (272_000, (10.0, 45.0, 1.0, 12.5)),
+    "gpt-5.5":     (272_000, (10.0, 45.0, 1.0, 0.0)),
+    "gpt-5.4":     (272_000, (5.0, 22.5, 0.5, 0.0)),
+}
+
+
+def codex_parse_file(path):
+    """(meta, events) for one rollout file, cumulative-advance filtered.
+
+    meta: {sid, parent, forked_at}; event: [ts, ms, day, model, [5 usage]]."""
+    meta, events = {}, []
+    model, prev_totals = None, None
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, text=True)
-    except OSError as exc:
-        print(f"warning: ccusage unavailable ({exc}); table excludes it", file=sys.stderr)
-        return ("hit", {})
-    return ("miss", proc, fingerprint)
+        with open(path, "rb") as fh:
+            for line in fh:
+                if b'"session_meta"' in line and not meta:
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if rec.get("type") == "session_meta":
+                        payload = rec.get("payload") or {}
+                        meta = {"sid": payload.get("session_id") or payload.get("id"),
+                                "parent": payload.get("forked_from_id"),
+                                "forked_at": ts_millis(payload.get("timestamp"))}
+                    continue
+                if b'"turn_context"' in line:
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if rec.get("type") == "turn_context":
+                        model = (rec.get("payload") or {}).get("model") or model
+                    continue
+                if b'"token_count"' not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                payload = rec.get("payload") or {}
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info") or {}
+                total = info.get("total_token_usage")
+                advanced = total is None or total != prev_totals
+                last = info.get("last_token_usage") if advanced else None
+                if last is None and total is not None:
+                    prev = prev_totals or {}
+                    last = {k: max(0, (total.get(k) or 0) - (prev.get(k) or 0))
+                            for k in CODEX_USAGE_KEYS}
+                if total is not None:
+                    prev_totals = total
+                if not last:
+                    continue
+                usage = [last.get(k) or 0 for k in CODEX_USAGE_KEYS]
+                if not any(usage[:4]):
+                    continue
+                ts = rec.get("timestamp")
+                try:
+                    day = local_day(ts)
+                except (ValueError, AttributeError):
+                    continue
+                events.append([ts, ts_millis(ts), day, model or "gpt-5", usage])
+    except OSError:
+        pass
+    return meta, events
 
 
-def ccusage_end(handle):
-    """The parsed ccusage JSON for a ccusage_begin handle, caching fresh data.
+def codex_sums():
+    """({day\\x00model: [4 tokens]}, long-context portion of the same),
+    incrementally cached per rollout file. The long dict holds the subset of
+    the first that came from turns over the model's long-context threshold,
+    for the two-stage pricing in token_rows."""
+    current, seen_rel = {}, set()
+    for root in (CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"):
+        for rel, (size, mtime, full) in stat_walk(root).items():
+            if rel in seen_rel:
+                continue  # archived copy of a live session file
+            seen_rel.add(rel)
+            current[full] = [size, mtime]
+    cached = (cache_read("codex") or {}).get("files", {})
+    out = {}
+    for full, sig in current.items():
+        prev = cached.get(full)
+        if prev and prev["sig"] == sig:
+            out[full] = prev
+        else:
+            meta, events = codex_parse_file(full)
+            out[full] = {"sig": sig, "meta": meta, "events": events}
+    if out != cached:
+        cache_write("codex", {"files": out})
 
-    The fingerprint was taken BEFORE the scan, so a log written during the scan
-    makes the entry conservatively stale (next run re-scans), never wrong."""
-    if handle[0] == "hit":
-        return handle[1]
-    _, proc, fingerprint = handle
-    out = proc.communicate()[0]
-    if proc.returncode != 0:
-        print(f"warning: ccusage failed (exit {proc.returncode}); table excludes it",
-              file=sys.stderr)
-        return {}
+    by_sid = {}
+    for path, rec in out.items():
+        sid = rec["meta"].get("sid")
+        if sid:
+            by_sid.setdefault(sid, path)
+
+    deduped = {}
+    for path, rec in out.items():
+        meta, events = rec["meta"], rec["events"]
+        parent_path = by_sid.get(meta.get("parent"))
+        if meta.get("parent"):
+            parent_events = (out.get(parent_path, {"events": []})["events"]
+                             if parent_path and parent_path != path else [])
+            forked_at = meta.get("forked_at")
+            prefix = [e[4] for e in parent_events
+                      if forked_at is None or e[1] is None or e[1] <= forked_at]
+            state, index, prev_ms = "match", 0, None
+        else:
+            state, index, prev_ms = "done", 0, None
+
+        for event in events:
+            skip = False
+            while True:
+                if state == "match":
+                    if index < len(prefix) and prefix[index] == event[4]:
+                        index, skip = index + 1, True
+                        break
+                    if index == 0:
+                        # No parent anchor: opening burst = rewritten replay.
+                        stamps = [e[1] for e in events if e[1] is not None]
+                        if len(stamps) >= 2 and 0 <= stamps[1] - stamps[0] <= CODEX_BURST_MS:
+                            state, prev_ms = "burst", stamps[0]
+                            continue
+                    state = "done"
+                elif state == "burst":
+                    if event[1] is not None and 0 <= event[1] - prev_ms <= CODEX_BURST_MS:
+                        prev_ms, skip = event[1], True
+                        break
+                    state = "done"
+                else:
+                    break
+            if not skip:
+                deduped[(event[0], event[3], tuple(event[4]))] = event
+
+    sums = collections.defaultdict(lambda: [0, 0, 0, 0])
+    long_sums = collections.defaultdict(lambda: [0, 0, 0, 0])
+    for event in deduped.values():
+        inp, cached_in, output, _reasoning, _total = event[4]
+        cached_in = min(cached_in, inp)
+        key = f"{event[2]}\x00{event[3]}"
+        targets = [sums[key]]
+        long_context = codex_long_rates(event[3])
+        if long_context and inp > long_context[0]:
+            targets.append(long_sums[key])
+        for bucket in targets:
+            bucket[0] += inp - cached_in
+            bucket[1] += output
+            bucket[2] += cached_in
+    return sums, long_sums
+
+
+def codex_long_rates(model):
+    """(threshold, USD/1M rate tuple) for a model's long-context tier, or None."""
+    key = canon(model)
+    for name, entry in CODEX_LONG_CONTEXT.items():
+        if key.startswith(name):
+            return entry
+    return None
+
+
+# --- opencode ----------------------------------------------------------------
+#
+# One SQLite database; assistant messages carry a tokens object. Small enough
+# (hundreds of rows) to read live every run, no cache.
+
+def opencode_sums():
+    """{day\\x00model: [4 tokens]} from opencode's message table."""
+    sums = collections.defaultdict(lambda: [0, 0, 0, 0])
+    if not OPENCODE_DB.is_file():
+        return sums
     try:
-        data = json.loads(out)
-    except json.JSONDecodeError:
-        print("warning: could not parse ccusage JSON; table excludes it", file=sys.stderr)
-        return {}
-    if fingerprint:
+        con = sqlite3.connect(f"file:{OPENCODE_DB}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return sums
+    try:
+        for (data,) in con.execute("SELECT data FROM message"):
+            try:
+                rec = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            tokens = rec.get("tokens") or {}
+            created = (rec.get("time") or {}).get("created")
+            if rec.get("role") != "assistant" or not tokens or not created:
+                continue
+            day = (datetime.datetime.fromtimestamp(created / 1000, tz=datetime.timezone.utc)
+                   .astimezone().date().isoformat())
+            model = rec.get("modelID") or (rec.get("model") or {}).get("modelID") or "unknown"
+            cache = tokens.get("cache") or {}
+            bucket = sums[f"{day}\x00{model}"]
+            bucket[0] += tokens.get("input") or 0
+            bucket[1] += tokens.get("output") or 0
+            bucket[2] += cache.get("read") or 0
+            bucket[3] += cache.get("write") or 0
+    except sqlite3.Error:
+        pass
+    finally:
+        con.close()
+    return sums
+
+
+# --- pricing and row assembly --------------------------------------------------
+
+def litellm_table(online):
+    """LITELLM_SNAPSHOT, overridden by a fetched LiteLLM price list when one is
+    cached (or `--online` refreshes it). Fetched entries are reduced to the
+    same canonical-key, USD-per-1M shape as the snapshot."""
+    prices = CACHE_DIR / "litellm.json"
+    if online:
         try:
-            CCUSAGE_CACHE.parent.mkdir(parents=True, exist_ok=True)
-            tmp = CCUSAGE_CACHE.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"fingerprint": fingerprint, "data": data}))
-            os.replace(tmp, CCUSAGE_CACHE)
-        except OSError:
-            pass  # cache is an optimization; the data is already in hand
-    return data
+            with urllib.request.urlopen(LITELLM_URL, timeout=30) as resp:
+                body = resp.read()
+            json.loads(body)  # validate before caching
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            tmp = CACHE_DIR / "litellm.tmp"
+            tmp.write_bytes(body)
+            os.replace(tmp, prices)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"warning: LiteLLM refresh failed ({exc}); using cached/embedded prices",
+                  file=sys.stderr)
+    table = dict(LITELLM_SNAPSHOT)
+    try:
+        full = json.loads(prices.read_text())
+    except (OSError, json.JSONDecodeError):
+        return table
+    for key in table:
+        entry = full.get(key)
+        if isinstance(entry, dict):
+            table[key] = tuple((entry.get(k) or 0) * 1e6 for k in
+                               ("input_cost_per_token", "output_cost_per_token",
+                                "cache_read_input_token_cost",
+                                "cache_creation_input_token_cost"))
+    return table
 
 
-def ccusage_rows(data, rates):
-    """Per (day, harness, model) token rows from `ccusage daily --json --by-agent`.
+def litellm_rates(model, table):
+    """USD-per-1M rate tuple for a model, or None. Exact canonical match, then
+    longest prefix (dated snapshots resolve to their family)."""
+    key = canon(model)
+    if key in table:
+        return table[key]
+    for name in sorted(table, key=len, reverse=True):
+        if key.startswith(name):
+            return table[name]
+    return None
 
-    ccusage is the token ground truth (Claude/Codex/opencode/...); this only
-    chooses which price table turns those tokens into dollars."""
+
+def token_cost_usd(rates, tokens):
+    """Linear list-price cost, LiteLLM style (no rounding)."""
+    in_r, out_r, cr_r, cw_r = rates
+    return (tokens["inputTokens"] * in_r + tokens["outputTokens"] * out_r
+            + tokens["cacheReadTokens"] * cr_r
+            + tokens["cacheCreationTokens"] * cw_r) / 1e6
+
+
+def token_rows(harness_sums, rates, online):
+    """Per (day, harness, model) rows from the native scanners' sums.
+
+    The scanners are the token ground truth; this only chooses which price
+    table turns those tokens into dollars. harness_sums maps each harness to
+    (sums, long-context portion); the long portion re-prices at the model's
+    long-context rates where it has them."""
+    table = litellm_table(online)
     rows = []
-    for day in data.get("daily", []):
-        period = day.get("period")
-        for agent in day.get("agents", []):
-            harness = agent.get("agent", "unknown")
-            for mb in agent.get("modelBreakdowns", []):
-                model = mb.get("modelName") or "unknown"
-                tokens = {k: mb.get(k, 0) for k in
-                          ("inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTokens")}
-                litellm_cost = mb.get("cost", 0.0) or 0.0
+    for harness, (sums, long_sums) in harness_sums.items():
+        for key, tok in sums.items():
+            day, model = key.split("\x00")
+            tokens = {"inputTokens": tok[0], "outputTokens": tok[1],
+                      "cacheReadTokens": tok[2], "cacheCreationTokens": tok[3]}
+            cost, priced_by = None, "litellm"
+            if rates == "l3m":
+                l3m = l3m_claude_rates(model)
+                if l3m is not None:
+                    cost, priced_by = l3m_cost_usd(l3m, tokens), "l3m"
+            if cost is None:
+                lite = litellm_rates(model, table)
+                cost = token_cost_usd(lite, tokens) if lite else 0.0
+                long_context = codex_long_rates(model)
+                long_tok = long_sums.get(key)
+                if lite and long_context and long_tok:
+                    # Two-stage pricing: the long-context portion was charged
+                    # at base rates above; swap it to the long-context rates.
+                    portion = {"inputTokens": long_tok[0], "outputTokens": long_tok[1],
+                               "cacheReadTokens": long_tok[2],
+                               "cacheCreationTokens": long_tok[3]}
+                    cost += (token_cost_usd(long_context[1], portion)
+                             - token_cost_usd(lite, portion))
+            # A token model that priced to $0 means no table has an entry for
+            # it -- flag rather than silently undercount.
+            if cost == 0.0 and any(tokens.values()):
+                priced_by += "!"
 
-                cost, priced_by = litellm_cost, "litellm"
-                if rates == "l3m":
-                    l3m = l3m_claude_rates(model)
-                    if l3m is not None:
-                        cost, priced_by = l3m_cost_usd(l3m, tokens), "l3m"
-                # A token model that priced to $0 means the source has no entry
-                # for it -- flag rather than silently undercount.
-                if cost == 0.0 and any(tokens.values()):
-                    priced_by += "!"
-
-                # Consumed is in Mtok so it shares a scale with the $/Mtok rate;
-                # the rate is effective (cost / tokens) so Consumed x Rate == Cost.
-                mtok = sum(tokens.values()) / 1e6
-                rate = (cost / mtok) if mtok else 0.0
-                rows.append({
-                    "day": period, "harness": harness, "model": model,
-                    "consumed": mtok, "unit": "Mtok", "rate": rate,
-                    "cost": cost, "tokens": tokens, "priced_by": priced_by,
-                })
+            # Consumed is in Mtok so it shares a scale with the $/Mtok rate;
+            # the rate is effective (cost / tokens) so Consumed x Rate == Cost.
+            mtok = sum(tokens.values()) / 1e6
+            rows.append({
+                "day": day, "harness": harness, "model": model,
+                "consumed": mtok, "unit": "Mtok",
+                "rate": (cost / mtok) if mtok else 0.0,
+                "cost": cost, "tokens": tokens, "priced_by": priced_by,
+            })
     return rows
 
 
@@ -676,40 +1108,46 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rates", choices=["l3m", "litellm"], default="l3m",
-                        help="token price source (default: l3m -> LiteLLM fallback; "
-                             "litellm = pure ccusage)")
+                        help="token price source (default: l3m for the Claude family, "
+                             "LiteLLM for the rest; litellm = LiteLLM for everything)")
     parser.add_argument("--credit-rate", type=float, default=USD_PER_CREDIT,
                         help=f"USD per Kiro credit (default {USD_PER_CREDIT})")
     parser.add_argument("--since", help="filter from date (YYYY-MM-DD)")
     parser.add_argument("--until", help="filter until date, inclusive (YYYY-MM-DD)")
     parser.add_argument("--offline", dest="offline", action="store_true", default=True,
-                        help="use ccusage cached/embedded prices (default; result cached "
-                             "until any harness log changes)")
+                        help="use embedded/cached LiteLLM prices (default)")
     parser.add_argument("--online", dest="offline", action="store_false",
-                        help="let ccusage refresh LiteLLM prices over the network "
-                             "(always a fresh scan)")
+                        help="refresh LiteLLM prices over the network first")
     parser.add_argument("--json", action="store_true", help="emit rows + totals as JSON")
     args = parser.parse_args()
 
     credit_rate = args.credit_rate
 
-    # The three sources are independent, so read them concurrently. Threads,
-    # not processes: the legs that wait outside the GIL (l3m's git subprocesses,
-    # ccusage's scan on a miss, disk I/O when the page cache is cold) genuinely
-    # overlap; the pure-Python legs (fingerprint walk, Kiro JSON parse) still
-    # serialize under the GIL, and a process pool would spend more on worker
-    # startup than the ~0.3s it could reclaim. On a cache miss ccusage_begin
-    # returns as soon as its scan is STARTED; the wait happens in ccusage_end,
-    # after the other legs have finished.
+    # The five sources are independent, so read them concurrently. Threads, not
+    # processes: the legs that wait outside the GIL (l3m's git subprocesses,
+    # sqlite, disk I/O when the page cache is cold) genuinely overlap; the
+    # pure-Python JSON parsing serializes under the GIL, but after the first
+    # build the caches leave almost none of it to do. A process pool would
+    # spend more on worker startup than it could reclaim -- and could not be
+    # spawned anyway from a script without a .py suffix.
     with concurrent.futures.ThreadPoolExecutor() as pool:
-        ccusage = pool.submit(ccusage_begin, args.offline)
+        futures = {
+            "claude": pool.submit(claude_sums),
+            "codex": pool.submit(codex_sums),
+            "opencode": pool.submit(opencode_sums),
+        }
         kiro = pool.submit(kiro_rows, credit_rate)
         l3m = pool.submit(l3m_rows, l3m_settings())
+        harness_sums = {
+            "claude": (futures["claude"].result(), {}),
+            "codex": futures["codex"].result(),
+            "opencode": (futures["opencode"].result(), {}),
+        }
         rows = (kiro.result() + l3m.result()
-                + ccusage_rows(ccusage_end(ccusage.result()), args.rates))
+                + token_rows(harness_sums, args.rates, not args.offline))
 
-    # One date filter for every harness (ccusage is fetched unfiltered so the
-    # cache serves all windows). Undated rows are kept deliberately -- see the
+    # One date filter for every harness (the scanners run unfiltered so their
+    # caches serve every window). Undated rows are kept deliberately -- see the
     # module docstring.
     if args.since:
         rows = [r for r in rows if not r["day"] or r["day"] >= args.since]

@@ -1,8 +1,11 @@
 # ccusage-all
 
 One usage table across every coding harness on this box — Kiro, l3m, Claude Code,
-Codex, opencode — through [ccusage](https://github.com/ryoppippi/ccusage) where it
-can see the logs and each harness's own bookkeeping where it can't.
+Codex, opencode — reading each harness's own logs natively. (The name is
+historical: it used to shell out to
+[ccusage](https://github.com/ccusage/ccusage); the native parsers transcribe
+ccusage's rules and were validated token-for-token against it, then it was
+dropped as a dependency.)
 
 ```fish
 ccusage-all
@@ -23,24 +26,25 @@ across all harnesses, shown once per day.
 
 ```fish
 ccusage-all                     # default: l3m rates, Kiro estimated
-ccusage-all --rates litellm     # price everything the way ccusage does
+ccusage-all --rates litellm     # price everything from the LiteLLM table
 ccusage-all --since 2026-08-01 --until 2026-08-14
 ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
 ccusage-all --json              # rows + totals + the settings in force
-ccusage-all --online            # let ccusage refresh LiteLLM prices (network)
+ccusage-all --online            # refresh LiteLLM prices over the network
 ```
 
 ## Pricing
 
-The trustworthy cost is always *real tokens × published list price*. Claude and
-Codex log real tokens, so their cost is near-exact — **if** the price table has
-the model. ccusage's LiteLLM table has the breadth but prices any model it lacks
-at a silent **$0**; here that zeroes `claude-opus-5`, the largest consumer.
-l3m's curated snapshot covers exactly those frontier models. So the default
+The trustworthy cost is always *real tokens × published list price*. Claude,
+Codex, and opencode log real tokens, so their cost is near-exact — **if** the
+price table has the model. Two tables transcribe the same published list
+prices: l3m's Lean-proof-pinned snapshot (Claude family) and an embedded
+LiteLLM snapshot for the rest, refreshable with `--online`. The default
 `--rates l3m` prices the Claude family from l3m and defers everything else to
-LiteLLM; `--rates litellm` is pure ccusage, kept so the $0 gap stays visible.
-A model whose tokens still price to $0 is flagged `(!)` on its row rather than
-quietly undercounted.
+LiteLLM; `--rates litellm` prices everything from the LiteLLM table. A model
+neither table knows prices to $0 and is flagged `(!)` on its row rather than
+quietly undercounted. OpenAI models are two-stage priced: turns whose input
+exceeds 272K tokens bill entirely at the long-context rates.
 
 Kiro is the exception: no token counts, only credits, so its dollars are the one
 real *estimate* — the −13%/+88% band rides on the Kiro subtotal alone. The `Unit`
@@ -50,11 +54,19 @@ as one number; `Cost (USD)` is the only column comparable across harnesses.
 
 ## How each harness is read
 
-**Claude Code, Codex, opencode** — `ccusage daily --json --by-agent`, which is the
-token ground truth, then re-priced as above. ccusage rescans every log on every
-run (seconds), so its output is cached and reused while the logs' stat
-fingerprint is unchanged or the cache is under 60s old — a re-run is instant and
-trails live sessions by at most a minute. `--online` always scans fresh.
+**Claude Code, Codex, opencode** — read natively from their own logs
+(`~/.claude/projects/**/*.jsonl`, `~/.codex/sessions/**/*.jsonl`, opencode's
+SQLite db). The parsing rules — streaming/sidechain dedup for Claude,
+cumulative-advance filtering and fork-replay skipping for Codex — are
+transcribed from ccusage's Rust adapters and were validated token-for-token
+against its output. Results are cached incrementally under
+`~/.cache/ccusage-all/`, keyed by file stat signatures, so a run re-parses only
+the session files that changed since the last one: typical runs take well under
+a second and are always current, with no cold-scan penalty after the first
+build (~15s over 3.5GB of logs). One known deliberate divergence from ccusage:
+it applies a 200K long-context boundary to `openai.gpt-5.5` because its pricing
+entry for that key lacks tier data; this tool uses the published 272K boundary
+for the whole GPT family.
 
 **Kiro** meters in credits and exposes no token counts locally, so credits are
 what gets recorded and dollars are derived from them.
@@ -74,8 +86,8 @@ each model's rate multiplier, so they are comparable and summable across models
 and match `/usage`'s plan counter; the dollar figure moves with `--credit-rate`
 and the credits never do.
 
-**l3m** burns Bedrock tokens too, and ccusage cannot see it — it keeps no
-Claude-Code-shaped log. Its rows come from l3m's own bookkeeping: every turn
+**l3m** burns Bedrock tokens too, but keeps no Claude-Code-shaped token log the
+scanners above could read. Its rows come from l3m's own bookkeeping: every turn
 boundary publishes the session sidecar (`last_state.json` — cumulative cents plus
 per-wire token counters) to `refs/agents/state/<agent>/self` in the hub
 (`$L3M_HUB`, settings `hub.path`, else `~/.l3m/hub.git`), so that ref's history is
@@ -90,7 +102,7 @@ counters can no longer tell us.
 ln -sf ~/dotfiles/kiro-ccusage/ccusage-all ~/.local/bin/ccusage-all
 ```
 
-Needs `ccusage` on PATH (in the Brewfile) and Python 3.9+.
+Needs Python 3.9+; no other dependencies.
 
 ## Caveats
 
