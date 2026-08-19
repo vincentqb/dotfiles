@@ -99,7 +99,7 @@ counters can no longer tell us.
 ## Install
 
 ```fish
-ln -sf ~/dotfiles/kiro-ccusage/ccusage-all ~/.local/bin/ccusage-all
+ln -sf ~/dotfiles/ccusage/ccusage-all ~/.local/bin/ccusage-all
 ```
 
 Needs Python 3.9+; no other dependencies.
