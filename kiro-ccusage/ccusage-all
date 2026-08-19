@@ -76,11 +76,14 @@ Usage:
 
 import argparse
 import collections
+import concurrent.futures
+import hashlib
 import json
 import os
 import pathlib
 import subprocess
 import sys
+import time
 
 KIRO_SESSIONS = pathlib.Path(os.environ.get("KIRO_HOME", "~/.kiro")).expanduser() / "sessions"
 
@@ -89,6 +92,22 @@ KIRO_SESSIONS = pathlib.Path(os.environ.get("KIRO_HOME", "~/.kiro")).expanduser(
 L3M_HOME = pathlib.Path("~/.l3m").expanduser()
 L3M_STATE_REFS = "refs/agents/state/"
 L3M_SIDECAR = "last_state.json"
+
+# ccusage re-reads every harness log it knows about on every invocation --
+# gigabytes of JSONL, seconds of wall clock -- and has no cache of its own. Its
+# output is pure function of those logs, so cache it keyed by a stat-only
+# fingerprint (path, size, mtime of every file under the log roots, ~100x
+# cheaper than the scan). Any write to any log busts the cache, so a hit is
+# always current -- but on a box with agents running, some log is appended every
+# few seconds, so a fingerprint hit alone would be rare. The TTL covers that: an
+# entry younger than this is served even if logs have moved, trading at most
+# TTL seconds of trailing usage (noise next to the Kiro band this table already
+# carries) for the re-run case being instant. Only the offline (default) run is
+# cached: `--online` exists to refresh prices over the network, so serving it
+# from cache would defeat it.
+CCUSAGE_CACHE = (pathlib.Path(os.environ.get("XDG_CACHE_HOME", "~/.cache")).expanduser()
+                 / "ccusage-all" / "daily.json")
+CCUSAGE_CACHE_TTL = 60.0  # seconds
 
 # USD per Kiro credit (default) and the asymmetric band multipliers printed
 # beside the Kiro subtotal. Derived, not guessed: calibrate.py re-derives both
@@ -182,6 +201,11 @@ def kiro_turns(session_dir):
     models, summaries = {}, []
     with messages.open() as handle:
         for line in handle:
+            # Cheap substring gate: only two record shapes matter here, and
+            # each necessarily contains its marker. Skips json.loads on the
+            # vast majority of lines (tool output, user turns, ...).
+            if "usage_summary" not in line and "reasoningModelId" not in line:
+                continue
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
@@ -432,29 +456,106 @@ def l3m_rows(settings):
     return rows
 
 
-def ccusage_rows(rates, since, until, offline):
+def ccusage_log_roots():
+    """The log directories ccusage scans on this box, for fingerprinting.
+
+    Claude Code (CLAUDE_CONFIG_DIR, comma-separable, else both default homes),
+    Codex (CODEX_HOME), opencode (OPENCODE_DATA_DIR) -- the harnesses with data
+    here. ccusage knows more harnesses; one appearing for the first time is
+    picked up on the next cache bust, which any write to these logs causes."""
+    home = pathlib.Path.home()
+    claude = os.environ.get("CLAUDE_CONFIG_DIR")
+    roots = ([pathlib.Path(p).expanduser() / "projects" for p in claude.split(",")]
+             if claude else
+             [home / ".claude" / "projects", home / ".config" / "claude" / "projects"])
+    roots.append(pathlib.Path(os.environ.get("CODEX_HOME") or home / ".codex").expanduser())
+    roots.append(pathlib.Path(os.environ.get("OPENCODE_DATA_DIR")
+                              or home / ".local" / "share" / "opencode").expanduser())
+    return roots
+
+
+def ccusage_fingerprint():
+    """sha256 over (path, size, mtime) of every file under the log roots.
+
+    stat only, no reads: ~0.15s against the ~3s ccusage takes to parse the same
+    files. Any appended turn, new session file, or deletion changes it."""
+    entries = []
+    for root in ccusage_log_roots():
+        for dirpath, _, filenames in os.walk(root):
+            for name in filenames:
+                path = os.path.join(dirpath, name)
+                try:
+                    stat = os.stat(path)
+                except OSError:
+                    continue
+                entries.append((path, stat.st_size, stat.st_mtime_ns))
+    entries.sort()
+    return hashlib.sha256(repr(entries).encode()).hexdigest()
+
+
+def ccusage_begin(offline):
+    """Start fetching ccusage's daily table; hand the result to ccusage_end.
+
+    On a cache hit there is no subprocess at all. On a miss the scan is started
+    (not waited on) so it runs concurrently with the Kiro and l3m reads. No
+    --since/--until: they don't reduce ccusage's scan, and an unfiltered result
+    serves every date window from one cache entry (main's post-filter applies
+    to these rows like any other)."""
+    fingerprint = ccusage_fingerprint() if offline else None
+    if fingerprint:
+        try:
+            fresh = time.time() - CCUSAGE_CACHE.stat().st_mtime < CCUSAGE_CACHE_TTL
+            cached = json.loads(CCUSAGE_CACHE.read_text())
+            if fresh or cached.get("fingerprint") == fingerprint:
+                return ("hit", cached["data"])
+        except (OSError, json.JSONDecodeError):
+            pass
+    cmd = ["ccusage", "daily", "--json", "--by-agent"]
+    if offline:
+        cmd.append("--offline")
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, text=True)
+    except OSError as exc:
+        print(f"warning: ccusage unavailable ({exc}); table excludes it", file=sys.stderr)
+        return ("hit", {})
+    return ("miss", proc, fingerprint)
+
+
+def ccusage_end(handle):
+    """The parsed ccusage JSON for a ccusage_begin handle, caching fresh data.
+
+    The fingerprint was taken BEFORE the scan, so a log written during the scan
+    makes the entry conservatively stale (next run re-scans), never wrong."""
+    if handle[0] == "hit":
+        return handle[1]
+    _, proc, fingerprint = handle
+    out = proc.communicate()[0]
+    if proc.returncode != 0:
+        print(f"warning: ccusage failed (exit {proc.returncode}); table excludes it",
+              file=sys.stderr)
+        return {}
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        print("warning: could not parse ccusage JSON; table excludes it", file=sys.stderr)
+        return {}
+    if fingerprint:
+        try:
+            CCUSAGE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = CCUSAGE_CACHE.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"fingerprint": fingerprint, "data": data}))
+            os.replace(tmp, CCUSAGE_CACHE)
+        except OSError:
+            pass  # cache is an optimization; the data is already in hand
+    return data
+
+
+def ccusage_rows(data, rates):
     """Per (day, harness, model) token rows from `ccusage daily --json --by-agent`.
 
     ccusage is the token ground truth (Claude/Codex/opencode/...); this only
     chooses which price table turns those tokens into dollars."""
-    cmd = ["ccusage", "daily", "--json", "--by-agent"]
-    if offline:
-        cmd.append("--offline")
-    if since:
-        cmd += ["--since", since.replace("-", "")]
-    if until:
-        cmd += ["--until", until.replace("-", "")]
-    try:
-        out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
-    except (OSError, subprocess.CalledProcessError) as exc:
-        print(f"warning: ccusage unavailable ({exc}); Kiro-only table", file=sys.stderr)
-        return []
-    try:
-        data = json.loads(out)
-    except json.JSONDecodeError:
-        print("warning: could not parse ccusage JSON; Kiro-only table", file=sys.stderr)
-        return []
-
     rows = []
     for day in data.get("daily", []):
         period = day.get("period")
@@ -582,19 +683,34 @@ def main():
     parser.add_argument("--since", help="filter from date (YYYY-MM-DD)")
     parser.add_argument("--until", help="filter until date, inclusive (YYYY-MM-DD)")
     parser.add_argument("--offline", dest="offline", action="store_true", default=True,
-                        help="use ccusage cached/embedded prices (default)")
+                        help="use ccusage cached/embedded prices (default; result cached "
+                             "until any harness log changes)")
     parser.add_argument("--online", dest="offline", action="store_false",
-                        help="let ccusage refresh LiteLLM prices over the network")
+                        help="let ccusage refresh LiteLLM prices over the network "
+                             "(always a fresh scan)")
     parser.add_argument("--json", action="store_true", help="emit rows + totals as JSON")
     args = parser.parse_args()
 
     credit_rate = args.credit_rate
 
-    rows = (kiro_rows(credit_rate) + l3m_rows(l3m_settings())
-            + ccusage_rows(args.rates, args.since, args.until, args.offline))
+    # The three sources are independent, so read them concurrently. Threads,
+    # not processes: the legs that wait outside the GIL (l3m's git subprocesses,
+    # ccusage's scan on a miss, disk I/O when the page cache is cold) genuinely
+    # overlap; the pure-Python legs (fingerprint walk, Kiro JSON parse) still
+    # serialize under the GIL, and a process pool would spend more on worker
+    # startup than the ~0.3s it could reclaim. On a cache miss ccusage_begin
+    # returns as soon as its scan is STARTED; the wait happens in ccusage_end,
+    # after the other legs have finished.
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        ccusage = pool.submit(ccusage_begin, args.offline)
+        kiro = pool.submit(kiro_rows, credit_rate)
+        l3m = pool.submit(l3m_rows, l3m_settings())
+        rows = (kiro.result() + l3m.result()
+                + ccusage_rows(ccusage_end(ccusage.result()), args.rates))
 
-    # Post-filter the Kiro and l3m rows by date (ccusage already filtered its
-    # own). Undated rows are kept deliberately -- see the module docstring.
+    # One date filter for every harness (ccusage is fetched unfiltered so the
+    # cache serves all windows). Undated rows are kept deliberately -- see the
+    # module docstring.
     if args.since:
         rows = [r for r in rows if not r["day"] or r["day"] >= args.since]
     if args.until:

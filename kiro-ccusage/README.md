@@ -51,7 +51,10 @@ as one number; `Cost (USD)` is the only column comparable across harnesses.
 ## How each harness is read
 
 **Claude Code, Codex, opencode** — `ccusage daily --json --by-agent`, which is the
-token ground truth, then re-priced as above.
+token ground truth, then re-priced as above. ccusage rescans every log on every
+run (seconds), so its output is cached and reused while the logs' stat
+fingerprint is unchanged or the cache is under 60s old — a re-run is instant and
+trails live sessions by at most a minute. `--online` always scans fresh.
 
 **Kiro** meters in credits and exposes no token counts locally, so credits are
 what gets recorded and dollars are derived from them.
