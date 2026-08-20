@@ -32,6 +32,7 @@ brew "glibc"
 
 # Python tooling
 brew "python@3.14"
+brew "numpy"
 brew "ruff"
 
 # AI tooling
