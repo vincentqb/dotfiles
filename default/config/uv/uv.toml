@@ -1,0 +1,11 @@
+# Prefer the interpreters already on PATH — brew's — over uv's managed ones.
+#
+# uv's standalone Python links against the *system* glibc (2.26 on Amazon
+# Linux), which is below the manylinux_2_28 floor that numpy >=2.3 and a growing
+# number of wheels build to. uv then rejects every wheel and compiles from the
+# sdist against gcc 7.3.1, which fails. Brew's Python reports brew's glibc
+# (2.39), so the wheels match and nothing compiles.
+#
+# "system" still falls back to the managed interpreters for versions brew
+# doesn't carry, unlike "only-system".
+python-preference = "system"

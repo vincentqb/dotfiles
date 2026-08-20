@@ -1,3 +1,12 @@
+# `brew bundle` hands subprocesses a stripped PATH — Homebrew's shims plus
+# /usr/bin — where the only python is the system's 3.7. uv then falls back to a
+# managed interpreter, which reports the *system* glibc (2.26 on Amazon Linux),
+# below the manylinux_2_28 floor that numpy >=2.3 ships to; uv rejects the wheels
+# and compiles against gcc 7.3.1, which fails. Put brew's bin back on PATH so the
+# python-preference = "system" in config/uv/uv.toml can find brew's python, which
+# reports brew's own glibc.
+ENV["PATH"] = "#{ENV.fetch("HOMEBREW_PREFIX", "/home/linuxbrew/.linuxbrew")}/bin:#{ENV["PATH"]}"
+
 # Shell / terminal
 brew "coreutils"
 brew "fish"
@@ -31,8 +40,7 @@ brew "lean-cli"
 brew "glibc"
 
 # Python tooling
-brew "python@3.14"
-brew "numpy"
+brew "python@3.14"  # uv's default interpreter, via python-preference = "system"
 brew "ruff"
 
 # AI tooling
