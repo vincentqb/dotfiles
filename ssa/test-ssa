@@ -103,6 +103,36 @@ else
     check "reconnect probes quietly first" y n
 fi
 
+# --- what a night away looks like --------------------------------------------
+# The probe cadence and the print cadence are separate: a line per probe is
+# ~1100 identical lines over a nine-hour outage, each long enough to wrap. So an
+# unchanged reason is silent, a changed one is news, and a keep-alive line comes
+# once per SSA_NOTE_EVERY. All three are asserted, because the first assertion
+# alone would also pass if printing were broken outright.
+
+yn() { if (($1)); then echo y; else echo n; fi; }
+
+reset
+out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
+    $SSA host </dev/null 2>&1)
+check "a steady reason waits through several probes" y "$(yn "$(sessions) >= 3")"
+check "a steady reason is not reprinted per probe" 0 "$(grep -c '(waited' <<<"$out")"
+
+reset
+out=$(SSA_NOTE_EVERY=1 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
+    $SSA host </dev/null 2>&1)
+check "a keep-alive line arrives once per SSA_NOTE_EVERY" y \
+    "$(yn "$(grep -c '(waited' <<<"$out") >= 2")"
+
+reset
+out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;255:ssh: connect to host port 22: Connection refused' \
+    $SSA host </dev/null 2>&1)
+case $out in
+    *"connection refused (waited"*) check "a changed reason is reported once" y y ;;
+    *) check "a changed reason is reported once" y "n: $out" ;;
+esac
+check "the changed reason is not then repeated" 1 "$(grep -c '(waited' <<<"$out")"
+
 # --- a remote command that may have half-run ---------------------------------
 
 reset

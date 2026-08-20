@@ -13,6 +13,13 @@ ARGOPTS='bcDEeFIiJLlmOopQRSWw'
 max_wait=${SSA_MAX_WAIT:-0}
 grace=${SSA_GRACE:-3}
 probe_timeout=${SSA_PROBE_TIMEOUT:-7}
+# A line per probe reads fine for a 30-second outage and is unusable for a
+# night one: 1 s→30 s backoff over nine hours is ~1100 lines of the same
+# sentence. So the probe cadence and the *print* cadence are separate --
+# probes back off to max_delay, prints happen on a change of reason and
+# otherwise once per note_every.
+max_delay=${SSA_MAX_DELAY:-60}
+note_every=${SSA_NOTE_EVERY:-600}
 cert=${SSA_CERT:-$HOME/.ssh/id_rsa-cert.pub}
 tmux_session=
 retry_command=0
@@ -75,6 +82,11 @@ while ((i < ${#argv[@]})); do
     ((i++))
 done
 [[ -n $host ]] || { usage; exit 2; }
+# Messages name the host by its first label. The FQDN of a dev desktop is 50
+# characters, which is most of a line on its own, and every line that wraps is
+# a line that gets shredded by whatever full-screen program shares the
+# terminal -- the reason the output looked mangled, not just verbose.
+short_host=${host%%.*}
 
 # autossh's -M monitor exists because nothing reconnects if nothing notices the
 # link died. ssh's ServerAliveInterval is that check, and its default is 0: on a
@@ -137,6 +149,28 @@ reason_for() {
     fi
 }
 
+# ssh's diagnostics are written to be read once, not once a minute: "Could not
+# resolve hostname <fqdn>: nodename nor servname provided, or not known" is 90
+# characters that say "DNS". Collapse the reasons we already classify to one
+# clause each and cap anything unrecognized, so a status line stays a line. The
+# full text still reaches you unabridged -- ssh writes it to the terminal
+# itself, and `die` quotes it when we stop.
+short_reason() {
+    case $1 in
+        *"nodename nor servname"* | *"Name or service not known"* | \
+        *"Could not resolve"*) echo "unresolved host (DNS or VPN)" ;;
+        *"Connection refused"*) echo "connection refused" ;;
+        *"Operation timed out"* | *"Connection timed out"*) echo "timed out" ;;
+        *"No route to host"*) echo "no route to host" ;;
+        *"Network is unreachable"*) echo "network unreachable" ;;
+        *exchange_identification*) echo "refused mid-handshake" ;;
+        # Ours, not ssh's: already one clause, and truncating them would eat the
+        # part that says what to do (which cert, which portal).
+        *"credentials rejected"* | *"captive portal"*) echo "$1" ;;
+        *) if ((${#1} > 64)); then printf '%.61s...' "$1"; else echo "$1"; fi ;;
+    esac
+}
+
 # The one failure waiting never fixes, so it is worth its own probe.
 portal() {
     local code
@@ -162,18 +196,34 @@ stale_master() {
 }
 
 WAITED=0
+# One line on entry, then a line only when the reason *changes* -- DNS gave way
+# to refused, or a portal appeared -- or when note_every has passed. `last` is
+# seeded from the entry reason so the first probe does not immediately repeat
+# it. A line per probe is fine for a 30-second outage and unusable for a night
+# one, and it was the repetition that made this loop unreadable, not the
+# waiting.
 wait_for() {
-    local delay=1 start reason spotted
+    local delay=1 start reason spotted last last_note
     start=$(now)
-    say "$1; waiting"
+    last_note=$start
+    last=$(short_reason "$1")
+    say "waiting for $short_host: $last"
     while ! probe; do
         WAITED=$(($(now) - start))
         ((max_wait > 0 && WAITED >= max_wait)) && return 1
-        reason=$(reason_for "$probe_err")
+        reason=$(short_reason "$(reason_for "$probe_err")")
         spotted=$(portal) && reason=$spotted
-        say "${reason:-unreachable} -- retry in $(dur "$delay") (waited $(dur "$WAITED"))"
+        if [[ $reason != "$last" ]] || (($(now) - last_note >= note_every)); then
+            say "${reason:-unreachable} (waited $(dur "$WAITED"))"
+            last=$reason
+            last_note=$(now)
+        fi
+        # Never sleep past --max-wait. The bound is checked before sleeping, so
+        # a 60 s cap would otherwise overshoot it by most of a minute.
+        ((max_wait > 0 && WAITED + delay > max_wait)) &&
+            delay=$((max_wait - WAITED > 1 ? max_wait - WAITED : 1))
         sleep "$delay"
-        ((delay = delay * 2 > 30 ? 30 : delay * 2))
+        ((delay = delay * 2 > max_delay ? max_delay : delay * 2))
     done
     WAITED=$(($(now) - start))
 }
@@ -217,16 +267,17 @@ while :; do
     ((${#user_cmd[@]})) && [[ $class == dropped ]] && ((retry_command == 0)) &&
         die "dropped, and '${user_cmd[*]}' may have already run (--retry-command to allow)"
 
-    # `~.` and a dead link are the same silent 255, so offer a way out.
+    # `~.` and a dead link are the same silent 255, so offer a way out. The
+    # reason is not repeated here: ssh has just written it to this same
+    # terminal, and echoing it back was half the width of the line.
     if [[ $class == dropped && -t 0 ]]; then
-        printf '%s: %s -- reconnecting in %ss, press a key to stop... ' \
-            "$PROG" "${reason:-session ended}" "$grace" >&2
+        printf '%s: reconnecting in %ss, key to stop... ' "$PROG" "$grace" >&2
         read -rs -n 1 -t "$grace" && { echo >&2; exit 255; }
         echo >&2
     fi
 
     stale_master
-    wait_for "${reason:-unreachable}" || die "gave up on $host after $(dur "$WAITED")"
+    wait_for "${reason:-unreachable}" || die "gave up on $short_host after $(dur "$WAITED")"
     ((WAITED > 30)) && printf '\a' >&2   # you probably walked away
-    say "$host is back after $(dur "$WAITED"); reconnecting"
+    say "$short_host is back after $(dur "$WAITED"); reconnecting"
 done

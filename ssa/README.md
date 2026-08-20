@@ -24,7 +24,7 @@ own schedule; every probe is a fresh `ssh`, so a certificate minted elsewhere
 gets picked up without restarting anything.
 
 ```
-ssa: credentials rejected (certificate expired 10h55m ago) -- retry in 4s (waited 12s)
+ssa: waiting for dev-dsk-quennv: credentials rejected (certificate expired 10h55m ago)
 ```
 
 ## Why bash
@@ -68,9 +68,20 @@ Two questions decide everything, and `ssh` answers both if you ask precisely:
 | `~.` (you quit) | indistinguishable from a drop — 255, usually silent | a keypress window to stop instead of reconnecting |
 
 Between attempts it probes with a real `ssh` (`BatchMode`, short
-`ConnectTimeout`, no mux), so aliases, ports and `ProxyJump` are honoured, but the
-screen stays quiet: one line per retry, backing off 1 s → 30 s, and a bell if the
-wait was long enough that you walked away.
+`ConnectTimeout`, no mux), so aliases, ports and `ProxyJump` are honoured, and a
+bell rings if the wait was long enough that you walked away.
+
+**Probing and reporting are on separate clocks**, because they answer to
+different things: the probe cadence decides how fast you get back (1 s → 60 s),
+and the print cadence decides whether the screen is readable afterwards. A line
+per probe is fine for a 30-second outage and unusable for an overnight one —
+measured, a nine-hour wait was ~1100 copies of one sentence, each long enough to
+wrap, and a wrapped line is what gets shredded when a full-screen program shares
+the terminal. So: one line when the wait starts, one whenever the *reason
+changes* (DNS gave way to refused; a portal appeared), and otherwise a keep-alive
+line every `SSA_NOTE_EVERY` — 55 short lines for that same night. ssh's own
+diagnostics still reach you verbatim; ours are one clause and never name the
+FQDN, which the wait line already did.
 
 Three things it deliberately will not do: rewrite `known_hosts`, re-run a remote
 command that may have half-run (`--retry-command` opts in), or run anything on
@@ -166,11 +177,13 @@ ssa --retry-command host 'tail -F log'  # opt in to re-running a command
 | `--retry-command` | off | re-run the remote command after a mid-session drop |
 | `--max-wait=SECS` | `0` | give up on one reconnect after SECS; 0 waits forever |
 
-Everything else goes to `ssh` untouched. Three more knobs have no flag, only an
-env var: `SSA_GRACE` (keypress window before reconnect, default 3s),
-`SSA_PROBE_TIMEOUT` (probe `ConnectTimeout`, default 7s), and `SSA_CERT` (cert
-read to explain a rejection, default `~/.ssh/id_rsa-cert.pub`). `SSA_MAX_WAIT`
-mirrors `--max-wait`.
+Everything else goes to `ssh` untouched. The remaining knobs have no flag, only
+an env var: `SSA_GRACE` (keypress window before reconnect, default 3s),
+`SSA_PROBE_TIMEOUT` (probe `ConnectTimeout`, default 7s), `SSA_CERT` (cert read
+to explain a rejection, default `~/.ssh/id_rsa-cert.pub`), `SSA_MAX_DELAY`
+(longest gap between probes, default 60s) and `SSA_NOTE_EVERY` (keep-alive line
+while the reason is unchanged, default 600s — raise it for a quieter night, set
+it very low to watch every probe). `SSA_MAX_WAIT` mirrors `--max-wait`.
 
 ## Install
 
@@ -184,7 +197,7 @@ ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ./test-ssa
 ```
 
-35 checks against a stub `ssh` that fails on a script, so the paths that only run
+41 checks against a stub `ssh` that fails on a script, so the paths that only run
 when the network is broken — changed host key, expired certificate, a drop
 halfway through a remote command — are exercised while it works. The credential
 tests run with stdin closed, because the one thing they assert is that nothing
