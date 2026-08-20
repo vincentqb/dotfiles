@@ -43,6 +43,7 @@ brew "bubblewrap"
 brew "ollama"
 brew "ccusage"
 uv "cli-agent-orchestrator", source: "git+https://github.com/awslabs/cli-agent-orchestrator.git@main"
+brew "slirp4netns"
 
 # Docs / writing
 brew "biber"        # biblatex bibliographies
