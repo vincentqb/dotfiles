@@ -31,6 +31,7 @@ brew "lean-cli"
 brew "glibc"
 
 # Python tooling
+brew "python@3.14"
 brew "ruff"
 
 # AI tooling
@@ -70,7 +71,6 @@ uv "pynvim"
 # brew "docker-compose"
 # brew "imagemagick"
 # brew "maven"
-# brew "python@3.14"
 # brew "python-tk@3.14"
 # brew "yarn"
 # cask "amazon-q"
