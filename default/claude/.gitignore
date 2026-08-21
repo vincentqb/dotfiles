@@ -4,6 +4,7 @@ history.jsonl
 agents/*
 !agents/parallel-writer.md
 backups
+briefs
 file-history
 plugins
 projects
