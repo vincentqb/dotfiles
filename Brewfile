@@ -36,7 +36,7 @@ brew "tree-sitter-cli"  # parser compiler for nvim-treesitter (main branch)
 brew "node"
 brew "rustup"
 brew "uv"
-brew "elan"
+brew "elan-init"
 brew "glibc"
 
 # Python tooling
