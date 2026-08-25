@@ -54,6 +54,8 @@ aim skills install IRRGenAICapabilities
 aim agents install OptimusPrimeKiro
 aim skills install OptimusPrimeKiro
 
+aim mcp install software-builder-insights-prod-mcp
+
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
 # toolbox install grasp-mcp
 # grasp-mcp config initialize
