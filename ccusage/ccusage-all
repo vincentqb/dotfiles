@@ -1136,7 +1136,7 @@ def token_rows(harness_sums, rates, online):
     return rows
 
 
-def render(rows, stream=sys.stdout, mix=None, calibrated=False):
+def render(rows, stream=sys.stdout):
     def money(value):
         return f"${value:,.2f}"
 
@@ -1248,24 +1248,6 @@ def render(rows, stream=sys.stdout, mix=None, calibrated=False):
     line(["-" * w for w in widths])
     line(total)
 
-    # Say out loud what Std is normalized to, so the column is interpretable
-    # without reading the source, and flag the Kiro calibration when it is on.
-    if mix:
-        print(file=stream)
-        print("Std = $/Mtok at the pooled mix of every token-logged row here "
-              "(in {inputTokens:.1%} / out {outputTokens:.1%} / "
-              "cache-read {cacheReadTokens:.1%} / cache-write {cacheCreationTokens:.1%}), "
-              "so it varies only".format(**mix), file=stream)
-        print("      by model, and Eff = Rate/Std reads how favourable a row's own "
-              "mix was (<1.00 cheaper than this box's average, >1.00 dearer). Kiro "
-              "logs no buckets, so it has no Cached/Std/Eff.", file=stream)
-    if calibrated:
-        anchor = KIRO_CREDIT_ANCHOR
-        print(f"Kiro credits scaled x{KIRO_COMPLETENESS:.4f} to match /usage "
-              f"({anchor['authoritative_credits']:,.2f} authoritative vs "
-              f"{anchor['scanned_credits']:,.2f} scanned over {anchor['window_since']}+, "
-              f"observed {anchor['observed']}); --raw-credits to disable.", file=stream)
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1347,6 +1329,8 @@ def main():
 
     # Mix normalization has to run after filtering, so the pooled reference mix
     # describes the window actually being reported rather than all of history.
+    # The mix itself is only surfaced in --json; the table documents Cached/Std/
+    # Eff in the module docstring and README rather than in a footer.
     mix = standardize(rows, args.rates, not args.offline)
 
     if args.json:
@@ -1365,7 +1349,7 @@ def main():
         print()
         return
 
-    render(rows, mix=mix, calibrated=args.calibrate)
+    render(rows)
 
 
 if __name__ == "__main__":
