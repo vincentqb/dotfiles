@@ -114,6 +114,30 @@ tokens, which are input-side, so correcting the input-side mix doesn't
 double-count — whereas [FINDINGS.md](FINDINGS.md) argues the 1.80× bimodality in
 `k` already *is* unreported output.
 
+## Provenance
+
+Every row states how each quantity it reports is *known*, and the table derives
+its markers from those labels alone — it never re-infers provenance from whether
+a field happens to be present. One vocabulary, four slots per row:
+
+| slot | values |
+|---|---|
+| `consumed` | `counted` (summed token buckets) · `metered` (a scalar the harness computed) |
+| `cost` | the price source: `l3m` · `litellm` · `l3m-self` · `kiro-credit` · `unpriced` |
+| `mix` | `measured` · `assumed` (renders `~`) · `no-mix` |
+| `std` | `standardized` · `unpriced` · `ambiguous` · `no-tokens` |
+
+Two checks keep it honest. `provenance()` rejects any label outside the
+vocabulary, so a typo can't fall through a lookup and render as measured.
+`validate_rows()` then checks each label *agrees with the row it describes* — a
+row with no token buckets can't claim a `measured` mix, and nothing can claim
+`standardized` without a standardized rate. It runs on every invocation.
+
+This replaced four unrelated ad-hoc conventions: `tokens is None`, a `"!"` glued
+onto the price-source string, an `assumed_mix` presence check, and `std_rate`
+being falsy. Each was somewhere a new row producer could satisfy nothing and
+still render as though everything were measured.
+
 ## Tests
 
 ```fish
@@ -134,10 +158,13 @@ longest-prefix matching resolve an l3m fallback chain
 (`claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra`) to its first element and price
 the whole thing as pure opus-5.
 
-The suite is checked by mutation rather than trusted: reintroducing each of ten
-known bugs — including both of those, the credit-completeness factor applied to
-the wrong field, the l3m round-to-cent term, and `canon` ceasing to strip
-provider prefixes — produces a failure in every case.
+The suite is checked by mutation rather than trusted: reintroducing each of 21
+known bugs produces a failure in every case. Three classes of bug are only
+reachable because of deliberate extractions — `harness_subtotals` out of
+`render`, `resolve_kiro_pricing` out of `main`, and `validate_rows` as its own
+pass. The recurring blind spot was *wiring*: a correct function that nothing
+calls passes every test about the function, so `test_main_actually_calls_it`
+exists purely to fail when the `validate_rows(rows)` call is deleted.
 
 ## Pricing
 
