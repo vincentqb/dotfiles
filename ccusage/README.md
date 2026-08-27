@@ -12,13 +12,13 @@ ccusage-all
 ```
 
 ```
-Date        Day Total  Harness  Model                Consumed  Unit        Rate   CR   CW     Std   Eff  Cost (USD)
-----------  ---------  -------  ------------------  ---------  -------  -------  ---  ---  ------  ----  ----------
--             $161.27  l3m      l3m-unknown             41.25  Mtok       $3.91  28%   2%       -     -     $161.27
-2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745  96%   4%  $0.813  0.92   $1,347.96
-                       claude   claude-fable-5           3.38  Mtok       $3.41  80%  20%   $1.62  2.10      $11.54
-                       codex    openai.gpt-5.4           2.06  Mtok       $1.43  49%   0%  $0.299  4.78       $2.95
-                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747    -    -       -     -     $398.36
+Date        Day Total  Harness  Model                Consumed  Unit        Rate     CR   CW     Std   Eff  Cost (USD)
+----------  ---------  -------  ------------------  ---------  -------  -------  -----  ---  ------  ----  ----------
+-             $161.27  l3m      l3m-unknown             41.25  Mtok       $3.91    28%   2%       -     -     $161.27
+2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745    96%   4%  $0.813  0.92   $1,347.96
+                       claude   claude-fable-5           3.38  Mtok       $3.41    80%  20%   $1.62  2.10      $11.54
+                       codex    openai.gpt-5.4           2.06  Mtok       $1.43    49%   0%  $0.299  4.78       $2.95
+                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747  ~100%  ~0%       -     -     $398.36
 ```
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
@@ -72,6 +72,12 @@ the constant:
 $0.0747/credit  =  $0.7468 (fresh-input basis)  ×  0.100
                                                    ^^^^^ asserts 100% cache-read
 ```
+
+Kiro's `CR`/`CW` cells show that assumed mix rather than sitting blank, prefixed
+`~` so it can't be mistaken for a measurement — `~100%` / `~0%` by default. An
+assumed 100% is a claim, and hiding it in a constant is how it went unexamined.
+(Kiro still gets no `Std`/`Eff`: those are $/Mtok and Kiro has no Mtok. An
+explicit `--credit-rate` corresponds to no stated mix, so it renders `-`.)
 
 That is more caching than any harness here actually achieves. `--kiro-mix 95/5`
 substitutes Claude Code's measured 95.1%/4.4% instead — the defensible proxy,

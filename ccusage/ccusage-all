@@ -86,11 +86,16 @@ cheaper than this box's average, >1.00 dearer) -- codex's gpt-5.4 at Eff 4.78 is
 not an expensive model, it is a badly-cached one. A row whose model no price
 table lists gets no Std.
 
-Kiro has none of those four, and it is the only harness that assumes rather than
-measures. Its $/credit embeds a mix: $0.0747 = $0.7468 (fresh-input basis) x
-0.100, and that 0.100 asserts 100% cache-read. `--kiro-mix 95/5` substitutes
-Claude Code's measured mix instead, giving $0.1176/credit (+57%); see
-KIRO_PRICE_RATIO for why cache-write, not cache-read, drives that correction.
+Kiro is the only harness that ASSUMES a mix rather than measuring one, because it
+logs no buckets. Its CR/CW cells therefore show the mix its $/credit was derived
+from, prefixed `~` so they never read as measurements: the default is `~100%`/
+`~0%`, i.e. $0.0747 = $0.7468 (fresh-input basis) x 0.100 asserting that every
+token was a cache read. Showing that is the point -- an assumed 100% is a claim,
+and a blank cell hides it. Kiro still gets no Std/Eff: those are $/Mtok, and Kiro
+has no Mtok. `--kiro-mix 95/5` substitutes Claude Code's measured mix instead,
+giving $0.1176/credit (+57%); see KIRO_PRICE_RATIO for why cache-write, not
+cache-read, drives that correction. An explicit `--credit-rate` corresponds to no
+stated mix, so those rows render `-`.
 
 Kiro credits are separately calibrated: the session-log scan is measurably
 incomplete against `/usage`, Kiro's own authoritative total, so credits are
@@ -191,7 +196,8 @@ KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
 # Price ratios relative to fresh input, identical across the Claude family and
 # the GPT family (deepseek is the lone exception at cache-read 0.2):
 KIRO_PRICE_RATIO = {"in": 1.00, "cr": 0.10, "cw": 1.25}
-KIRO_ASSUMED_MIX = 0.100                                  # 100% cache-read
+KIRO_DEFAULT_MIX = {"cr": 1.00, "cw": 0.00, "in": 0.00}    # 100% cache-read
+KIRO_ASSUMED_MIX = 0.100                                  # its factor
 KIRO_FRESH_INPUT_RATE = USD_PER_CREDIT / KIRO_ASSUMED_MIX  # $0.7468/credit
 #
 # `--kiro-mix CR/CW` substitutes a different assumed mix. The measured mixes of
@@ -218,10 +224,12 @@ KIRO_FRESH_INPUT_RATE = USD_PER_CREDIT / KIRO_ASSUMED_MIX  # $0.7468/credit
 
 
 def kiro_mix_rate(spec):
-    """`--kiro-mix CR/CW` -> USD per credit at that assumed input-side mix.
+    """`--kiro-mix CR/CW` -> {"cr", "cw", "in", "rate"} at that assumed mix.
 
     CR and CW are percentages of input-side tokens; any remainder is fresh
-    input. `--kiro-mix 95/5` is Claude Code's measured mix."""
+    input. `--kiro-mix 95/5` is Claude Code's measured mix. The shares travel
+    with the rate so the table can SHOW the assumption rather than leave Kiro's
+    mix columns blank -- an assumed 100% is a claim, and a blank hides it."""
     try:
         parts = [float(p) for p in spec.split("/")]
     except ValueError:
@@ -230,9 +238,16 @@ def kiro_mix_rate(spec):
         raise argparse.ArgumentTypeError(
             f"expected two non-negative percentages summing to <=100, got {spec!r}")
     cr, cw = (p / 100 for p in parts)
-    factor = (cr * KIRO_PRICE_RATIO["cr"] + cw * KIRO_PRICE_RATIO["cw"]
-              + max(0.0, 1 - cr - cw) * KIRO_PRICE_RATIO["in"])
-    return KIRO_FRESH_INPUT_RATE * factor
+    # Round the remainder: 1 - 0.95 - 0.05 is 4.2e-17 in binary floating point,
+    # which would render as a spurious fresh-input share in --json.
+    mix = {"cr": cr, "cw": cw, "in": max(0.0, round(1 - cr - cw, 10))}
+    return {**mix, "rate": KIRO_FRESH_INPUT_RATE * kiro_mix_factor(mix)}
+
+
+def kiro_mix_factor(mix):
+    """Token-share-weighted price ratio: the multiplier on the fresh-input
+    $/credit that yields the rate for an assumed mix."""
+    return sum(mix[bucket] * KIRO_PRICE_RATIO[bucket] for bucket in KIRO_PRICE_RATIO)
 
 # Credit-extraction completeness, measured against `/usage` inside a Kiro
 # session -- the one authoritative figure Kiro publishes about itself. It is NOT
@@ -379,7 +394,7 @@ def kiro_turns(session_dir):
         yield timestamp, execution_id, credits, models.get(execution_id)
 
 
-def kiro_rows(credit_rate, completeness=1.0):
+def kiro_rows(credit_rate, completeness=1.0, assumed_mix=None):
     """Per (day, model) Kiro credits, read straight from Kiro's session logs.
 
     Credits are what Kiro records, so the dollar figure is derived here at the
@@ -389,7 +404,12 @@ def kiro_rows(credit_rate, completeness=1.0):
     `completeness` scales the scanned credits up to the total `/usage` reports
     (KIRO_COMPLETENESS), because the scan is measurably incomplete. It is applied
     to `consumed` rather than to `rate` so that Consumed x Rate == Cost still
-    holds on every row and the rate stays the documented $/credit."""
+    holds on every row and the rate stays the documented $/credit.
+
+    `assumed_mix` is the input-side token mix `credit_rate` was derived from,
+    carried onto each row so the table can render it -- marked `~` for assumed,
+    since Kiro measures no buckets. None when the rate came from an explicit
+    --credit-rate and so corresponds to no stated mix."""
     days = collections.defaultdict(lambda: collections.defaultdict(float))
     seen = set()
     for session_dir in sorted(KIRO_SESSIONS.glob("*/sess_*")):
@@ -415,7 +435,7 @@ def kiro_rows(credit_rate, completeness=1.0):
                 "day": day, "harness": "kiro", "model": model,
                 "consumed": credits, "unit": "credits", "rate": credit_rate,
                 "cost": credits * credit_rate, "tokens": None,
-                "priced_by": "kiro-credit",
+                "assumed_mix": assumed_mix, "priced_by": "kiro-credit",
             })
     return rows
 
@@ -1210,16 +1230,22 @@ def render(rows, stream=sys.stdout):
         # $/Mtok token rates ($0.76 .. $12.8) both read cleanly in one column.
         return "$0" if not value else f"${value:.3g}"
 
-    def share(row, key):
+    def share(row, key, bucket):
         """One bucket's share of a row's tokens. Cache-read explains most of the
         spread in Rate; cache-write explains most of the rest, because it costs
         1.25x fresh input -- 12.5x a cache read -- so a few percent of it moves
-        the blended rate more than a large swing in cache-read does."""
+        the blended rate more than a large swing in cache-read does.
+
+        Measured for every token harness. For Kiro, which logs no buckets, this
+        renders the mix its $/credit was DERIVED from, prefixed `~` so it never
+        reads as a measurement -- the default `~100%`/`~0%` is precisely the
+        claim that deserves to be visible rather than blank."""
         tokens = row.get("tokens")
-        if not tokens:
-            return "-"
-        total = sum(tokens.values())
-        return f"{100 * tokens[key] / total:.0f}%" if total else "-"
+        if tokens:
+            total = sum(tokens.values())
+            return f"{100 * tokens[key] / total:.0f}%" if total else "-"
+        assumed = row.get("assumed_mix")
+        return f"~{100 * assumed[bucket]:.0f}%" if assumed else "-"
 
     def eff(row):
         """Effective rate over the standardized one: <1.00 means this row's own
@@ -1247,7 +1273,8 @@ def render(rows, stream=sys.stdout):
         day = row["day"] or "-"
         body.append([day, money(day_totals[day]), row["harness"], model,
                      qty(row["consumed"]), row["unit"], fmt_rate(row["rate"]),
-                     share(row, "cacheReadTokens"), share(row, "cacheCreationTokens"),
+                     share(row, "cacheReadTokens", "cr"),
+                     share(row, "cacheCreationTokens", "cw"),
                      fmt_rate(row.get("std_rate", 0)) if row.get("std_rate") else "-",
                      eff(row), money(row["cost"])])
 
@@ -1255,7 +1282,8 @@ def render(rows, stream=sys.stdout):
     # harness (one unit each); across harnesses only Cost is summable. Only the
     # Kiro subtotal carries the estimate band -- token costs are list-price points.
     agg = collections.defaultdict(lambda: {"consumed": 0.0, "cost": 0.0, "unit": "",
-                                           "tokens": collections.Counter(), "std": 0.0})
+                                           "tokens": collections.Counter(), "std": 0.0,
+                                           "assumed_mix": None})
     for row in rows:
         bucket = agg[row["harness"]]
         bucket["consumed"] += row["consumed"]
@@ -1263,6 +1291,8 @@ def render(rows, stream=sys.stdout):
         bucket["unit"] = row["unit"]
         if row.get("tokens"):
             bucket["tokens"].update(row["tokens"])
+        if row.get("assumed_mix"):
+            bucket["assumed_mix"] = row["assumed_mix"]
         if row.get("std_rate"):
             # Volume-weighted, so a harness subtotal's Std is what its own token
             # mix would have cost at the pooled mix.
@@ -1275,12 +1305,15 @@ def render(rows, stream=sys.stdout):
         std = bucket["std"] / bucket["consumed"] if bucket["consumed"] else 0.0
         total_tok = sum(bucket["tokens"].values())
 
-        def bucket_share(key):
-            return f"{100 * bucket['tokens'][key] / total_tok:.0f}%" if total_tok else "-"
+        def bucket_share(key, name, bucket=bucket, total_tok=total_tok):
+            if total_tok:
+                return f"{100 * bucket['tokens'][key] / total_tok:.0f}%"
+            assumed = bucket["assumed_mix"]
+            return f"~{100 * assumed[name]:.0f}%" if assumed else "-"
 
         subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]), bucket["unit"],
-                          fmt_rate(rate), bucket_share("cacheReadTokens"),
-                          bucket_share("cacheCreationTokens"),
+                          fmt_rate(rate), bucket_share("cacheReadTokens", "cr"),
+                          bucket_share("cacheCreationTokens", "cw"),
                           fmt_rate(std) if std else "-",
                           f"{rate / std:.2f}" if std else "-", money(bucket["cost"])])
         if harness == "kiro":
@@ -1348,8 +1381,19 @@ def main():
                              "over the same window (use with --since/--until)")
     args = parser.parse_args()
 
-    # --kiro-mix is already converted to a $/credit rate by its argparse type.
-    credit_rate = args.kiro_mix if args.kiro_mix else args.credit_rate
+    # --kiro-mix is already resolved to {"cr","cw","in","rate"} by its argparse
+    # type. An explicit --credit-rate corresponds to no stated mix -- notably
+    # 0.056, the output-dominated rate, lies on a different axis entirely and
+    # back-solves to an impossible >100% cache-read share -- so its rows carry
+    # no assumed mix and render "-" rather than a fabricated one.
+    explicit_rate = args.credit_rate != USD_PER_CREDIT
+    if args.kiro_mix:
+        credit_rate = args.kiro_mix["rate"]
+        assumed_mix = {k: v for k, v in args.kiro_mix.items() if k != "rate"}
+    elif explicit_rate:
+        credit_rate, assumed_mix = args.credit_rate, None
+    else:
+        credit_rate, assumed_mix = args.credit_rate, dict(KIRO_DEFAULT_MIX)
     completeness = KIRO_COMPLETENESS if args.calibrate else 1.0
     if args.verify_credits:
         completeness = 1.0          # never calibrate the figure being verified
@@ -1367,7 +1411,7 @@ def main():
             "codex": pool.submit(codex_sums),
             "opencode": pool.submit(opencode_sums),
         }
-        kiro = pool.submit(kiro_rows, credit_rate, completeness)
+        kiro = pool.submit(kiro_rows, credit_rate, completeness, assumed_mix)
         l3m = pool.submit(l3m_rows, l3m_settings())
         harness_sums = {
             "claude": (futures["claude"].result(), {}),
