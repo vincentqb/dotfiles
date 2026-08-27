@@ -32,7 +32,7 @@ cc = load()
 
 
 def token_row(harness="claude", model="claude-opus-5", cost=1.0, mtok=1.0,
-              std=None, **tokens):
+              **tokens):
     """A token-logged row, shaped exactly as the real producers shape one.
 
     Built through cc.provenance() rather than a literal dict so the helper cannot
@@ -45,11 +45,7 @@ def token_row(harness="claude", model="claude-opus-5", cost=1.0, mtok=1.0,
            "cost": cost, "tokens": counts, "assumed_mix": None,
            "unmeasured": (),
            "provenance": cc.provenance(consumed=cc.COUNTED, cost="l3m",
-                                       mix=cc.MEASURED, std=cc.UNPRICED)}
-    if std is not None:
-        row["std_rate"] = std
-        row["provenance"]["std"] = cc.STANDARDIZED
-        row["efficiency"] = row["rate"] / std if std else None
+                                       mix=cc.MEASURED)}
     return row
 
 
@@ -61,7 +57,7 @@ def credit_row(mix=None, rate=None, cost=7.47, credits=100.0):
             "tokens": None, "assumed_mix": mix, "unmeasured": (),
             "provenance": cc.provenance(
                 consumed=cc.METERED, cost="kiro-credit",
-                mix=cc.ASSUMED if mix else cc.NO_MIX, std=cc.NO_TOKENS)}
+                mix=cc.ASSUMED if mix else cc.NO_MIX)}
 
 
 class Provenance(unittest.TestCase):
@@ -75,20 +71,14 @@ class Provenance(unittest.TestCase):
 
     def test_vocabulary_is_enforced(self):
         with self.assertRaises(ValueError):
-            cc.provenance(consumed="guessed", cost="l3m", mix=cc.MEASURED,
-                          std=cc.STANDARDIZED)
+            cc.provenance(consumed="guessed", cost="l3m", mix=cc.MEASURED)
         with self.assertRaises(ValueError):
-            cc.provenance(consumed=cc.COUNTED, cost="l3m", mix="probably",
-                          std=cc.STANDARDIZED)
-        with self.assertRaises(ValueError):
-            cc.provenance(consumed=cc.COUNTED, cost="l3m", mix=cc.MEASURED,
-                          std="sort-of")
+            cc.provenance(consumed=cc.COUNTED, cost="l3m", mix="probably")
 
     def test_a_cost_source_is_mandatory(self):
         """Every dollar figure must name where its price came from."""
         with self.assertRaises(ValueError):
-            cc.provenance(consumed=cc.COUNTED, cost="", mix=cc.MEASURED,
-                          std=cc.STANDARDIZED)
+            cc.provenance(consumed=cc.COUNTED, cost="", mix=cc.MEASURED)
 
     def test_every_real_producer_emits_complete_provenance(self):
         """The uniformity guarantee. Runs the actual producers over local data --
@@ -100,13 +90,10 @@ class Provenance(unittest.TestCase):
         for row in rows:
             with self.subTest(harness=row["harness"], model=row["model"]):
                 self.assertEqual(set(row["provenance"]),
-                                 {"consumed", "cost", "mix", "std"})
+                                 {"consumed", "cost", "mix"})
                 self.assertIn(row["provenance"]["consumed"], {cc.COUNTED, cc.METERED})
                 self.assertIn(row["provenance"]["mix"],
                               {cc.MEASURED, cc.PARTIAL, cc.ASSUMED, cc.NO_MIX})
-                self.assertIn(row["provenance"]["std"],
-                              {cc.STANDARDIZED, cc.UNPRICED, cc.AMBIGUOUS,
-                               cc.NO_TOKENS})
                 self.assertTrue(row["provenance"]["cost"])
 
     def test_every_row_carries_the_keys_render_reads(self):
@@ -122,22 +109,11 @@ class Provenance(unittest.TestCase):
                             "cost", "tokens", "assumed_mix", "provenance"):
                     self.assertIn(key, row)
 
-    def test_measured_and_assumed_mixes_are_visually_distinguishable(self):
-        """A measured share must never carry the assumed marker, or the whole
-        point of showing Kiro's assumption is lost."""
-        self.assertEqual(cc.MIX_MARKER[cc.MEASURED], "")
-        self.assertEqual(cc.MIX_MARKER[cc.ASSUMED], "~")
-
-    def test_standardize_labels_why_a_row_has_no_std(self):
-        """Three different reasons, distinguished rather than collapsed to a
-        blank: an unlisted model, a fallback chain, and a credit-metered row."""
-        unlisted = token_row(model="mystery-model-9")
-        chain = token_row(model="claude-opus-5,opus,sonnet,haiku")
-        credits = credit_row(mix=dict(cc.KIRO_DEFAULT_MIX))
-        cc.standardize([token_row(), unlisted, chain, credits], "l3m", False)
-        self.assertEqual(unlisted["provenance"]["std"], cc.UNPRICED)
-        self.assertEqual(chain["provenance"]["std"], cc.AMBIGUOUS)
-        self.assertEqual(credits["provenance"]["std"], cc.NO_TOKENS)
+    def test_partial_mix_is_distinct_from_fully_measured(self):
+        """codex's cache-write is unobservable, not zero, so its rows must not
+        claim the same provenance as a harness that counted all four buckets."""
+        self.assertNotEqual(cc.PARTIAL, cc.MEASURED)
+        self.assertIn(cc.PARTIAL, {cc.MEASURED, cc.PARTIAL, cc.ASSUMED, cc.NO_MIX})
 
     def test_unpriced_cost_is_a_label_not_a_string_suffix(self):
         """It used to be `priced_by += "!"`, so render had to parse a string to
@@ -172,44 +148,6 @@ class UnobservableBuckets(unittest.TestCase):
         self.assertGreater(cc.LITELLM_SNAPSHOT["gpt-5.6-sol"][3], 0)
         self.assertGreater(cc.CODEX_LONG_CONTEXT["gpt-5.6-sol"][1][3], 0)
 
-    def test_partial_mix_is_a_distinct_label(self):
-        self.assertNotEqual(cc.PARTIAL, cc.MEASURED)
-        self.assertIn(cc.PARTIAL, cc.MIX_MARKER)
-
-    def test_unobservable_bucket_renders_not_applicable(self):
-        """Asserted on the DETAIL row specifically. Searching the whole table for
-        "n/a" passes even with the detail-row branch deleted, because the subtotal
-        path has its own independent check -- the test would have passed for the
-        wrong reason."""
-        row = token_row(harness="codex", model="openai.gpt-5.6-sol", std=1.0)
-        row["unmeasured"] = ("cacheCreationTokens",)
-        row["provenance"]["mix"] = cc.PARTIAL
-        buffer = io.StringIO()
-        cc.render([row], stream=buffer)
-        detail = [line for line in buffer.getvalue().splitlines()
-                  if "openai.gpt-5.6-sol" in line]
-        self.assertEqual(len(detail), 1)
-        self.assertIn("n/a", detail[0])
-
-    def test_unobservable_bucket_renders_not_applicable_on_the_subtotal(self):
-        row = token_row(harness="codex", model="openai.gpt-5.6-sol", std=1.0)
-        row["unmeasured"] = ("cacheCreationTokens",)
-        row["provenance"]["mix"] = cc.PARTIAL
-        buffer = io.StringIO()
-        cc.render([row], stream=buffer)
-        subtotal = [line for line in buffer.getvalue().splitlines()
-                    if line.startswith("Subtotal")]
-        self.assertEqual(len(subtotal), 1)
-        self.assertIn("n/a", subtotal[0])
-
-    def test_measured_zero_still_renders_as_zero(self):
-        """opencode DOES report cache.write, so its 0% is a measurement and must
-        not be blurred into n/a."""
-        row = token_row(harness="opencode", std=1.0)
-        buffer = io.StringIO()
-        cc.render([row], stream=buffer)
-        self.assertNotIn("n/a", buffer.getvalue())
-
     def test_partial_label_must_match_the_unmeasured_field(self):
         orphan = token_row()
         orphan["provenance"]["mix"] = cc.PARTIAL
@@ -227,17 +165,6 @@ class UnobservableBuckets(unittest.TestCase):
         with self.assertRaises(ValueError):
             cc.validate_rows([row])
 
-    def test_partial_rows_still_contribute_their_measured_buckets(self):
-        """A missing cache-write field must not discard the cache-read count."""
-        row = token_row(harness="codex", mtok=1.0, cacheReadTokens=800_000,
-                        inputTokens=200_000, std=1.0)
-        row["unmeasured"] = ("cacheCreationTokens",)
-        row["provenance"]["mix"] = cc.PARTIAL
-        bucket = cc.harness_subtotals([row])["codex"]
-        self.assertAlmostEqual(bucket["cache_shares"]["cr"], 0.8, places=9)
-        self.assertEqual(bucket["unobservable_shares"], {"cw"})
-
-
 class RowCoherence(unittest.TestCase):
     """validate_rows: labels must agree with the row they describe.
 
@@ -251,7 +178,6 @@ class RowCoherence(unittest.TestCase):
                 + cc.l3m_rows(cc.l3m_settings()))
         if not rows:
             self.skipTest("no local Kiro or l3m data to read")
-        cc.standardize(rows, "l3m", False)
         cc.validate_rows(rows)                       # must not raise
 
     def test_constructed_rows_pass(self):
@@ -262,18 +188,6 @@ class RowCoherence(unittest.TestCase):
     def test_measured_mix_without_token_buckets_is_rejected(self):
         row = credit_row(mix=None)
         row["provenance"]["mix"] = cc.MEASURED
-        with self.assertRaises(ValueError):
-            cc.validate_rows([row])
-
-    def test_standardized_without_a_standardized_rate_is_rejected(self):
-        row = credit_row(mix={"cr": 1.0})
-        row["provenance"]["std"] = cc.STANDARDIZED
-        with self.assertRaises(ValueError):
-            cc.validate_rows([row])
-
-    def test_no_tokens_claimed_on_a_token_row_is_rejected(self):
-        row = token_row(std=1.0)
-        row["provenance"]["std"] = cc.NO_TOKENS
         with self.assertRaises(ValueError):
             cc.validate_rows([row])
 
@@ -325,33 +239,26 @@ class RowCoherence(unittest.TestCase):
 
 
 class Rendering(unittest.TestCase):
-    """render must derive every marker from provenance, never re-infer it."""
+    """Only what survives the removal of the cache/standardization columns.
+
+    The rest of this class went with them; these two remain because they guard
+    render behaviour that is still live, and mutation testing caught their
+    absence immediately."""
 
     def table(self, rows):
         buffer = io.StringIO()
         cc.render(rows, stream=buffer)
         return buffer.getvalue()
 
-    def test_assumed_mix_renders_with_a_tilde(self):
-        text = self.table([token_row(std=1.0),
-                           credit_row(mix={"cr": 1.0, "cw": 0.0, "in": 0.0})])
-        self.assertIn("~100%", text)
-
-    def test_measured_mix_renders_without_one(self):
-        text = self.table([token_row(mtok=1.0, std=1.0, cacheReadTokens=1_000_000)])
-        self.assertIn("100%", text)
-        self.assertNotIn("~100%", text)
-
-    def test_no_mix_renders_a_dash_not_a_fabricated_share(self):
-        """An explicit --credit-rate corresponds to no stated mix."""
-        text = self.table([credit_row(mix=None, rate=0.056)])
-        self.assertNotIn("~", text)
-        self.assertNotIn("%", text.split("Cost (USD)")[-1])
-
     def test_unpriced_model_is_flagged_on_its_own_row(self):
+        """A $0 cost because no price table lists the model must be visible, or
+        the total silently undercounts."""
         row = token_row(model="mystery-model-9")
         row["provenance"]["cost"] = cc.UNPRICED
         self.assertIn("mystery-model-9 (!)", self.table([row]))
+
+    def test_priced_model_is_not_flagged(self):
+        self.assertNotIn("(!)", self.table([token_row()]))
 
     def test_empty_input_says_so_rather_than_printing_a_header(self):
         self.assertIn("No usage data found", self.table([]))
@@ -363,7 +270,7 @@ class Rendering(unittest.TestCase):
         stdout = sys.stdout
         try:
             sys.stdout = io.StringIO()
-            cc.render([token_row(std=1.0)])
+            cc.render([token_row()])
             captured = sys.stdout.getvalue()
         finally:
             sys.stdout = stdout
@@ -479,101 +386,12 @@ class KiroPricingWiring(unittest.TestCase):
         self.assertIsNone(mix)
 
 
-class Standardization(unittest.TestCase):
-    """Which rows may be re-priced at a common mix, and which must abstain."""
-
-    def setUp(self):
-        self.table = cc.litellm_table(False)
-
-    def test_single_model_resolves(self):
-        self.assertIsNotNone(cc.model_rates("claude-opus-5", "l3m", self.table))
-
-    def test_dated_snapshot_resolves_to_its_family(self):
-        self.assertIsNotNone(
-            cc.model_rates("claude-haiku-4-5-20251001", "l3m", self.table))
-
-    def test_fallback_chain_abstains(self):
-        """Longest-prefix matching resolved an l3m chain to its first element and
-        priced it as pure opus-5, though the calls may have landed on sonnet,
-        haiku or GPT. Cost was unaffected (l3m self-prices); Std/Eff were not."""
-        for chain in ("claude-opus-5,opus,sonnet,haiku",
-                      "claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra"):
-            with self.subTest(chain=chain):
-                self.assertIsNone(cc.model_rates(chain, "l3m", self.table))
-
-    def test_unknown_model_abstains(self):
-        self.assertIsNone(cc.model_rates("l3m-unknown", "l3m", self.table))
-
-    def test_efficiency_is_one_when_a_row_matches_the_pooled_mix(self):
-        """Two rows with identical mixes: each must standardize to its own rate."""
-        rows = [token_row(cost=0.5), token_row(cost=0.5)]
-        cc.standardize(rows, "l3m", False)
-        for row in rows:
-            self.assertAlmostEqual(row["efficiency"], 1.0, places=6)
-
-    def test_kiro_gets_efficiency_but_never_a_standardized_rate(self):
-        """Eff needs only a mix factor ratio; Std would need an invented token
-        count from k x multiplier, which is the line FINDINGS.md draws."""
-        kiro = credit_row(mix=dict(cc.KIRO_DEFAULT_MIX))
-        cc.standardize([token_row(), kiro], "l3m", False)
-        self.assertIsNone(kiro.get("std_rate"))
-        self.assertEqual(kiro["provenance"]["std"], cc.NO_TOKENS)
-        self.assertIsNotNone(kiro.get("efficiency"))
-
-    def test_kiro_efficiency_reaches_one_when_its_assumption_matches_reality(self):
-        """--kiro-mix set to the measured mix must read ~1.00; that is the only
-        check that the borrowed 95/5 proxy means what it claims."""
-        measured = {"cacheReadTokens": 950_000, "cacheCreationTokens": 50_000,
-                    "inputTokens": 0, "outputTokens": 0}
-        kiro = credit_row(mix={"cr": 0.95, "cw": 0.05, "in": 0.0}, rate=0.1, cost=10.0)
-        cc.standardize([token_row(mtok=1.0, **measured), kiro], "l3m", False)
-        self.assertAlmostEqual(kiro["efficiency"], 1.0, places=6)
-
-    def test_no_tokens_anywhere_yields_no_reference_mix(self):
-        self.assertIsNone(cc.standardize([], "l3m", False))
-
-
 class SubtotalPropagation(unittest.TestCase):
     """harness_subtotals: where both shipped Std/Eff bugs lived."""
-
-    def test_unpriced_volume_does_not_dilute_std(self):
-        """The bug: std was weighted over priced rows but divided by ALL consumed,
-        so a harness with unpriced volume had Std understated and Eff overstated
-        in proportion. It put opencode at Eff 2.57 where the priced portion is
-        0.51 -- inverting "dearer than average" into "cheaper"."""
-        priced = token_row(harness="h", cost=1.0, mtok=1.0, std=1.0)
-        unpriced = token_row(harness="h", model="mystery", cost=0.0, mtok=9.0)
-        bucket = cc.harness_subtotals([priced, unpriced])["h"]
-        self.assertAlmostEqual(bucket["std"], 1.0, places=9)
-        self.assertAlmostEqual(bucket["consumed"], 10.0, places=9)
-
-    def test_std_is_volume_weighted_across_priced_rows(self):
-        cheap = token_row(harness="h", cost=1.0, mtok=1.0, std=1.0)
-        dear = token_row(harness="h", cost=3.0, mtok=3.0, std=3.0)
-        bucket = cc.harness_subtotals([cheap, dear])["h"]
-        self.assertAlmostEqual(bucket["std"], (1.0 * 1 + 3.0 * 3) / 4, places=9)
-
-    def test_nothing_priced_gives_std_none_not_zero(self):
-        """None renders "-"; 0.0 would render a fabricated rate and divide-by-zero
-        into Eff."""
-        bucket = cc.harness_subtotals([token_row(harness="h", model="mystery")])["h"]
-        self.assertIsNone(bucket["std"])
-        self.assertIsNone(bucket["efficiency"])
 
     def test_effective_rate_is_cost_over_consumed(self):
         bucket = cc.harness_subtotals([token_row(harness="h", cost=9.0, mtok=3.0)])["h"]
         self.assertAlmostEqual(bucket["rate"], 3.0, places=9)
-
-    def test_cache_shares_come_from_summed_buckets(self):
-        row = token_row(harness="h", mtok=1.0, cacheReadTokens=800_000,
-                        cacheCreationTokens=200_000)
-        shares = cc.harness_subtotals([row])["h"]["cache_shares"]
-        self.assertAlmostEqual(shares["cr"], 0.8, places=9)
-        self.assertAlmostEqual(shares["cw"], 0.2, places=9)
-
-    def test_credit_harness_has_no_cache_shares(self):
-        self.assertIsNone(
-            cc.harness_subtotals([credit_row(mix=None)])["kiro"]["cache_shares"])
 
     def test_harnesses_do_not_bleed_into_each_other(self):
         agg = cc.harness_subtotals([token_row(harness="a", cost=1.0),

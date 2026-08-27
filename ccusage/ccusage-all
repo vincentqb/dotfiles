@@ -61,56 +61,33 @@ happened on were never recorded. It is carried undated rather than dumped on the
 day it first became visible, and it survives `--since`/`--until` like any undated
 row -- dropping it would silently shrink the total.
 
-Columns: Date | Harness | Model | Consumed | Unit | Rate | CacheRd | CacheWr | AtAvgMix | vsAvg |
-Cost (USD), where Consumed x Rate = Cost on every row. `Unit` is `credits` for
-Kiro (metered) and `Mtok` (millions of tokens) for the token-logged harnesses --
-the two are not commensurable, so `Consumed` sums only within a harness;
-`Cost (USD)` is the one column comparable and summable across all of them.
+Columns: Date | Harness | Model | Consumed | Unit | Rate | Cost (USD), where
+Consumed x Rate = Cost on every row. `Unit` is `credits` for Kiro (metered) and
+`Mtok` (millions of tokens) for the token-logged harnesses -- the two are not
+commensurable, so `Consumed` sums only within a harness; `Cost (USD)` is the one
+column comparable and summable across all of them.
 
 `Rate` is the EFFECTIVE blended $/Mtok, i.e. cost / total tokens. It is a mix
-statistic, not a price, and it is not comparable across harnesses: within a
+statistic, not a price, and it is NOT comparable across harnesses: within a
 single model the list prices span 50x (opus-5 cache-read $0.50/Mtok against
 output $25.00/Mtok), so a 95%-cached harness and a 75%-cached one show very
 different $/Mtok under IDENTICAL pricing. Do not try to reconcile them -- both
-price tables here already agree exactly, and the spread is real.
-
-To make the comparison valid instead, four columns expose and then fix the mix.
-`CacheRd` and `CacheWr` are the row's cache-read and cache-write shares, MEASURED
-from the logs for every token harness -- no assumption anywhere. Watch CacheWr
-rather than CacheRd: cache-write costs 1.25x fresh input, 12.5x a cache read, so
-a few percent of it outweighs a large swing in CacheRd. That is why
-claude-fable-5 at 80% read / 20% write reads $3.41/Mtok while claude-opus-5 at
-96%/4% reads $0.75. `AtAvgMix` re-prices the row at the POOLED mix of every
-token-logged row in the window, so it varies only by model; `vsAvg` =
-Rate/AtAvgMix reads how favourable that row's own mix was (<1.00 cheaper than
-this box's average, >1.00 dearer) -- codex's gpt-5.4 at vsAvg 4.78 is not an
-expensive model, it is a badly-cached one. A row whose model no price
-table lists gets no AtAvgMix.
+price tables here already agree exactly, and the spread is real. The per-bucket
+token counts behind it are in `--json`; cache-read and cache-write shares are the
+two that explain nearly all of the spread, cache-write especially, since it costs
+1.25x fresh input and so 12.5x a cache read.
 
 Kiro is the only harness that ASSUMES a mix rather than measuring one, because it
-logs no buckets. Its CacheRd/CacheWr cells therefore show the mix its $/credit was derived
-from, prefixed `~` so they never read as measurements: the default is `~90%`/
-`~5%` (with a 5% fresh-input remainder), i.e. $0.1512 = $0.7468 (fresh-input
-basis) x 0.2025. Showing the assumption is the point -- it is a claim, and a
-blank cell hides it. See KIRO_DEFAULT_MIX for why 90 and not Claude Code's
-measured 95.1, and `--kiro-mix 100/0` for the pre-2026-08 $0.0747, which asserted
-that every single token was a cache read.
+publishes no token buckets. Its rate is $0.7468 (the fresh-input basis) x 0.2025,
+where 0.2025 comes from an assumed 90% cache-read / 5% cache-write / 5% fresh
+input -- see KIRO_DEFAULT_MIX for why 90 rather than Claude Code's measured 95.1,
+and `--kiro-mix 100/0` for the pre-2026-08 $0.0747, which asserted that every
+single token was a cache read. `--json` carries the mix on every Kiro row.
 
-A `n/a` in CacheRd or CacheWr means that bucket is UNOBSERVABLE for the harness rather than
-zero: codex's log carries no cache-creation field at all, while gpt-5.6-sol is
-genuinely billed for cache writes, so its share there is a floor and its cost a
-slight underestimate.
-
-Kiro gets an Eff but no Std, and that asymmetry is deliberate. Std is a $/Mtok,
-so filling it would mean synthesizing a token count from k and the per-model
-multiplier -- an invented quantity in a column that elsewhere holds a measured
-one. Eff needs nothing invented: for one model the absolute prices cancel out of
-Rate/Std, leaving a ratio of MIX FACTORS, and Kiro's assumed mix is a factor
-already. So its `~0.62` says its assumption prices context 38% below what the
-token-logged harnesses actually achieve -- and `--kiro-mix 95/5` driving that to
-`~0.98` is the check that Claude Code's measured mix is what it claims to be.
-An explicit `--credit-rate` corresponds to no stated mix, so those rows show
-neither: `-` in CacheRd, CacheWr and vsAvg alike.
+Codex's cache-write is UNOBSERVABLE rather than zero: its log carries no
+cache-creation field at all, while gpt-5.6-sol is genuinely billed for cache
+writes, so its cost here is a slight underestimate. `--json` records this per row
+as a `partial` mix provenance plus the bucket name in `unmeasured`.
 
 Kiro credits are separately calibrated: the session-log scan is measurably
 incomplete against `/usage`, Kiro's own authoritative total, so credits are
@@ -175,7 +152,7 @@ TOKEN_KEYS = ("inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTo
 # markers from those labels alone -- it never re-infers provenance from whether a
 # field happens to be present. The same question used to be answered four
 # different ways (tokens is None, a "!" glued onto the price-source string, an
-# assumed_mix presence check, std_rate being falsy), and each was somewhere a new
+# assumed_mix presence check, a falsy derived rate), and each was somewhere a new
 # row producer could get it silently wrong while still rendering plausibly.
 #
 # `mix` -- where the cache-read/write shares come from:
@@ -183,16 +160,11 @@ MEASURED = "measured"     # counted by the harness and read from its own logs
 PARTIAL = "partial"       # counted, but one bucket its log cannot report
 ASSUMED = "assumed"       # follows from a stated assumption; rendered with "~"
 NO_MIX = "no-mix"         # harness publishes no buckets and assumes none
-# `std` -- whether the row can be re-priced at the pooled mix:
-STANDARDIZED = "standardized"
-UNPRICED = "unpriced"     # no price table lists the model
-AMBIGUOUS = "ambiguous"   # the name is a fallback chain, not a single model
-NO_TOKENS = "no-tokens"   # $/Mtok is meaningless: this row counts credits
+# `cost` -- the price source, or that no table lists the model:
+UNPRICED = "unpriced"
 # `consumed` -- what the quantity is:
 COUNTED = "counted"       # summed token buckets
 METERED = "metered"       # a scalar the harness computed; no breakdown exists
-
-MIX_MARKER = {MEASURED: "", PARTIAL: "", ASSUMED: "~"}
 
 # Token buckets a harness's log cannot report, so a zero there is UNOBSERVABLE
 # rather than measured. Codex is the case: its token_count events carry exactly
@@ -206,15 +178,14 @@ MIX_MARKER = {MEASURED: "", PARTIAL: "", ASSUMED: "~"}
 UNOBSERVABLE_BUCKETS = {"codex": ("cacheCreationTokens",)}
 
 
-def provenance(consumed, cost, mix, std):
+def provenance(consumed, cost, mix):
     """Build a row's provenance, rejecting any label outside the vocabulary.
 
     Strict on purpose: a typo'd label would otherwise fall through render's
     lookups and silently render as "measured"."""
-    labels = {"consumed": consumed, "cost": cost, "mix": mix, "std": std}
+    labels = {"consumed": consumed, "cost": cost, "mix": mix}
     allowed = {"consumed": {COUNTED, METERED},
-               "mix": {MEASURED, PARTIAL, ASSUMED, NO_MIX},
-               "std": {STANDARDIZED, UNPRICED, AMBIGUOUS, NO_TOKENS}}
+               "mix": {MEASURED, PARTIAL, ASSUMED, NO_MIX}}
     for key, valid in allowed.items():
         if labels[key] not in valid:
             raise ValueError(f"provenance {key}={labels[key]!r} not in {sorted(valid)}")
@@ -552,11 +523,7 @@ def kiro_rows(credit_rate, completeness=1.0, assumed_mix=None):
                     # The only harness that assumes its mix instead of counting
                     # it; NO_MIX when an explicit --credit-rate corresponds to
                     # no stated mix at all.
-                    mix=ASSUMED if assumed_mix else NO_MIX,
-                    # $/Mtok would need a token count synthesized from k x the
-                    # per-model multiplier -- the line FINDINGS.md declines to
-                    # cross, so Std stays unavailable by construction.
-                    std=NO_TOKENS),
+                    mix=ASSUMED if assumed_mix else NO_MIX),
             })
     return rows
 
@@ -750,10 +717,7 @@ def l3m_rows(settings):
                     # l3m self-prices: `cents` is its own bookkeeping, charged at
                     # the model each call actually used, so --rates never moves
                     # these rows.
-                    cost="l3m-self", mix=MEASURED,
-                    # A fallback-chain model name cannot be standardized; filled
-                    # in by standardize(), which owns that judgement.
-                    std=UNPRICED),
+                    cost="l3m-self", mix=MEASURED),
             })
     return rows
 
@@ -1246,103 +1210,6 @@ def token_cost_usd(rates, tokens):
             + tokens["cacheCreationTokens"] * cw_r) / 1e6
 
 
-def model_rates(model, rates, table):
-    """The (in, out, cache-read, cache-write) USD/Mtok tuple to STANDARDIZE a row
-    at, under the active `--rates` mode, or None when the model cannot be priced
-    unambiguously.
-
-    None for two distinct reasons, both of which must render "-" rather than a
-    number: no table lists the model at all, or the name is an l3m fallback CHAIN
-    (`claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra`) rather than one model. The
-    chain case is the trap: longest-prefix matching happily resolves it to its
-    first element and prices the whole thing as pure opus-5, even though the
-    calls behind it may have landed on sonnet, haiku or a GPT model. l3m's own
-    `cents` is unaffected -- it charged each call at the model that call really
-    used -- so this only ever corrupted AtAvgMix/vsAvg, silently and plausibly.
-
-    Cost deliberately does NOT share this lookup: the l3m path applies
-    round-to-nearest-cent per bucket (l3m_cost_usd) while standardization is
-    linear, so they are not interchangeable."""
-    if "," in model:
-        return None
-    if rates == "l3m":
-        l3m = l3m_claude_rates(model)
-        if l3m is not None:
-            return tuple(cents / 100.0 for cents in l3m)
-    return litellm_rates(model, table)
-
-
-def standardize(rows, rates, online):
-    """Attach a mix-normalized $/Mtok to every token row, and return the mix.
-
-    The complaint this answers: the effective rate (cost / total tokens) is not
-    comparable across harnesses, because within one model the list prices span
-    50x -- cache-read $0.50/Mtok against output $25.00/Mtok on opus-5 -- so a
-    95%-cached harness and a 75%-cached one show very different $/Mtok for
-    IDENTICAL pricing. The effective rate is a mix statistic, not a price.
-
-    So hold the mix fixed. Every token row is additionally priced at the POOLED
-    mix of every token-logged row in this run, which makes `std` depend only on
-    the model, and makes `eff/std` a clean read on how well that harness cached
-    relative to this box's own average (below 1.0 = better than average).
-
-    Kiro gets no standardized rate: it logs no token buckets, so it has no mix
-    to normalize. Its own $/credit already embeds an ASSUMED mix (a flat x0.1
-    cache-read factor -- see FINDINGS.md), which is exactly why it cannot join
-    this column honestly."""
-    table = litellm_table(online)
-    pooled = [0, 0, 0, 0]
-    for row in rows:
-        for index, key in enumerate(TOKEN_KEYS):
-            pooled[index] += (row["tokens"] or {}).get(key, 0) or 0
-    total = sum(pooled)
-    if not total:
-        return None
-    shares = [count / total for count in pooled]
-    for row in rows:
-        if not row["tokens"]:
-            continue
-        if "," in row["model"]:
-            row["provenance"]["std"] = AMBIGUOUS
-            continue
-        rate = model_rates(row["model"], rates, table)
-        if not rate:
-            row["provenance"]["std"] = UNPRICED
-            continue
-        row["std_rate"] = sum(shares[i] * rate[i] for i in range(4))
-        if row["std_rate"]:
-            row["provenance"]["std"] = STANDARDIZED
-            row["efficiency"] = row["rate"] / row["std_rate"]
-
-    # Kiro gets an Eff but no Std, and the asymmetry is the honest one.
-    #
-    # Std is a $/Mtok, so filling it would mean synthesizing a token count from
-    # k and the per-model multiplier -- exactly what FINDINGS.md declines to do,
-    # since it renders an invented quantity in a column that everywhere else
-    # holds a measured one.
-    #
-    # Eff needs no such thing. For a single model the absolute prices cancel out
-    # of Rate/Std, leaving the ratio of MIX FACTORS -- and Kiro's assumed mix is
-    # a factor already. So Eff compares Kiro's assumption against the pooled
-    # measured mix directly, in the same units, with nothing invented.
-    #
-    # Both sides are taken input-side (output dropped, remainder renormalized)
-    # because Kiro's assumed mix is deliberately input-side only: k was
-    # calibrated on context tokens, and FINDINGS.md argues the bimodality in k
-    # already IS unreported output. Comparing an input-side factor against a
-    # pooled one that included output would be the apples-to-oranges version.
-    pooled_mix = dict(zip(("in", "out", "cr", "cw"), shares, strict=True))
-    input_side = pooled_mix["in"] + pooled_mix["cr"] + pooled_mix["cw"]
-    if input_side:
-        pooled_factor = kiro_mix_factor(
-            {bucket: pooled_mix[bucket] / input_side for bucket in KIRO_PRICE_RATIO})
-        for row in rows:
-            assumed = row.get("assumed_mix")
-            if assumed and pooled_factor:
-                row["efficiency"] = kiro_mix_factor(assumed) / pooled_factor
-    return dict(zip(TOKEN_KEYS, shares, strict=True))
-
-
 def resolve_kiro_pricing(kiro_mix, credit_rate):
     """-> (credit_rate, assumed_mix) for the Kiro rows.
 
@@ -1415,10 +1282,7 @@ def token_rows(harness_sums, rates, online):
                 "unmeasured": unmeasured,
                 "provenance": provenance(
                     consumed=COUNTED, cost=priced_by,
-                    mix=PARTIAL if unmeasured else MEASURED,
-                    # standardize() decides STANDARDIZED vs UNPRICED/AMBIGUOUS;
-                    # start pessimistic so an unreachable row never claims one.
-                    std=UNPRICED),
+                    mix=PARTIAL if unmeasured else MEASURED),
             })
     return rows
 
@@ -1429,9 +1293,9 @@ def validate_rows(rows):
     provenance() checks each label is in the vocabulary; this checks the labels
     agree with the row they describe. It closes the gap where a producer states a
     perfectly valid-looking label that contradicts its own data -- a row with no
-    token buckets claiming a MEASURED mix, or claiming a $/Mtok was standardized
-    when no rate was computed. Both mutations passed the whole suite before this
-    existed, because every individual label was legal.
+    token buckets claiming a MEASURED mix, or a PARTIAL mix with nothing actually
+    unmeasured. Such mutations passed the whole suite before this existed,
+    because every individual label was legal.
 
     Runs on every invocation: one pass over a few hundred rows, against a class
     of error that silently mislabels how a dollar figure is known."""
@@ -1454,66 +1318,26 @@ def validate_rows(rows):
         if (labels["mix"] == ASSUMED) != bool(row["assumed_mix"]):
             raise ValueError(f"{where}: mix={labels['mix']} disagrees with "
                              f"assumed_mix={row['assumed_mix']!r}")
-        if (labels["std"] == NO_TOKENS) and counted:
-            raise ValueError(f"{where}: std=no-tokens but token buckets present")
-        if (labels["std"] == STANDARDIZED) != bool(row.get("std_rate")):
-            raise ValueError(f"{where}: std={labels['std']} but std_rate="
-                             f"{row.get('std_rate')!r}")
     return rows
 
 
 def harness_subtotals(rows):
     """Per-harness aggregates, as numbers -- render only formats them.
 
-    Extracted from render so the arithmetic is testable: the AtAvgMix/vsAvg propagation
-    here had a denominator bug that no amount of eyeballing the table caught.
-
-    `std` is volume-weighted over only the rows that HAVE a standardized rate,
-    and divided by THAT volume. Dividing by total consumed instead silently
-    understates Std -- and so overstates Eff -- in proportion to a harness's
-    unpriced volume: it put opencode (80% of its Mtok on a model no price table
-    lists) at Eff 2.57 when the priced portion is 0.51, inverting the reading
-    from "dearer than average" to "cheaper". A harness with nothing priced gets
-    std None rather than 0, so render shows "-" instead of a fabricated zero."""
+    Extracted from render so the arithmetic is reachable by a test rather than
+    trapped inside a print loop."""
     agg = {}
     for row in rows:
-        bucket = agg.setdefault(row["harness"], {
-            "consumed": 0.0, "cost": 0.0, "unit": "", "tokens": collections.Counter(),
-            "std_weighted": 0.0, "std_consumed": 0.0, "assumed_mix": None,
-            "efficiency": None, "mix": NO_MIX, "unmeasured": ()})
+        bucket = agg.setdefault(row["harness"],
+                                {"consumed": 0.0, "cost": 0.0, "unit": ""})
         bucket["consumed"] += row["consumed"]
         bucket["cost"] += row["cost"]
         bucket["unit"] = row["unit"]
-        source = row["provenance"]["mix"]
-        if source in (MEASURED, PARTIAL):
-            bucket["tokens"].update(row["tokens"])
-            bucket["unmeasured"] = tuple(sorted(set(bucket["unmeasured"])
-                                                | set(row["unmeasured"])))
-        elif source == ASSUMED:
-            # Every Kiro row shares one assumed mix, so the subtotal's Eff is
-            # that same ratio -- no volume weighting to do.
-            bucket["assumed_mix"] = row["assumed_mix"]
-            bucket["efficiency"] = row.get("efficiency")
-        bucket["mix"] = source
-        if row["provenance"]["std"] == STANDARDIZED:
-            bucket["std_weighted"] += row["std_rate"] * row["consumed"]
-            bucket["std_consumed"] += row["consumed"]
-
     for bucket in agg.values():
-        consumed, priced = bucket["consumed"], bucket["std_consumed"]
-        bucket["rate"] = bucket["cost"] / consumed if consumed else 0.0
-        bucket["std"] = bucket["std_weighted"] / priced if priced else None
-        total_tokens = sum(bucket["tokens"].values())
-        bucket["cache_shares"] = (
-            {name: bucket["tokens"][key] / total_tokens
-             for name, key in (("cr", "cacheReadTokens"), ("cw", "cacheCreationTokens"))}
-            if total_tokens else None)
-        bucket["unobservable_shares"] = {
-            name for name, key in (("cr", "cacheReadTokens"),
-                                   ("cw", "cacheCreationTokens"))
-            if key in bucket["unmeasured"]}
-        if bucket["std"]:
-            bucket["efficiency"] = bucket["rate"] / bucket["std"]
+        # Effective price per unit. Sums only WITHIN a harness: Mtok and credits
+        # are not commensurable, so only Cost is comparable across them.
+        bucket["rate"] = (bucket["cost"] / bucket["consumed"]
+                          if bucket["consumed"] else 0.0)
     return agg
 
 
@@ -1535,44 +1359,13 @@ def render(rows, stream=None):
         # $/Mtok token rates ($0.76 .. $12.8) both read cleanly in one column.
         return "$0" if not value else f"${value:.3g}"
 
-    def share(row, key, bucket):
-        """One bucket's share of a row's tokens, or of its assumed mix.
-
-        Reads the row's `mix` provenance rather than inferring from whether
-        tokens are present: MEASURED renders bare, ASSUMED renders with `~` so it
-        can never pass as a measurement, NO_MIX renders "-".
-
-        Watch CW over CR: cache-write costs 1.25x fresh input, 12.5x a cache
-        read, so a few percent of it moves the blended rate more than a large
-        swing in cache-read does."""
-        source = row["provenance"]["mix"]
-        if source in (MEASURED, PARTIAL):
-            if key in row["unmeasured"]:
-                # A zero this harness's log cannot distinguish from an absence.
-                return "n/a"
-            total = sum(row["tokens"].values())
-            return f"{100 * row['tokens'][key] / total:.0f}%" if total else "-"
-        if source == ASSUMED:
-            return f"~{100 * row['assumed_mix'][bucket]:.0f}%"
-        return "-"
-
-    def eff(row):
-        """Rate over the standardized rate: <1.00 means this row's own token mix
-        was cheaper than this box's pooled average, >1.00 dearer.
-
-        Carries the mix's marker, so Kiro's ratio -- whose numerator is an
-        assumption -- reads `~0.65` rather than passing as measured."""
-        if not row.get("efficiency"):
-            return "-"
-        return f"{MIX_MARKER[row['provenance']['mix']]}{row['efficiency']:.2f}"
-
     if not rows:
         print("No usage data found.", file=stream)
         return
 
     cols = ["Date", "Day Total", "Harness", "Model", "Consumed", "Unit",
-            "Rate", "CacheRd", "CacheWr", "AtAvgMix", "vsAvg", "Cost (USD)"]
-    aligns = ["<", ">", "<", "<", ">", "<", ">", ">", ">", ">", ">", ">"]
+            "Rate", "Cost (USD)"]
+    aligns = ["<", ">", "<", "<", ">", "<", ">", ">"]
 
     day_totals = collections.defaultdict(float)
     for row in rows:
@@ -1586,10 +1379,7 @@ def render(rows, stream=None):
         day = row["day"] or "-"
         body.append([day, money(day_totals[day]), row["harness"], model,
                      qty(row["consumed"]), row["unit"], fmt_rate(row["rate"]),
-                     share(row, "cacheReadTokens", "cr"),
-                     share(row, "cacheCreationTokens", "cw"),
-                     fmt_rate(row["std_rate"]) if row.get("std_rate") else "-",
-                     eff(row), money(row["cost"])])
+                     money(row["cost"])])
 
     # Subtotals per harness, then the grand total. Consumed sums only within a
     # harness (one unit each); across harnesses only Cost is summable. Only the
@@ -1598,26 +1388,13 @@ def render(rows, stream=None):
     grand = 0.0
     for harness, bucket in sorted(harness_subtotals(rows).items()):
         grand += bucket["cost"]
-        shares, assumed = bucket["cache_shares"], bucket["assumed_mix"]
-
-        def bucket_share(name, shares=shares, assumed=assumed, bucket=bucket):
-            if name in bucket["unobservable_shares"]:
-                return "n/a"
-            if shares:
-                return f"{100 * shares[name]:.0f}%"
-            return f"~{100 * assumed[name]:.0f}%" if assumed else "-"
-
-        eff_cell = (f"{MIX_MARKER[bucket['mix']]}{bucket['efficiency']:.2f}"
-                    if bucket["efficiency"] else "-")
         subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]),
                           bucket["unit"], fmt_rate(bucket["rate"]),
-                          bucket_share("cr"), bucket_share("cw"),
-                          fmt_rate(bucket["std"]) if bucket["std"] else "-",
-                          eff_cell, money(bucket["cost"])])
+                          money(bucket["cost"])])
         if harness == "kiro":
             low, high = (bucket["cost"] * b for b in KIRO_BAND)
             band[len(subtotals) - 1] = f"{money(bucket['cost'])} [{low:,.0f}, {high:,.0f}]"
-    total = ["TOTAL", "", "", "", "", "", "", "", "", "", "", money(grand)]
+    total = ["TOTAL", "", "", "", "", "", "", money(grand)]
 
     # Width over everything except the band suffix, which rides the last column
     # (always rightmost) and may overflow it without disturbing the rest.
@@ -1733,11 +1510,6 @@ def main():
                   "KIRO_CREDIT_ANCHOR in this script.")
         return
 
-    # Mix normalization has to run after filtering, so the pooled reference mix
-    # describes the window actually being reported rather than all of history.
-    # The mix itself is only surfaced in --json; the table documents CR/CW/Std/
-    # Eff in the module docstring and README rather than in a footer.
-    mix = standardize(rows, args.rates, not args.offline)
     validate_rows(rows)
 
     if args.json:
@@ -1747,7 +1519,6 @@ def main():
         json.dump({
             "rows": rows,
             "totals_usd": {"by_harness": dict(totals), "grand": sum(totals.values())},
-            "reference_mix": mix,
             "config": {"rates": args.rates, "credit_rate": credit_rate,
                        "offline": args.offline, "kiro_band": list(KIRO_BAND),
                        "kiro_completeness": completeness,

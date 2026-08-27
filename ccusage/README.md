@@ -12,23 +12,15 @@ ccusage-all
 ```
 
 ```
-Date        Day Total  Harness  Model               Consumed  Unit       Rate  CacheRd  CacheWr  AtAvgMix  vsAvg  Cost (USD)
-----------  ---------  -------  ------------------  --------  -------  ------  -------  -------  --------  -----  ----------
--             $161.27  l3m      l3m-unknown            41.25  Mtok      $3.91      28%       2%         -      -     $161.27
-2026-08-26  $2,569.83  claude   claude-opus-5       1,809.02  Mtok     $0.745      96%       3%    $0.825   0.90   $1,347.96
-                       codex    openai.gpt-5.6-sol     81.07  Mtok      $1.02      91%      n/a    $0.837   1.22      $83.02
-                       codex    openai.gpt-5.4          2.06  Mtok      $1.43      49%      n/a    $0.321   4.46       $2.95
-                       kiro     gpt-5.6-sol         5,332.86  credits  $0.151     ~90%      ~5%         -  ~1.32     $806.47
+Date        Day Total  Harness  Model               Consumed  Unit       Rate  Cost (USD)
+----------  ---------  -------  ------------------  --------  -------  ------  ----------
+-             $161.27  l3m      l3m-unknown            41.25  Mtok      $3.91     $161.27
+2026-08-26  $2,569.83  claude   claude-opus-5       1,809.02  Mtok     $0.745   $1,347.96
+                       codex    openai.gpt-5.6-sol     81.07  Mtok      $1.02      $83.02
+                       codex    openai.gpt-5.4          2.06  Mtok      $1.43       $2.95
+                       kiro     gpt-5.6-sol         5,332.86  credits  $0.151     $806.47
+                       kiro     claude-opus-5       1,813.37  credits  $0.151     $274.23
 ```
-
-| column | meaning |
-|---|---|
-| `Consumed` / `Unit` | `Mtok` = millions of tokens counted in the harness's logs. `credits` = Kiro's own meter. Not commensurable, so `Consumed` sums only *within* a harness. |
-| `Rate` | effective price per unit: `Cost ÷ Consumed`. $/Mtok for token harnesses, $/credit for Kiro. |
-| `CacheRd` / `CacheWr` | share of tokens that were cache reads / cache writes. `n/a` = the harness's log cannot report it. `~` = assumed, not counted. |
-| `AtAvgMix` | what this model would cost per Mtok at the window's *average* cache behaviour. Varies only by model, so it's comparable across harnesses. |
-| `vsAvg` | `Rate ÷ AtAvgMix`. Below 1.00 this row cached better than average, above 1.00 worse. |
-| `Cost (USD)` | the only column summable across every harness. |
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
 across all harnesses, shown once per day.
@@ -45,31 +37,38 @@ ccusage-all --json              # rows + totals + reference mix + settings in fo
 ccusage-all --online            # refresh LiteLLM prices over the network
 ```
 
-## Comparing rates across harnesses
+## Rate is a mix statistic, not a price
 
-`Rate` is the **effective** blended $/Mtok — cost ÷ total tokens. It is a mix
-statistic, not a price, and it is **not** comparable across harnesses. Within one
-model the list prices span 50×: opus-5 charges $0.50/Mtok for a cache read and
-$25.00/Mtok for output. So a 96%-cached harness and a 49%-cached one show wildly
-different $/Mtok under *identical* pricing, as `codex` does against itself above.
+`Rate` is the **effective** blended $/Mtok — cost ÷ total tokens. It is **not**
+comparable across harnesses. Within one model the list prices span 50×: opus-5
+charges $0.50/Mtok for a cache read and $25.00/Mtok for output. So a 96%-cached
+harness and a 49%-cached one show wildly different $/Mtok under *identical*
+pricing.
 
 Don't try to reconcile them. Both price tables already agree exactly (`--rates
-l3m` and `--rates litellm` return the same totals), so the spread is real and
-carries information. Four columns expose the mix and then hold it fixed:
+l3m` and `--rates litellm` return the same totals), so the spread is real: it is
+telling you about caching behaviour, not about price. The per-bucket token counts
+that drive it are in `--json`. Cache-**write** is the term to watch — it costs
+1.25× fresh input, so 12.5× a cache read, and a few percent of it outweighs a
+large swing in cache-read.
 
-- **`CacheRd` / `CacheWr`** — the row's cache-read and cache-write shares, **measured**
-  from the logs. Watch `CacheWr`, not `CacheRd`: a cache write costs 1.25× fresh input,
-  which is 12.5× a cache read, so a few percent of it outweighs a large swing in
-  `CR`. That's the whole reason `claude-fable-5` at 80/20 reads $3.41/Mtok while
-  `claude-opus-5` at 96/4 reads $0.75.
-- **`AtAvgMix`** — the row re-priced at the *pooled* mix of every token-logged row in
-  the window, so it varies only by model. This is the standardized cost.
-- **`vsAvg`** — `Rate / AtAvgMix`: how favourable that row's own mix was. Below 1.00 is
-  cheaper than this box's average, above is dearer. `gpt-5.4` at 4.78 is not an
-  expensive model, it's a badly-cached one.
+Measured cache-read / cache-write shares, for reference:
 
-A model no price table lists gets no `Std`. A `~` prefix anywhere in these
-columns means assumed rather than measured — see below.
+| harness | cache-read | cache-write |
+|---|---|---|
+| claude | 95.1% | 4.4% |
+| opencode | 86.5% | 0.0% |
+| l3m | 75.4% | 5.2% |
+| codex | 75.9% | **unobservable** |
+
+Cache-read share is a **harness** property, not a model one: the same
+`claude-opus-5` measures 95.3% under Claude Code and 87.1% under l3m, while four
+different models under Claude Code all land within 1.8 points of each other.
+
+Codex's cache-write is unobservable rather than zero — its log carries no
+cache-creation field across any of its 10,257 usage events, while `gpt-5.6-sol`
+*is* billed for cache writes at $6.25/Mtok. So its cost here is a slight
+underestimate. `--json` records this as a `partial` mix provenance.
 
 ## Kiro is the only harness that assumes a mix
 
@@ -83,31 +82,8 @@ $0.1512/credit  =  $0.7468 (fresh-input basis)  ×  0.2025
                                                    ^^^^^^ 90% cache-read / 5% cache-write / 5% fresh input
 ```
 
-Kiro's `CacheRd`/`CacheWr` cells show that assumed mix rather than sitting blank, prefixed
-`~` so it can't be mistaken for a measurement — `~90%` / `~5%` by default. It is
-a claim, and hiding it inside a constant is how it went unexamined for so long.
-
-The default was `100/0` until 2026-08 — every token priced as a cache read, which
-no harness on this box achieves. `--kiro-mix 100/0` still reproduces it exactly
-($0.0747/credit), so nothing became unreachable.
-
-Kiro also gets a `vsAvg`, but no `AtAvgMix`, and that asymmetry is the honest one:
-
-- **`AtAvgMix` stays blank.** It's a $/Mtok, so filling it would mean synthesizing a
-  token count from `k` and the per-model multiplier — an invented number in a
-  column that everywhere else holds a measured one.
-- **`vsAvg` fills.** Nothing is invented: for one model the absolute prices cancel
-  out of `Rate/Std`, leaving a ratio of *mix factors*, and Kiro's assumed mix is
-  a factor already. Both sides are taken input-side, since Kiro's assumed mix is
-  input-side by construction.
-
-So Kiro's default `~0.62` says its assumption prices context **38% below what the
-token-logged harnesses actually achieve** — the whole finding, as one cell. And
-`--kiro-mix 95/5` drives it to `~0.98`, which is the check that Claude Code's
-measured mix is what it claims to be.
-
-An explicit `--credit-rate` corresponds to no stated mix, so it shows `-` in
-`CR`, `CW` and `Eff` alike.
+`--json` carries the assumed mix on every Kiro row, so the claim is inspectable
+even though the table no longer has a column for it.
 
 That default is more caching than any harness here actually achieves.
 `--kiro-mix 95/5` substitutes Claude Code's measured 95.1%/4.4% instead — the
@@ -160,24 +136,22 @@ cd ccusage; python3 -m unittest discover      # or ./test_ccusage_all.py
 Stdlib `unittest`, no dependency to install. They run automatically via
 pre-commit whenever anything under `ccusage/` changes.
 
-Every test corresponds to something that was once wrong. The `AtAvgMix`/`vsAvg`
-propagation tests especially: two bugs shipped there and survived several
-readings of the table, because a wrong number in a derived column still renders
-neatly. One divided a volume-weighted `Std` by *total* consumed instead of
-*priced* consumed, which understated `Std` and overstated `Eff` in proportion to
-a harness's unpriced volume — it put opencode at `vsAvg` 2.57 where the priced
-portion is 0.51, inverting "dearer than average" into "cheaper". The other let
-longest-prefix matching resolve an l3m fallback chain
-(`claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra`) to its first element and price
-the whole thing as pure opus-5.
+Every test corresponds to something that was once wrong. Most of them guard
+provenance — that each row states how its numbers are known, and that the label
+agrees with the row. Two of the sharpest were only reachable after extracting
+`harness_subtotals` out of `render` and `resolve_kiro_pricing` out of `main`; the
+recurring failure mode in this file has been *wiring*, where a correct function
+that nothing calls passes every test about the function.
 
-The suite is checked by mutation rather than trusted: reintroducing each of 21
-known bugs produces a failure in every case. Three classes of bug are only
-reachable because of deliberate extractions — `harness_subtotals` out of
-`render`, `resolve_kiro_pricing` out of `main`, and `validate_rows` as its own
-pass. The recurring blind spot was *wiring*: a correct function that nothing
-calls passes every test about the function, so `test_main_actually_calls_it`
-exists purely to fail when the `validate_rows(rows)` call is deleted.
+The suite is checked by mutation rather than trusted: reintroducing each of 24
+known bugs produces a failure in every case. `test_main_actually_calls_it` exists
+purely to fail when the `validate_rows(rows)` call is deleted from `main`, since
+every other test would still pass.
+
+An earlier revision carried four more columns (cache-read/write shares, a
+mix-normalized rate, and their ratio). They were removed for table width; the two
+propagation bugs they once had went with them, and the token counts they
+displayed are still in `--json`.
 
 ## Pricing
 
