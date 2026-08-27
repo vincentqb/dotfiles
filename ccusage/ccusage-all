@@ -204,8 +204,29 @@ KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
 # the GPT family (deepseek is the lone exception at cache-read 0.2):
 KIRO_PRICE_RATIO = {"in": 1.00, "cr": 0.10, "cw": 1.25}
 KIRO_DEFAULT_MIX = {"cr": 1.00, "cw": 0.00, "in": 0.00}    # 100% cache-read
+
+
+def kiro_mix_factor(mix):
+    """Token-share-weighted price ratio: the multiplier on the fresh-input
+    $/credit that yields the rate for an assumed mix."""
+    return sum(mix[bucket] * KIRO_PRICE_RATIO[bucket] for bucket in KIRO_PRICE_RATIO)
+
+
 KIRO_ASSUMED_MIX = 0.100                                  # its factor
 KIRO_FRESH_INPUT_RATE = USD_PER_CREDIT / KIRO_ASSUMED_MIX  # $0.7468/credit
+
+# The default $/credit is DERIVED from KIRO_DEFAULT_MIX through the same
+# expression --kiro-mix uses, so the mix the table shows is the mix the cost was
+# computed with. It was not always: the default path used to pass USD_PER_CREDIT
+# straight through while the mix was displayed from a separate constant, so
+# editing one without the other would have rendered `~80%/~20%` on rows still
+# priced at 100% cache-read. This assert is what keeps the displayed assumption
+# load-bearing rather than decorative.
+assert abs(kiro_mix_factor(KIRO_DEFAULT_MIX) - KIRO_ASSUMED_MIX) < 1e-12, (
+    f"KIRO_DEFAULT_MIX factor {kiro_mix_factor(KIRO_DEFAULT_MIX)} != "
+    f"KIRO_ASSUMED_MIX {KIRO_ASSUMED_MIX}; the table would show a mix that did "
+    f"not produce the rate")
+KIRO_DEFAULT_RATE = KIRO_FRESH_INPUT_RATE * kiro_mix_factor(KIRO_DEFAULT_MIX)
 #
 # `--kiro-mix CR/CW` substitutes a different assumed mix. The measured mixes of
 # the token-logged harnesses, for calibration, are:
@@ -249,12 +270,6 @@ def kiro_mix_rate(spec):
     # which would render as a spurious fresh-input share in --json.
     mix = {"cr": cr, "cw": cw, "in": max(0.0, round(1 - cr - cw, 10))}
     return {**mix, "rate": KIRO_FRESH_INPUT_RATE * kiro_mix_factor(mix)}
-
-
-def kiro_mix_factor(mix):
-    """Token-share-weighted price ratio: the multiplier on the fresh-input
-    $/credit that yields the rate for an assumed mix."""
-    return sum(mix[bucket] * KIRO_PRICE_RATIO[bucket] for bucket in KIRO_PRICE_RATIO)
 
 # Credit-extraction completeness, measured against `/usage` inside a Kiro
 # session -- the one authoritative figure Kiro publishes about itself. It is NOT
@@ -1445,7 +1460,9 @@ def main():
     elif explicit_rate:
         credit_rate, assumed_mix = args.credit_rate, None
     else:
-        credit_rate, assumed_mix = args.credit_rate, dict(KIRO_DEFAULT_MIX)
+        # Derived from the mix, not USD_PER_CREDIT passed through, so the
+        # ~100%/~0% the table prints is provably the mix that produced the cost.
+        credit_rate, assumed_mix = KIRO_DEFAULT_RATE, dict(KIRO_DEFAULT_MIX)
     completeness = KIRO_COMPLETENESS if args.calibrate else 1.0
     if args.verify_credits:
         completeness = 1.0          # never calibrate the figure being verified
