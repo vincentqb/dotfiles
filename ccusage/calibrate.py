@@ -10,6 +10,10 @@ its rates. Run it and compare against FINDINGS.md.
 
 The five steps:
 
+  0. MODEL TABLE. Read `rate_multiplier` and `context_window_tokens` live from
+     `kiro-cli chat --list-models --format json`, which is authoritative for
+     both, and report any drift against the fallback tables in this file.
+
   1. CREDITS PER TOKEN. Kiro logs a per-request context-fill percentage next to
      each turn's credits. On a turn with exactly one request the billed token
      count is therefore known, and credits/token solves directly. Uses the
@@ -39,12 +43,21 @@ import json
 import pathlib
 import sqlite3
 import statistics
+import subprocess
 import sys
 
 KIRO = pathlib.Path("~/.kiro").expanduser()
 DB = pathlib.Path("~/.local/share/kiro-cli/data.sqlite3").expanduser()
 
-# From `kiro-cli chat --list-models --format json` (rate_multiplier field).
+# Kiro publishes both the rate multiplier and the context window per model, so
+# both tables below are FALLBACKS only -- refresh_model_table() overwrites them
+# from `kiro-cli chat --list-models --format json` on every run and reports any
+# disagreement. Hand-maintaining them is how gpt-5.6-* sat at a stale 272_000
+# against a real 1_000_000, undercounting those turns' tokens by 3.676x and
+# inflating their implied credits-per-token by the same factor -- which read as
+# "the GPT family needs its own calibration" when it was one wrong constant.
+LIST_MODELS = ("kiro-cli", "chat", "--list-models", "--format", "json")
+
 MULTIPLIER = {
     "claude-opus-5": 2.2, "claude-opus-4.8": 2.2, "claude-opus-4.7": 2.2,
     "claude-opus-4.6": 2.2, "claude-opus-4.5": 2.2, "claude-sonnet-5": 1.3,
@@ -56,10 +69,11 @@ MULTIPLIER = {
 }
 
 CONTEXT_WINDOW = {
-    "gpt-5.6-sol": 272_000, "gpt-5.6-terra": 272_000, "gpt-5.6-luna": 272_000,
+    "gpt-5.6-sol": 1_000_000, "gpt-5.6-terra": 1_000_000, "gpt-5.6-luna": 1_000_000,
     "deepseek-3.2": 164_000, "minimax-m2.5": 196_000, "minimax-m2.1": 196_000,
     "glm-5": 200_000, "claude-haiku-4.5": 200_000, "claude-opus-4.5": 200_000,
     "claude-sonnet-4.5": 200_000, "claude-sonnet-4": 200_000,
+    "qwen3-coder-next": 256_000,
 }
 DEFAULT_WINDOW = 1_000_000
 
@@ -73,6 +87,63 @@ CACHE_READ_DISCOUNT = 0.1
 
 def window(model):
     return CONTEXT_WINDOW.get(model, DEFAULT_WINDOW)
+
+
+def refresh_model_table(report, enabled=True):
+    """Overwrite MULTIPLIER/CONTEXT_WINDOW from Kiro's own model list.
+
+    `kiro-cli chat --list-models --format json` is the authoritative source for
+    both `rate_multiplier` and `context_window_tokens`; the module-level tables
+    are only a fallback for when it cannot be run. Disagreements are printed
+    rather than silently applied, because a multiplier change moves every dollar
+    figure and a window change moves every measured token count.
+    """
+    print("0. MODEL TABLE (authoritative: kiro-cli chat --list-models)")
+    if not enabled:
+        print(f"   --no-refresh: using {len(MULTIPLIER)} fallback entries as-is\n")
+        report["model_table"] = {"source": "fallback", "drift": []}
+        return
+    try:
+        raw = subprocess.run(LIST_MODELS, check=True, capture_output=True,
+                             text=True, timeout=60).stdout
+        models = json.loads(raw)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+        print(f"   could not read live table ({type(exc).__name__}); "
+              f"falling back to {len(MULTIPLIER)} hardcoded entries\n")
+        report["model_table"] = {"source": "fallback", "error": str(exc), "drift": []}
+        return
+
+    if isinstance(models, dict):
+        models = models.get("models", list(models.values()))
+    drift = []
+    for entry in models:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("model_id") or entry.get("id") or entry.get("name")
+        if not name:
+            continue
+        live_mult = entry.get("rate_multiplier")
+        live_window = entry.get("context_window_tokens")
+        if live_mult is not None and MULTIPLIER.get(name) != live_mult:
+            drift.append(("multiplier", name, MULTIPLIER.get(name), live_mult))
+        if live_window is not None and window(name) != live_window:
+            drift.append(("window", name, window(name), live_window))
+        if live_mult is not None:
+            MULTIPLIER[name] = live_mult
+        if live_window is not None:
+            CONTEXT_WINDOW[name] = live_window
+
+    print(f"   {len(models)} models read live")
+    for kind, name, had, now in drift:
+        # A window ratio is exactly the factor by which that model's measured
+        # token counts -- and so its implied credits-per-token -- were wrong.
+        extra = f"   (tokens off by {now / had:.3f}x)" if kind == "window" and had else ""
+        print(f"   DRIFT {kind:10} {name:20} {had} -> {now}{extra}")
+    if not drift:
+        print("   fallback tables agree with the live table")
+    print()
+    report["model_table"] = {"source": "live", "n": len(models),
+                             "drift": [list(d) for d in drift]}
 
 
 def single_request_turns():
@@ -199,11 +270,24 @@ def step1_credits_per_token(report):
 
 def step2_holdout(k, report, fitted_models):
     print("2. HELD-OUT CHECK (models absent from step 1)")
-    checks = []
+    checks, multi = [], 0
     for model, credits, samples, requests in v3_turns():
         # Context is sampled per request; if the counts disagree the token total
         # is incomplete and the turn cannot test the constant.
         if not model or model in fitted_models or not samples or len(samples) != requests or requests == 0:
+            continue
+        # SINGLE-REQUEST ONLY, for the same reason step 1 restricts its fit: a
+        # turn's context samples are CUMULATIVE snapshots of one growing context
+        # (measured: 83.9% of multi-sample turns are strictly non-decreasing,
+        # 94.4% are so at >=90% of steps, and the context grows only 1.05x
+        # median from first sample to last). Summing them therefore counts the
+        # re-sent prefix once per request -- median sum/max = 15.85x -- so a
+        # multi-request turn has no recoverable token count and predicting one
+        # reads as a large negative "error" that is an artifact of the
+        # predictor, not of k. This filter is what took the reported median
+        # error from 37.6% (n=112, invalid) to the figure below.
+        if requests != 1:
+            multi += 1
             continue
         tokens = sum(sample / 100 * window(model) for sample in samples)
         predicted = tokens * k * MULTIPLIER.get(model, 1.0)
@@ -211,14 +295,18 @@ def step2_holdout(k, report, fitted_models):
             checks.append((model, requests, tokens, credits, predicted))
 
     if not checks:
-        print("   no held-out turns available\n")
+        print(f"   no single-request held-out turns available "
+              f"({multi} multi-request turns skipped)\n")
         return
     print(f"   {'model':18s} {'reqs':>5s} {'tokens':>12s} {'actual':>10s} {'predicted':>10s} {'error':>8s}")
     for model, requests, tokens, credits, predicted in sorted(checks, key=lambda r: -r[2]):
         print(f"   {model:18s} {requests:5d} {tokens:12.0f} {credits:10.3f} {predicted:10.3f} {(credits / predicted - 1) * 100:+7.1f}%")
     errors = [abs(credits / predicted - 1) for _, _, _, credits, predicted in checks]
-    print(f"\n   median absolute error = {statistics.median(errors) * 100:.1f}% over {len(checks)} turns\n")
-    report["step2"] = {"n": len(checks), "median_abs_error": statistics.median(errors)}
+    print(f"\n   median absolute error = {statistics.median(errors) * 100:.1f}% over {len(checks)} turns")
+    print(f"   ({multi} multi-request turns excluded: cumulative context samples "
+          f"give no recoverable token count)\n")
+    report["step2"] = {"n": len(checks), "median_abs_error": statistics.median(errors),
+                       "multi_request_excluded": multi}
 
 
 def step3_dollars(k, report):
@@ -244,29 +332,50 @@ def step3_dollars(k, report):
 
 def step4_cross_check(usd_per_credit, report):
     print("4. INDEPENDENT MAGNITUDE CHECK (prices tokens directly, ignores credits)")
-    credit_total = 0.0
-    direct_total = 0.0
+    anchor = statistics.mean(
+        MULTIPLIER[m] / p for m, p in BEDROCK_INPUT.items() if m in MULTIPLIER)
+
+    def direct(model, samples):
+        """Measured context tokens priced at the multiplier-implied cache-read rate."""
+        tokens = sum(sample / 100 * window(model) for sample in samples)
+        return tokens / 1e6 * (MULTIPLIER.get(model, 1.0) / anchor) * CACHE_READ_DISCOUNT
+
+    # Compared on SINGLE-REQUEST turns only, where the token count is real. On a
+    # multi-request turn the per-request context samples are cumulative
+    # snapshots of one context (see step 2), so summing them counts the re-sent
+    # prefix repeatedly and the token route is inflated -- it becomes an upper
+    # BOUND, not an estimate. Both figures are printed, but only the
+    # single-request pair is a like-for-like comparison, and it is what step 5
+    # tests the band against.
+    single = {"credits": 0.0, "direct": 0.0, "n": 0}
+    corpus = {"credits": 0.0, "direct": 0.0, "n": 0}
     for model, credits, samples, requests in v3_turns():
-        credit_total += credits
+        corpus["credits"] += credits
+        corpus["n"] += 1
         if not model or not samples:
             continue
-        tokens = sum(sample / 100 * window(model) for sample in samples)
-        # Bedrock input price implied by the multiplier, then the cache discount.
-        implied_input = MULTIPLIER.get(model, 1.0) / statistics.mean(
-            MULTIPLIER[m] / p for m, p in BEDROCK_INPUT.items() if m in MULTIPLIER
-        )
-        direct_total += tokens / 1e6 * implied_input * CACHE_READ_DISCOUNT
+        corpus["direct"] += direct(model, samples)
+        if requests == 1 and len(samples) == 1:
+            single["credits"] += credits
+            single["direct"] += direct(model, samples)
+            single["n"] += 1
 
-    via_credits = credit_total * usd_per_credit
-    print(f"   via credits x ${usd_per_credit:.4f}      = ${via_credits:,.2f}")
-    print(f"   via measured tokens x Bedrock = ${direct_total:,.2f}")
-    if direct_total > 0:
-        disagreement = abs(via_credits / direct_total - 1)
-        print(f"   two independent routes disagree by {disagreement * 100:.0f}%\n")
+    via = single["credits"] * usd_per_credit
+    print(f"   single-request turns (n={single['n']}, token count is real):")
+    print(f"     via credits x ${usd_per_credit:.4f}      = ${via:,.2f}")
+    print(f"     via measured tokens x Bedrock = ${single['direct']:,.2f}")
+    if single["direct"] > 0:
+        disagreement = abs(via / single["direct"] - 1)
+        print(f"     two routes disagree by {disagreement * 100:.0f}%")
         report["cross_check_disagreement"] = disagreement
-    report["total_credits"] = credit_total
-    report["total_usd_estimate"] = via_credits
-    return via_credits, direct_total
+    print(f"   whole corpus (n={corpus['n']}), token route is an UPPER BOUND:")
+    print(f"     via credits x ${usd_per_credit:.4f}      = "
+          f"${corpus['credits'] * usd_per_credit:,.2f}")
+    print(f"     via summed context (inflated)  <= ${corpus['direct']:,.2f}\n")
+    report["total_credits"] = corpus["credits"]
+    report["total_usd_estimate"] = corpus["credits"] * usd_per_credit
+    report["step4"] = {"single_request_n": single["n"], "corpus_n": corpus["n"]}
+    return via, single["direct"]
 
 
 def step5_band(ks, report, via_credits, direct_total):
@@ -286,15 +395,16 @@ def step5_band(ks, report, via_credits, direct_total):
     point = usd(statistics.median(ks), anchor)
     low = usd(max(ks), anchor * (1 + spread))
     high = usd(ks[len(ks) // 10], anchor * (1 - spread))
+    shown = report.get("total_usd_estimate", via_credits)
     print(f"   credits-per-token p10..max = {ks[len(ks) // 10] * 1e6:.3f}e-6 .. {max(ks) * 1e6:.3f}e-6 (dominant)")
     print(f"   anchor spread              = +/-{spread * 100:.1f}% (secondary)")
     print(f"   $/credit  low ${low:.4f}  point ${point:.4f}  high ${high:.4f}")
     print(f"   => band {(low / point - 1) * 100:+.0f}%/{(high / point - 1) * 100:+.0f}%, "
-          f"printed as e.g. ${via_credits:,.0f} "
-          f"[{via_credits * low / point:,.0f}, {via_credits * high / point:,.0f}]")
+          f"printed as e.g. ${shown:,.0f} "
+          f"[{shown * low / point:,.0f}, {shown * high / point:,.0f}]")
     if direct_total > 0:
         contained = low / point <= direct_total / via_credits <= high / point
-        print(f"   step 4's independent estimate falls inside the band: {contained}\n")
+        print(f"   step 4's single-request cross-check falls inside the band: {contained}\n")
         report["band_contains_cross_check"] = contained
     report["usd_per_credit_low"] = low
     report["usd_per_credit_high"] = high
@@ -304,6 +414,8 @@ def step5_band(ks, report, via_credits, direct_total):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--json", action="store_true", help="emit the derived constants as JSON")
+    parser.add_argument("--no-refresh", dest="refresh", action="store_false",
+                        help="skip the live model-table read; use the fallback tables")
     args = parser.parse_args()
 
     report = {}
@@ -311,6 +423,7 @@ def main():
     if args.json:
         sys.stdout = open("/dev/null", "w")
 
+    refresh_model_table(report, args.refresh)
     ks = step1_credits_per_token(report)
     if ks is None:
         sys.stdout = buffer

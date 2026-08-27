@@ -12,26 +12,53 @@ ccusage-all
 ```
 
 ```
-Date        Day Total  Harness  Model              Consumed  Unit        Rate  Cost (USD)
-----------  ---------  -------  -----------------  --------  -------  -------  ----------
--             $161.27  l3m      l3m-unknown           41.25  Mtok       $3.91     $161.27
-2026-08-17  $1,560.24  claude   claude-opus-5      1,660.29  Mtok      $0.893   $1,483.21
-                       claude   claude-fable-5         7.68  Mtok       $3.11      $23.91
-                       kiro     claude-opus-5        266.68  credits  $0.0747      $19.92
-                       l3m      claude-opus-5          4.20  Mtok       $1.25       $5.23
+Date        Day Total  Harness  Model                Consumed  Unit        Rate  Cached     Std   Eff  Cost (USD)
+----------  ---------  -------  ------------------  ---------  -------  -------  ------  ------  ----  ----------
+-             $161.27  l3m      l3m-unknown             41.25  Mtok       $3.91     28%       -     -     $161.27
+2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745     96%  $0.813  0.92   $1,347.96
+                       codex    openai.gpt-5.6-sol      81.07  Mtok       $1.02     91%  $0.825  1.24      $83.02
+                       codex    openai.gpt-5.4           2.06  Mtok       $1.43     49%  $0.299  4.78       $2.95
+                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747       -       -     -     $398.36
 ```
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
 across all harnesses, shown once per day.
 
 ```fish
-ccusage-all                     # default: l3m rates, Kiro estimated
+ccusage-all                     # default: l3m rates, Kiro calibrated + estimated
 ccusage-all --rates litellm     # price everything from the LiteLLM table
 ccusage-all --since 2026-08-01 --until 2026-08-14
 ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
-ccusage-all --json              # rows + totals + the settings in force
+ccusage-all --raw-credits       # Kiro credits exactly as scanned, uncalibrated
+ccusage-all --since 2026-08-01 --verify-credits 66425.17   # re-check the scan
+ccusage-all --json              # rows + totals + reference mix + settings in force
 ccusage-all --online            # refresh LiteLLM prices over the network
 ```
+
+## Comparing rates across harnesses
+
+`Rate` is the **effective** blended $/Mtok — cost ÷ total tokens. It is a mix
+statistic, not a price, and it is **not** comparable across harnesses. Within one
+model the list prices span 50×: opus-5 charges $0.50/Mtok for a cache read and
+$25.00/Mtok for output. So a 96%-cached harness and a 49%-cached one show wildly
+different $/Mtok under *identical* pricing, as `codex` does against itself above.
+
+Don't try to reconcile them. Both price tables already agree exactly (`--rates
+l3m` and `--rates litellm` return the same totals), so the spread is real and
+carries information. Three columns make the comparison valid instead by holding
+the mix fixed:
+
+- **`Cached`** — the row's cache-read share, which drives most of the spread.
+- **`Std`** — the row re-priced at the *pooled* mix of every token-logged row in
+  the window, so it varies only by model. This is the standardized cost.
+- **`Eff`** — `Rate / Std`: how favourable that row's own mix was. Below 1.00 is
+  cheaper than this box's average, above is dearer. `gpt-5.4` at 4.78 is not an
+  expensive model, it's a badly-cached one.
+
+A model no price table lists gets no `Std`. Kiro gets none of the three: it logs
+no token buckets, and its $/credit already embeds an *assumed* mix (a flat ×0.1
+cache-read factor — see [FINDINGS.md](FINDINGS.md)), which is exactly why it
+can't join that column honestly.
 
 ## Pricing
 
@@ -85,6 +112,15 @@ unlike `session.json`'s single `modelId`, which is only the fallback. Turns key 
 each model's rate multiplier, so they are comparable and summable across models
 and match `/usage`'s plan counter; the dollar figure moves with `--credit-rate`
 and the credits never do.
+
+That scan is measurably incomplete, so the credits it finds are calibrated
+against `/usage` — the one authoritative total Kiro publishes, and which does
+*not* clamp at the plan cap (it reports 664.3% on an org seat, and the true
+figure). Measured 2026-08-27 the scan read **5.1% low**, so credits are scaled by
+`KIRO_COMPLETENESS` = 1.0533. That corrects the count, not the price: the
+−13%/+88% band still rides on the `$`/credit conversion alone. `--raw-credits`
+reports the uncorrected scan; `--verify-credits <total>` re-measures the factor
+against a fresh `/usage` reading and warns if it has drifted more than 2%.
 
 **l3m** burns Bedrock tokens too, but keeps no Claude-Code-shaped token log the
 scanners above could read. Its rows come from l3m's own bookkeeping: every turn

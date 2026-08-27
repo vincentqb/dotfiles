@@ -2,8 +2,9 @@
 
 What Kiro CLI 2.16.2 records about its own consumption, how much of it is
 recoverable locally, and how `ccusage-all` turns that into a cost figure.
-Everything here was measured on 2026-08-10 against kiro-cli 2.16.2 and
-ccusage 20.0.19; `./calibrate.py` re-derives every number.
+Measured on 2026-08-10 against kiro-cli 2.16.2 and ccusage 20.0.19; revised
+2026-08-19 (context windows now read live; steps 2 and 4 restricted to
+single-request turns). `./calibrate.py` re-derives every number.
 
 ## The short version
 
@@ -18,7 +19,8 @@ an explicit interval, asymmetric at **-13%/+88%** of the point value.
 |---|---|---|
 | Credits per turn | yes | `usage_summary` in v3 `messages.jsonl` |
 | Model per turn | yes | `assistant.reasoningModelId`, joined on `executionId` |
-| Account credits this period | yes | `/usage` inside a session |
+| Account credits this period | yes | `/usage` inside a session — authoritative, unclamped |
+| Plan name and allowance | yes | `/usage` — e.g. `KIRO POWER`, 10,000 credits/period |
 | Input/output/cache tokens | **no** | fields exist in the schema, always `null` |
 | Credits via a hook | **no** | no hook carries usage; see below |
 | Credits for v1/v2-engine turns | partly | SQLite, last turn per conversation only |
@@ -116,8 +118,53 @@ request.
 
 ### Step 2 — held-out check
 
-Predicting a model absent from the fit (`claude-opus-4.7`, 54 requests,
-12.3M context tokens) gives 85.2 credits against 84.9 actual: **-0.5%**.
+Restricted to **single-request** held-out turns, for the same reason step 1's fit
+is: on a multi-request turn the context samples are cumulative (see below), so no
+token count is recoverable and a prediction against one is meaningless. Over the
+10 such turns (gpt-5.6-sol, opus-4.8, opus-4.7) the median absolute error is
+**39.5%**, scattering in *both* directions (-70% to +115%) — noisy at this sample
+size, but unbiased, which is what the bimodality in step 1 predicts.
+
+An earlier revision of this document claimed **-0.5%** on `claude-opus-4.7`. That
+turn had 54 requests, so its token count was the invalid sum described below; the
+agreement was a coincidence on a computation that should not have been made.
+
+Restrict any fit to turns where `#contextSamples == #requestIds`, and then
+further to `requests == 1`. On multi-request turns the ratio spans 2–118×
+because context is sampled per request.
+
+### Context samples are cumulative, not per-request costs
+
+The single most consequential methodology point, because it invalidates the
+obvious way to price a turn. A turn's `contextUsage` samples are snapshots of
+**one growing context**, not independent per-request amounts:
+
+- 588 of 701 multi-sample turns (**83.9%**) are strictly non-decreasing; 662
+  (**94.4%**) are non-decreasing at ≥90% of steps.
+- The context grows only **1.05× median** from a turn's first sample to its last
+  — it is the same context being re-sent, not new content each time.
+- Median `sum(samples) / max(sample)` is **15.85×**.
+
+So summing a turn's samples counts the re-sent prefix once per request and
+overstates tokens by roughly that factor. Steps 2 and 4 both used to do this over
+the whole corpus; both now restrict to single-request turns, and step 4 reports
+the whole-corpus token figure as an explicit upper *bound* rather than an
+estimate.
+
+### Model table is read live, never hardcoded
+
+`kiro-cli chat --list-models --format json` is authoritative for both
+`rate_multiplier` and `context_window_tokens`. `calibrate.py` reads both on every
+run and prints any drift against its fallback tables.
+
+This exists because the hand-maintained table had `gpt-5.6-sol`, `gpt-5.6-terra`
+and `gpt-5.6-luna` at 272,000 against a real 1,000,000, and omitted
+`qwen3-coder-next` (256,000, so it fell through to the 1,000,000 default). The
+GPT error undercounted those turns' tokens by **3.676×** and inflated their
+implied credits-per-token by the same factor, which read as *the GPT family needs
+its own calibration*: implied `k` was 7.092e-6 against Claude's 2.065e-6, a 3.43×
+gap. With the correct window the ratio is **0.93×**. There is no GPT-specific
+effect — it was one stale constant.
 
 ### Credits are recorded POST-multiplier
 
@@ -168,14 +215,37 @@ one model-independent rate converts credits to dollars:
 ### Step 4 — independent magnitude check
 
 Pricing the measured context tokens straight at Bedrock cache-read rates, never
-touching credits, and comparing against the credit route over the same history
-agreed to within **8%** by disjoint methods. `calibrate.py` prints both totals
-for the local data.
+touching credits, and comparing against the credit route over the **same
+single-request turns** (n=66, where the token count is real) agrees to within
+**5%** by disjoint methods. `calibrate.py` prints both totals for the local data,
+plus the whole-corpus token figure as an explicit upper bound — that one sums
+cumulative context samples, so it is not comparable and must not be read as a
+rival estimate.
 
-An external check also exists: compare the export's credit total for the billing
-period against `/usage` inside a session. Note that `/usage` clamps at the plan
-cap, so once spend exceeds the plan it reports 100% and can only confirm a lower
-bound.
+Note this route shares two of three assumptions with step 3 — the same
+`anchor` and the same `CACHE_READ_DISCOUNT` — so it validates the
+credits-per-token constant `k` and *not* the assumed cache-read-dominated mix.
+If the real mix is richer in output or cache-write than the ×0.1 factor assumes,
+both routes are low together and this check cannot detect it.
+
+An external check also exists, and it is the strongest one available: compare the
+scan's credit total for the billing period against `/usage` inside a session.
+
+`/usage` does **not** clamp at the plan cap — an earlier revision of this
+document claimed it did. Measured 2026-08-27 on an org-provisioned seat it
+reported `Credits (66425.17 of 10000 covered in plan)` at **664.3%**, i.e. the
+true total and a percentage well past 100. So it anchors the credit *count*
+exactly, which quarantines all remaining uncertainty in the $/credit conversion.
+
+Against that anchor the session-log scan reads **5.1% low** (63,061.16 scanned
+against 66,425.17 authoritative, window 2026-08-01+). `ccusage-all` therefore
+scales Kiro credits by `KIRO_COMPLETENESS` = 1.0533; `--raw-credits` disables it
+and `--verify-credits <total>` re-measures it. Limitation 3 below accounts for
+only ~0.4 of those 5.1 points, so the rest is an unexplained scan gap:
+interrupted turns whose `usage_summary` never landed, sessions outside
+`KIRO_SESSIONS`, or `executionId` collisions in the dedup. Caveat: the period
+start is assumed to be calendar-month (the reset is 2026-09-01); if it began
+later, the true gap is larger.
 
 ### Step 5 — the uncertainty band printed beside every cost
 
@@ -223,14 +293,34 @@ both would count one phenomenon twice.
 3. **v1/v2-engine turns are missing.** Those write credits only to SQLite, which
    keeps just the last turn per conversation. Measured on one local history the
    v1/v2 share was about **0.4%** of total credits. Use `--v3` for complete
-   accounting.
+   accounting. This is a known component of the 5.1% scan gap measured against
+   `/usage`, but only a small part of it; the rest is unexplained.
 4. **Per-model splits carry ~15% attribution error.** Subagents run a different
    model than their parent 15% of the time, and their spend is folded into the
    parent turn's credits. Totals are unaffected — turns with and without
    subagent calls show the same actual/predicted ratio (0.72 vs 0.75), which is
    what shows the spend is included rather than lost.
 5. **Prices are hardcoded** from 2026-08. Re-run `calibrate.py` after rate
-   changes.
+   changes. Multipliers and context windows are *not* hardcoded — they are read
+   live from `kiro-cli chat --list-models` on every run.
+6. **The mix factor is unvalidated.** `$0.0747` = `$0.7468` (fresh-input) × 0.1,
+   where the 0.1 asserts the traffic is entirely cache-read. Nothing here tests
+   that; step 4 shares the same factor. For scale: converting the rate to
+   comparable units gives ~$0.52/Mtok on an opus-class model, essentially opus's
+   bare cache-read list price, whereas Claude Code's *measured* blended rate on
+   the same model is $0.86/Mtok once its 4.4% cache-write and 0.5% output are
+   counted. If Kiro's real mix resembles that, the point estimate is low — which
+   is part of why the band is asymmetric upward.
+7. **`$0.0557/credit` sits outside the band.** The output-dominated rate comes
+   from `base * 5 / 67`, an underived constant, and falls below the band's own
+   low end of `$0.0647`. `ccusage-all --credit-rate .056` advertises it as "the
+   output-heavy end of the Kiro estimate" while the stated floor is higher. One
+   of the two is wrong; unresolved.
+8. **Held-out validation is thin.** Only 10 held-out turns are single-request,
+   and the median absolute error over them is 39.5%. The 102 multi-request
+   held-out turns are excluded rather than mispredicted, which is correct but
+   leaves the check underpowered. It strengthens as more single-request turns
+   accumulate.
 
 ## ccusage integration notes
 
