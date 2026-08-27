@@ -43,6 +43,7 @@ def token_row(harness="claude", model="claude-opus-5", cost=1.0, mtok=1.0,
     row = {"day": "2026-08-01", "harness": harness, "model": model,
            "consumed": mtok, "unit": "Mtok", "rate": cost / mtok if mtok else 0.0,
            "cost": cost, "tokens": counts, "assumed_mix": None,
+           "unmeasured": (),
            "provenance": cc.provenance(consumed=cc.COUNTED, cost="l3m",
                                        mix=cc.MEASURED, std=cc.UNPRICED)}
     if std is not None:
@@ -54,10 +55,10 @@ def token_row(harness="claude", model="claude-opus-5", cost=1.0, mtok=1.0,
 
 def credit_row(mix=None, rate=None, cost=7.47, credits=100.0):
     """A Kiro row: metered credits, no token buckets, mix assumed or absent."""
-    rate = cc.USD_PER_CREDIT if rate is None else rate
+    rate = cc.KIRO_DEFAULT_RATE if rate is None else rate
     return {"day": "2026-08-01", "harness": "kiro", "model": "claude-opus-5",
             "consumed": credits, "unit": "credits", "rate": rate, "cost": cost,
-            "tokens": None, "assumed_mix": mix,
+            "tokens": None, "assumed_mix": mix, "unmeasured": (),
             "provenance": cc.provenance(
                 consumed=cc.METERED, cost="kiro-credit",
                 mix=cc.ASSUMED if mix else cc.NO_MIX, std=cc.NO_TOKENS)}
@@ -92,7 +93,7 @@ class Provenance(unittest.TestCase):
     def test_every_real_producer_emits_complete_provenance(self):
         """The uniformity guarantee. Runs the actual producers over local data --
         a new one cannot be added without provenance and still pass."""
-        rows = (cc.kiro_rows(cc.USD_PER_CREDIT, 1.0, dict(cc.KIRO_DEFAULT_MIX))
+        rows = (cc.kiro_rows(cc.KIRO_DEFAULT_RATE, 1.0, dict(cc.KIRO_DEFAULT_MIX))
                 + cc.l3m_rows(cc.l3m_settings()))
         if not rows:
             self.skipTest("no local Kiro or l3m data to read")
@@ -102,7 +103,7 @@ class Provenance(unittest.TestCase):
                                  {"consumed", "cost", "mix", "std"})
                 self.assertIn(row["provenance"]["consumed"], {cc.COUNTED, cc.METERED})
                 self.assertIn(row["provenance"]["mix"],
-                              {cc.MEASURED, cc.ASSUMED, cc.NO_MIX})
+                              {cc.MEASURED, cc.PARTIAL, cc.ASSUMED, cc.NO_MIX})
                 self.assertIn(row["provenance"]["std"],
                               {cc.STANDARDIZED, cc.UNPRICED, cc.AMBIGUOUS,
                                cc.NO_TOKENS})
@@ -111,7 +112,7 @@ class Provenance(unittest.TestCase):
     def test_every_row_carries_the_keys_render_reads(self):
         """render indexes these unconditionally; a producer omitting one would
         raise at print time rather than at construction."""
-        rows = (cc.kiro_rows(cc.USD_PER_CREDIT, 1.0, dict(cc.KIRO_DEFAULT_MIX))
+        rows = (cc.kiro_rows(cc.KIRO_DEFAULT_RATE, 1.0, dict(cc.KIRO_DEFAULT_MIX))
                 + cc.l3m_rows(cc.l3m_settings()))
         if not rows:
             self.skipTest("no local Kiro or l3m data to read")
@@ -147,6 +148,96 @@ class Provenance(unittest.TestCase):
         self.assertEqual(row["provenance"]["cost"], cc.UNPRICED)
 
 
+class UnobservableBuckets(unittest.TestCase):
+    """A zero a harness's log cannot distinguish from an absence.
+
+    Codex carries exactly input / cached_input / output / reasoning_output / total
+    across all 10,257 token_count events -- no cache-creation field -- while
+    gpt-5.6-sol IS billed for cache writes ($6.25/Mtok base, $12.50 long-context).
+    So its cache-write share is a floor, and rendering a confident "0%" invited
+    the false conclusion that codex never writes a cache."""
+
+    def test_only_codex_is_declared_unobservable(self):
+        self.assertEqual(cc.UNOBSERVABLE_BUCKETS,
+                         {"codex": ("cacheCreationTokens",)})
+
+    def test_codex_log_really_has_no_cache_creation_field(self):
+        """Guards the premise, not the code: if a future Codex version adds the
+        field, CODEX_USAGE_KEYS should grow and this should be revisited."""
+        self.assertNotIn("cache_creation_input_tokens", cc.CODEX_USAGE_KEYS)
+        self.assertFalse([k for k in cc.CODEX_USAGE_KEYS if "creation" in k])
+
+    def test_gpt_cache_write_is_actually_billed(self):
+        """The reason the gap matters: a free tier would make 0% harmless."""
+        self.assertGreater(cc.LITELLM_SNAPSHOT["gpt-5.6-sol"][3], 0)
+        self.assertGreater(cc.CODEX_LONG_CONTEXT["gpt-5.6-sol"][1][3], 0)
+
+    def test_partial_mix_is_a_distinct_label(self):
+        self.assertNotEqual(cc.PARTIAL, cc.MEASURED)
+        self.assertIn(cc.PARTIAL, cc.MIX_MARKER)
+
+    def test_unobservable_bucket_renders_not_applicable(self):
+        """Asserted on the DETAIL row specifically. Searching the whole table for
+        "n/a" passes even with the detail-row branch deleted, because the subtotal
+        path has its own independent check -- the test would have passed for the
+        wrong reason."""
+        row = token_row(harness="codex", model="openai.gpt-5.6-sol", std=1.0)
+        row["unmeasured"] = ("cacheCreationTokens",)
+        row["provenance"]["mix"] = cc.PARTIAL
+        buffer = io.StringIO()
+        cc.render([row], stream=buffer)
+        detail = [line for line in buffer.getvalue().splitlines()
+                  if "openai.gpt-5.6-sol" in line]
+        self.assertEqual(len(detail), 1)
+        self.assertIn("n/a", detail[0])
+
+    def test_unobservable_bucket_renders_not_applicable_on_the_subtotal(self):
+        row = token_row(harness="codex", model="openai.gpt-5.6-sol", std=1.0)
+        row["unmeasured"] = ("cacheCreationTokens",)
+        row["provenance"]["mix"] = cc.PARTIAL
+        buffer = io.StringIO()
+        cc.render([row], stream=buffer)
+        subtotal = [line for line in buffer.getvalue().splitlines()
+                    if line.startswith("Subtotal")]
+        self.assertEqual(len(subtotal), 1)
+        self.assertIn("n/a", subtotal[0])
+
+    def test_measured_zero_still_renders_as_zero(self):
+        """opencode DOES report cache.write, so its 0% is a measurement and must
+        not be blurred into n/a."""
+        row = token_row(harness="opencode", std=1.0)
+        buffer = io.StringIO()
+        cc.render([row], stream=buffer)
+        self.assertNotIn("n/a", buffer.getvalue())
+
+    def test_partial_label_must_match_the_unmeasured_field(self):
+        orphan = token_row()
+        orphan["provenance"]["mix"] = cc.PARTIAL
+        with self.assertRaises(ValueError):
+            cc.validate_rows([orphan])
+        unlabelled = token_row()
+        unlabelled["unmeasured"] = ("cacheCreationTokens",)
+        with self.assertRaises(ValueError):
+            cc.validate_rows([unlabelled])
+
+    def test_unmeasured_must_name_real_buckets(self):
+        row = token_row()
+        row["unmeasured"] = ("notATokenBucket",)
+        row["provenance"]["mix"] = cc.PARTIAL
+        with self.assertRaises(ValueError):
+            cc.validate_rows([row])
+
+    def test_partial_rows_still_contribute_their_measured_buckets(self):
+        """A missing cache-write field must not discard the cache-read count."""
+        row = token_row(harness="codex", mtok=1.0, cacheReadTokens=800_000,
+                        inputTokens=200_000, std=1.0)
+        row["unmeasured"] = ("cacheCreationTokens",)
+        row["provenance"]["mix"] = cc.PARTIAL
+        bucket = cc.harness_subtotals([row])["codex"]
+        self.assertAlmostEqual(bucket["cache_shares"]["cr"], 0.8, places=9)
+        self.assertEqual(bucket["unobservable_shares"], {"cw"})
+
+
 class RowCoherence(unittest.TestCase):
     """validate_rows: labels must agree with the row they describe.
 
@@ -156,7 +247,7 @@ class RowCoherence(unittest.TestCase):
     these tests existed."""
 
     def test_real_rows_pass(self):
-        rows = (cc.kiro_rows(cc.USD_PER_CREDIT, 1.0, dict(cc.KIRO_DEFAULT_MIX))
+        rows = (cc.kiro_rows(cc.KIRO_DEFAULT_RATE, 1.0, dict(cc.KIRO_DEFAULT_MIX))
                 + cc.l3m_rows(cc.l3m_settings()))
         if not rows:
             self.skipTest("no local Kiro or l3m data to read")
@@ -282,20 +373,42 @@ class Rendering(unittest.TestCase):
 class MixArithmetic(unittest.TestCase):
     """The assumed-mix decomposition behind Kiro's $/credit."""
 
-    def test_default_mix_factor_matches_the_published_constant(self):
-        # If these drift, the table shows a mix that did not produce the rate.
-        self.assertAlmostEqual(cc.kiro_mix_factor(cc.KIRO_DEFAULT_MIX),
-                               cc.KIRO_ASSUMED_MIX, places=12)
+    def test_default_rate_is_the_fresh_input_rate_times_the_default_mix(self):
+        """The whole point of the constant structure: the rate is a product of a
+        primitive and a visible mix, not a magic number with a mix hidden in it."""
+        self.assertAlmostEqual(
+            cc.KIRO_DEFAULT_RATE,
+            cc.KIRO_FRESH_INPUT_RATE * cc.kiro_mix_factor(cc.KIRO_DEFAULT_MIX),
+            places=12)
 
-    def test_default_rate_is_derived_from_the_displayed_mix(self):
-        self.assertAlmostEqual(cc.KIRO_DEFAULT_RATE, cc.USD_PER_CREDIT, places=12)
+    def test_the_default_mix_is_deliberately_round(self):
+        """It is a guess and must look like one -- 95.1/4.4 would read as a
+        measurement while being Claude Code's measurement wearing a Kiro label."""
+        for share in cc.KIRO_DEFAULT_MIX.values():
+            self.assertAlmostEqual(share * 100, round(share * 100 / 5) * 5, places=9)
+
+    def test_the_default_mix_sits_inside_the_measured_range(self):
+        """Measured harnesses span 75.4%-95.6% cache-read (input-side); Claude Code
+        is the top. The default must keep a real margin below it -- assuming Kiro
+        is the best cacher present is precisely the claim being avoided, and a
+        bound of merely `< 0.956` would admit 0.95, which is that claim."""
+        self.assertLessEqual(cc.KIRO_DEFAULT_MIX["cr"], 0.92)
+        self.assertGreater(cc.KIRO_DEFAULT_MIX["cr"], 0.754)
+
+    def test_shares_sum_to_one(self):
+        self.assertAlmostEqual(sum(cc.KIRO_DEFAULT_MIX.values()), 1.0, places=9)
+
+    def test_pure_cache_read_reproduces_the_former_default(self):
+        """--kiro-mix 100/0 must still reach the pre-2026-08 $0.0747."""
+        self.assertAlmostEqual(cc.kiro_mix_rate("100/0")["rate"],
+                               cc.KIRO_PURE_CACHE_READ_RATE, places=12)
+        self.assertAlmostEqual(cc.KIRO_PURE_CACHE_READ_RATE, 0.0747, places=4)
 
     def test_rate_follows_the_mix_rather_than_being_pinned(self):
         """The bug this replaces: the default rate ignored the displayed mix, so
         editing the mix rendered one assumption while costing at another."""
         cheap = cc.kiro_mix_rate("100/0")["rate"]
         dear = cc.kiro_mix_rate("80/20")["rate"]
-        self.assertAlmostEqual(cheap, cc.USD_PER_CREDIT, places=12)
         self.assertGreater(dear, cheap * 3)
 
     def test_cache_write_dominates_the_correction(self):
@@ -332,33 +445,31 @@ class KiroPricingWiring(unittest.TestCase):
     and no assertion about KIRO_DEFAULT_RATE could see it."""
 
     def test_default_path_derives_the_rate_from_the_default_mix(self):
-        rate, mix = cc.resolve_kiro_pricing(None, cc.USD_PER_CREDIT)
+        rate, mix = cc.resolve_kiro_pricing(None, cc.KIRO_DEFAULT_RATE)
         self.assertEqual(mix, cc.KIRO_DEFAULT_MIX)
         self.assertAlmostEqual(
             rate, cc.KIRO_FRESH_INPUT_RATE * cc.kiro_mix_factor(mix), places=12)
 
     def test_default_rate_tracks_the_mix_when_the_mix_changes(self):
         """The load-bearing check: with the mix swapped, the resolved rate must
-        move with it rather than staying pinned to USD_PER_CREDIT."""
-        original = cc.KIRO_DEFAULT_MIX
+        move with it rather than staying pinned to a hardcoded constant."""
+        original, baseline = cc.KIRO_DEFAULT_MIX, cc.KIRO_DEFAULT_RATE
         try:
             cc.KIRO_DEFAULT_MIX = {"cr": 0.80, "cw": 0.20, "in": 0.00}
             cc.KIRO_DEFAULT_RATE = (cc.KIRO_FRESH_INPUT_RATE
                                     * cc.kiro_mix_factor(cc.KIRO_DEFAULT_MIX))
-            rate, mix = cc.resolve_kiro_pricing(None, cc.USD_PER_CREDIT)
+            rate, mix = cc.resolve_kiro_pricing(None, cc.KIRO_DEFAULT_RATE)
             self.assertEqual(mix["cw"], 0.20)
-            self.assertGreater(rate, cc.USD_PER_CREDIT * 3)
+            self.assertGreater(rate, baseline)
         finally:
-            cc.KIRO_DEFAULT_MIX = original
-            cc.KIRO_DEFAULT_RATE = (cc.KIRO_FRESH_INPUT_RATE
-                                    * cc.kiro_mix_factor(original))
+            cc.KIRO_DEFAULT_MIX, cc.KIRO_DEFAULT_RATE = original, baseline
 
     def test_kiro_mix_flag_wins_and_carries_its_own_mix(self):
         rate, mix = cc.resolve_kiro_pricing(cc.kiro_mix_rate("95/5"),
-                                            cc.USD_PER_CREDIT)
+                                            cc.KIRO_DEFAULT_RATE)
         self.assertAlmostEqual(mix["cr"], 0.95, places=10)
         self.assertNotIn("rate", mix)
-        self.assertGreater(rate, cc.USD_PER_CREDIT)
+        self.assertAlmostEqual(rate, cc.kiro_mix_rate("95/5")["rate"], places=12)
 
     def test_explicit_credit_rate_carries_no_mix(self):
         """0.056 back-solves to an impossible >100% cache-read share, so showing

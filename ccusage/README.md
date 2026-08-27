@@ -12,14 +12,23 @@ ccusage-all
 ```
 
 ```
-Date        Day Total  Harness  Model                Consumed  Unit        Rate     CR   CW     Std   Eff  Cost (USD)
-----------  ---------  -------  ------------------  ---------  -------  -------  -----  ---  ------  ----  ----------
--             $161.27  l3m      l3m-unknown             41.25  Mtok       $3.91    28%   2%       -     -     $161.27
-2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745    96%   4%  $0.813  0.92   $1,347.96
-                       claude   claude-fable-5           3.38  Mtok       $3.41    80%  20%   $1.62  2.10      $11.54
-                       codex    openai.gpt-5.4           2.06  Mtok       $1.43    49%   0%  $0.299  4.78       $2.95
-                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747  ~100%  ~0%       -  ~0.62     $398.36
+Date        Day Total  Harness  Model               Consumed  Unit       Rate  CacheRd  CacheWr  AtAvgMix  vsAvg  Cost (USD)
+----------  ---------  -------  ------------------  --------  -------  ------  -------  -------  --------  -----  ----------
+-             $161.27  l3m      l3m-unknown            41.25  Mtok      $3.91      28%       2%         -      -     $161.27
+2026-08-26  $2,569.83  claude   claude-opus-5       1,809.02  Mtok     $0.745      96%       3%    $0.825   0.90   $1,347.96
+                       codex    openai.gpt-5.6-sol     81.07  Mtok      $1.02      91%      n/a    $0.837   1.22      $83.02
+                       codex    openai.gpt-5.4          2.06  Mtok      $1.43      49%      n/a    $0.321   4.46       $2.95
+                       kiro     gpt-5.6-sol         5,332.86  credits  $0.151     ~90%      ~5%         -  ~1.32     $806.47
 ```
+
+| column | meaning |
+|---|---|
+| `Consumed` / `Unit` | `Mtok` = millions of tokens counted in the harness's logs. `credits` = Kiro's own meter. Not commensurable, so `Consumed` sums only *within* a harness. |
+| `Rate` | effective price per unit: `Cost ÷ Consumed`. $/Mtok for token harnesses, $/credit for Kiro. |
+| `CacheRd` / `CacheWr` | share of tokens that were cache reads / cache writes. `n/a` = the harness's log cannot report it. `~` = assumed, not counted. |
+| `AtAvgMix` | what this model would cost per Mtok at the window's *average* cache behaviour. Varies only by model, so it's comparable across harnesses. |
+| `vsAvg` | `Rate ÷ AtAvgMix`. Below 1.00 this row cached better than average, above 1.00 worse. |
+| `Cost (USD)` | the only column summable across every harness. |
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
 across all harnesses, shown once per day.
@@ -48,14 +57,14 @@ Don't try to reconcile them. Both price tables already agree exactly (`--rates
 l3m` and `--rates litellm` return the same totals), so the spread is real and
 carries information. Four columns expose the mix and then hold it fixed:
 
-- **`CR` / `CW`** — the row's cache-read and cache-write shares, **measured**
-  from the logs. Watch `CW`, not `CR`: a cache write costs 1.25× fresh input,
+- **`CacheRd` / `CacheWr`** — the row's cache-read and cache-write shares, **measured**
+  from the logs. Watch `CacheWr`, not `CacheRd`: a cache write costs 1.25× fresh input,
   which is 12.5× a cache read, so a few percent of it outweighs a large swing in
   `CR`. That's the whole reason `claude-fable-5` at 80/20 reads $3.41/Mtok while
   `claude-opus-5` at 96/4 reads $0.75.
-- **`Std`** — the row re-priced at the *pooled* mix of every token-logged row in
+- **`AtAvgMix`** — the row re-priced at the *pooled* mix of every token-logged row in
   the window, so it varies only by model. This is the standardized cost.
-- **`Eff`** — `Rate / Std`: how favourable that row's own mix was. Below 1.00 is
+- **`vsAvg`** — `Rate / AtAvgMix`: how favourable that row's own mix was. Below 1.00 is
   cheaper than this box's average, above is dearer. `gpt-5.4` at 4.78 is not an
   expensive model, it's a badly-cached one.
 
@@ -66,24 +75,28 @@ columns means assumed rather than measured — see below.
 
 Every other harness *counts* its cache reads and writes — they arrive in the API
 response and go straight into a bucket, priced at their own published tier. No
-estimate is involved. Kiro logs no buckets, so its $/credit has a mix baked into
-the constant:
+estimate is involved. Kiro logs no buckets, so its $/credit is a primitive times
+an assumed mix:
 
 ```
-$0.0747/credit  =  $0.7468 (fresh-input basis)  ×  0.100
-                                                   ^^^^^ asserts 100% cache-read
+$0.1512/credit  =  $0.7468 (fresh-input basis)  ×  0.2025
+                                                   ^^^^^^ 90% cache-read / 5% cache-write / 5% fresh input
 ```
 
-Kiro's `CR`/`CW` cells show that assumed mix rather than sitting blank, prefixed
-`~` so it can't be mistaken for a measurement — `~100%` / `~0%` by default. An
-assumed 100% is a claim, and hiding it in a constant is how it went unexamined.
+Kiro's `CacheRd`/`CacheWr` cells show that assumed mix rather than sitting blank, prefixed
+`~` so it can't be mistaken for a measurement — `~90%` / `~5%` by default. It is
+a claim, and hiding it inside a constant is how it went unexamined for so long.
 
-Kiro also gets an `Eff`, but no `Std`, and that asymmetry is the honest one:
+The default was `100/0` until 2026-08 — every token priced as a cache read, which
+no harness on this box achieves. `--kiro-mix 100/0` still reproduces it exactly
+($0.0747/credit), so nothing became unreachable.
 
-- **`Std` stays blank.** It's a $/Mtok, so filling it would mean synthesizing a
+Kiro also gets a `vsAvg`, but no `AtAvgMix`, and that asymmetry is the honest one:
+
+- **`AtAvgMix` stays blank.** It's a $/Mtok, so filling it would mean synthesizing a
   token count from `k` and the per-model multiplier — an invented number in a
   column that everywhere else holds a measured one.
-- **`Eff` fills.** Nothing is invented: for one model the absolute prices cancel
+- **`vsAvg` fills.** Nothing is invented: for one model the absolute prices cancel
   out of `Rate/Std`, leaving a ratio of *mix factors*, and Kiro's assumed mix is
   a factor already. Both sides are taken input-side, since Kiro's assumed mix is
   input-side by construction.
@@ -147,12 +160,12 @@ cd ccusage; python3 -m unittest discover      # or ./test_ccusage_all.py
 Stdlib `unittest`, no dependency to install. They run automatically via
 pre-commit whenever anything under `ccusage/` changes.
 
-Every test corresponds to something that was once wrong. The `Std`/`Eff`
+Every test corresponds to something that was once wrong. The `AtAvgMix`/`vsAvg`
 propagation tests especially: two bugs shipped there and survived several
 readings of the table, because a wrong number in a derived column still renders
 neatly. One divided a volume-weighted `Std` by *total* consumed instead of
 *priced* consumed, which understated `Std` and overstated `Eff` in proportion to
-a harness's unpriced volume — it put opencode at `Eff` 2.57 where the priced
+a harness's unpriced volume — it put opencode at `vsAvg` 2.57 where the priced
 portion is 0.51, inverting "dearer than average" into "cheaper". The other let
 longest-prefix matching resolve an l3m fallback chain
 (`claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra`) to its first element and price

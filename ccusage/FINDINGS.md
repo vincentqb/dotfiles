@@ -208,9 +208,32 @@ model. Those track Bedrock **input** prices, checked against published prices:
 Because credits already scale by the multiplier, **the multiplier cancels** and
 one model-independent rate converts credits to dollars:
 
-- **$0.0747/credit** when cache-read-dominated (the default; Kiro agent traffic
-  is overwhelmingly cached input)
+- **$0.0747/credit** if cache-read-dominated (every token a cache read)
 - **$0.0557/credit** when output-dominated
+
+`ccusage-all` no longer defaults to either. Since 2026-08 it prices Kiro at an
+explicit assumed input-side mix of **90% cache-read / 5% cache-write / 5% fresh
+input**, giving `$0.7468 × 0.2025 = $0.1512/credit`. The reasoning:
+
+- 100% cache-read is not a neutral assumption, it is a known-low one. No harness
+  measured on this box achieves it; Claude Code, the best, reaches 95.1%.
+- Cache-read share is a **harness** property, not a model one. The same
+  `claude-opus-5` measures 95.3% under Claude Code and 87.1% under l3m, while four
+  different models under Claude Code all land within 1.8 points (94.4 / 95.1 /
+  95.3 / 96.2). So there is no per-model mix to borrow — only a per-harness one,
+  and Kiro's is unobservable.
+- Across measurable harnesses the range is 75.4%–95.1%. Claude Code sits at the
+  top, so borrowing its mix assumes Kiro is the best cacher present. 90% sits
+  inside the range instead.
+- The mix is **deliberately round** so it reads as the guess it is. Claude Code's
+  measured 95.1/4.4 was rejected for looking like a measurement while being
+  Claude Code's measurement wearing a Kiro label.
+- Cache-write is the term that matters: it costs 1.25× fresh input, 12.5× a cache
+  read. And the 5% fresh-input remainder contributes a quarter of the factor,
+  since fresh input is 10× a cache read.
+
+`--kiro-mix 100/0` reproduces the old $0.0747 exactly; `--kiro-mix CR/CW` sets any
+other mix.
 
 ### Step 4 — independent magnitude check
 
@@ -260,7 +283,8 @@ $/credit moves *inversely* with credits-per-token — fewer credits per token me
 more tokens bought per credit, hence more dollars. Taking the extreme corners:
 
 - low: highest k with highest anchor → **$0.0647**
-- point: median k with mean anchor → **$0.0747**
+- point: median k with mean anchor → **$0.0747** at 100% cache-read
+  (**$0.1512** at the 90/5/5 mix `ccusage-all` now assumes)
 - high: p10 k with lowest anchor → **$0.1405**
 
 That is **-13%/+88%**. It is printed as an explicit dollar interval next to each
@@ -303,14 +327,14 @@ both would count one phenomenon twice.
 5. **Prices are hardcoded** from 2026-08. Re-run `calibrate.py` after rate
    changes. Multipliers and context windows are *not* hardcoded — they are read
    live from `kiro-cli chat --list-models` on every run.
-6. **The mix factor is unvalidated.** `$0.0747` = `$0.7468` (fresh-input) × 0.1,
-   where the 0.1 asserts the traffic is entirely cache-read. Nothing here tests
-   that; step 4 shares the same factor. For scale: converting the rate to
-   comparable units gives ~$0.52/Mtok on an opus-class model, essentially opus's
-   bare cache-read list price, whereas Claude Code's *measured* blended rate on
-   the same model is $0.86/Mtok once its 4.4% cache-write and 0.5% output are
-   counted. If Kiro's real mix resembles that, the point estimate is low — which
-   is part of why the band is asymmetric upward.
+6. **The mix factor is unvalidated.** `$0.1512` = `$0.7468` (fresh-input) ×
+   0.2025, where 0.2025 comes from an *assumed* 90/5/5 input-side mix. Nothing
+   here tests that mix; step 4 shares the same structure and so cannot detect a
+   mix error. Kiro publishes no token buckets, so its real cache behaviour is
+   unobservable and every candidate mix is a borrow from some other harness. The
+   measurable ones span factors 0.151 (claude) to 0.329 (l3m) — a 2.2× spread —
+   which is the true width of this uncertainty, wider than the printed band.
+   The old default of 0.100 (100% cache-read) was below *all* of them.
 7. **`$0.0557/credit` sits outside the band.** The output-dominated rate comes
    from `base * 5 / 67`, an underived constant, and falls below the band's own
    low end of `$0.0647`. `ccusage-all --credit-rate .056` advertises it as "the
