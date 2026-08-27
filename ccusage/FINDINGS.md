@@ -232,8 +232,8 @@ input**, giving `$0.7468 × 0.2025 = $0.1512/credit`. The reasoning:
   read. And the 5% fresh-input remainder contributes a quarter of the factor,
   since fresh input is 10× a cache read.
 
-`--kiro-mix 100/0` reproduces the old $0.0747 exactly; `--kiro-mix CR/CW` sets any
-other mix.
+There is no flag for this — `KIRO_DEFAULT_MIX` in the script is the single place
+it lives, which is what makes it provably the mix that priced every Kiro row.
 
 ### Step 4 — independent magnitude check
 
@@ -261,47 +261,21 @@ true total and a percentage well past 100. So it anchors the credit *count*
 exactly, which quarantines all remaining uncertainty in the $/credit conversion.
 
 Against that anchor the session-log scan reads **5.1% low** (63,061.16 scanned
-against 66,425.17 authoritative, window 2026-08-01+). `ccusage-all` therefore
-scales Kiro credits by `KIRO_COMPLETENESS` = 1.0533; `--raw-credits` disables it
-and `--verify-credits <total>` re-measures it. Limitation 3 below accounts for
-only ~0.4 of those 5.1 points, so the rest is an unexplained scan gap:
-interrupted turns whose `usage_summary` never landed, sessions outside
-`KIRO_SESSIONS`, or `executionId` collisions in the dedup. Caveat: the period
-start is assumed to be calendar-month (the reset is 2026-09-01); if it began
-later, the true gap is larger.
+against 66,425.17 authoritative, window 2026-08-01+).
 
-### Step 5 — the uncertainty band printed beside every cost
+`ccusage-all` does **not** correct for it. It briefly did, scaling every credit by
+1.0533, and that was wrong: the gap is one aggregate measurement over one billing
+period, and multiplying every day and model by it spreads the miss proportionally
+when its one known component (limitation 3 below, ~0.4 of the 5.1 points) is not
+spread that way. The result matched neither the logs nor the authority. The scan
+is now reported as-is and the gap documented — read the Kiro total as a floor,
+roughly 5% low.
 
-Two independent sources compose, and the band spans their corners:
-
-| Source | Range | Effect on $/credit |
-|---|---|---|
-| credits-per-token (p10 to max) | 1.760e-6 to 3.477e-6 | dominant |
-| multiplier-to-price anchor | ±4.7% | secondary |
-
-$/credit moves *inversely* with credits-per-token — fewer credits per token means
-more tokens bought per credit, hence more dollars. Taking the extreme corners:
-
-- low: highest k with highest anchor → **$0.0647**
-- point: median k with mean anchor → **$0.0747** at 100% cache-read
-  (**$0.1512** at the 90/5/5 mix `ccusage-all` now assumes)
-- high: p10 k with lowest anchor → **$0.1405**
-
-That is **-13%/+88%**. It is printed as an explicit dollar interval next to each
-cost — `$120 [104, 226]` — rather than as a percentage, and rounded to whole
-dollars: cents on a figure this uncertain would imply precision that is not
-there. Sub-dollar rows render as `<$1`, since `$0 [0, 0]` says nothing and the
-credits column already carries the detail.
-
-The band was initially derived from source 1 alone, giving -8%/+79%. That put
-step 4's independent cross-check just outside the interval, by about 1%, which is
-how the missing anchor term surfaced. Folding it in restores containment, and
-`calibrate.py` asserts it on every run. A cross-check landing outside the stated
-uncertainty is a defect in the uncertainty, not a rounding detail.
-
-The input/output mix is deliberately not compounded on top. Unreported output
-tokens are the most likely cause of the bimodality in source 1, so widening for
-both would count one phenomenon twice.
+The remaining ~4.7 points are unexplained. Candidates: interrupted turns whose
+`usage_summary` never landed, sessions outside `KIRO_SESSIONS`, or `executionId`
+collisions in the dedup. Caveat on the anchor: the period start is assumed to be
+calendar-month (the reset is 2026-09-01); if it began later, the true gap is
+larger.
 
 ## Known limitations
 
@@ -337,9 +311,8 @@ both would count one phenomenon twice.
    The old default of 0.100 (100% cache-read) was below *all* of them.
 7. **`$0.0557/credit` sits outside the band.** The output-dominated rate comes
    from `base * 5 / 67`, an underived constant, and falls below the band's own
-   low end of `$0.0647`. `ccusage-all --credit-rate .056` advertises it as "the
-   output-heavy end of the Kiro estimate" while the stated floor is higher. One
-   of the two is wrong; unresolved.
+   low end of `$0.0647`. Unresolved, and no longer reachable from the CLI — the
+   flag that exposed it is gone.
 8. **Held-out validation is thin.** Only 10 held-out turns are single-request,
    and the median absolute error over them is 39.5%. The 102 multi-request
    held-out turns are excluded rather than mispredicted, which is correct but

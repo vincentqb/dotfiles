@@ -15,27 +15,22 @@ ccusage-all
 Date        Day Total  Harness  Model               Consumed  Unit       Rate  Cost (USD)
 ----------  ---------  -------  ------------------  --------  -------  ------  ----------
 -             $161.27  l3m      l3m-unknown            41.25  Mtok      $3.91     $161.27
-2026-08-26  $2,569.83  claude   claude-opus-5       1,809.02  Mtok     $0.745   $1,347.96
-                       codex    openai.gpt-5.6-sol     81.07  Mtok      $1.02      $83.02
+2026-08-26  $2,494.15  claude   claude-opus-5       1,809.02  Mtok     $0.745   $1,347.96
+                       codex    openai.gpt-5.6-sol     81.07  Mtok       $0.8      $64.87
                        codex    openai.gpt-5.4          2.06  Mtok      $1.43       $2.95
-                       kiro     gpt-5.6-sol         5,332.86  credits  $0.151     $806.47
-                       kiro     claude-opus-5       1,813.37  credits  $0.151     $274.23
+                       kiro     gpt-5.6-sol         5,062.78  credits  $0.151     $765.63
+                       kiro     claude-opus-5       1,721.54  credits  $0.151     $260.34
 ```
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
 across all harnesses, shown once per day.
 
 ```fish
-ccusage-all                     # default: l3m rates, Kiro calibrated + estimated
-ccusage-all --rates litellm     # price everything from the LiteLLM table
-ccusage-all --kiro-mix 95/5     # price Kiro at Claude Code's measured token mix
+ccusage-all                                   # unified daily table
 ccusage-all --since 2026-08-01 --until 2026-08-14
-ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
-ccusage-all --raw-credits       # Kiro credits exactly as scanned, uncalibrated
-ccusage-all --since 2026-08-01 --verify-credits 66425.17   # re-check the scan
-ccusage-all --json              # rows + totals + reference mix + settings in force
-ccusage-all --online            # refresh LiteLLM prices over the network
+ccusage-all --online                          # refresh LiteLLM prices first
 ```
+
 
 ## Rate is a mix statistic, not a price
 
@@ -45,12 +40,9 @@ charges $0.50/Mtok for a cache read and $25.00/Mtok for output. So a 96%-cached
 harness and a 49%-cached one show wildly different $/Mtok under *identical*
 pricing.
 
-Don't try to reconcile them. Both price tables already agree exactly (`--rates
-l3m` and `--rates litellm` return the same totals), so the spread is real: it is
-telling you about caching behaviour, not about price. The per-bucket token counts
-that drive it are in `--json`. Cache-**write** is the term to watch — it costs
-1.25× fresh input, so 12.5× a cache read, and a few percent of it outweighs a
-large swing in cache-read.
+Don't try to reconcile them — the spread is telling you about caching behaviour,
+not about price. Cache-**write** is the term to watch: at 1.25× fresh input it is
+12.5× a cache read, so a few percent of it outweighs a large swing in cache-read.
 
 Measured cache-read / cache-write shares, for reference:
 
@@ -68,103 +60,54 @@ different models under Claude Code all land within 1.8 points of each other.
 Codex's cache-write is unobservable rather than zero — its log carries no
 cache-creation field across any of its 10,257 usage events, while `gpt-5.6-sol`
 *is* billed for cache writes at $6.25/Mtok. So its cost here is a slight
-underestimate. `--json` records this as a `partial` mix provenance.
+underestimate. Each such row is labelled with a `partial` mix provenance.
 
 ## Kiro is the only harness that assumes a mix
 
 Every other harness *counts* its cache reads and writes — they arrive in the API
-response and go straight into a bucket, priced at their own published tier. No
-estimate is involved. Kiro logs no buckets, so its $/credit is a primitive times
-an assumed mix:
+response and go straight into a bucket, priced at its own published tier. No
+estimate is involved. Kiro publishes no buckets at all, so its $/credit is a
+primitive times an assumed mix:
 
 ```
 $0.1512/credit  =  $0.7468 (fresh-input basis)  ×  0.2025
                                                    ^^^^^^ 90% cache-read / 5% cache-write / 5% fresh input
 ```
 
-`--json` carries the assumed mix on every Kiro row, so the claim is inspectable
-even though the table no longer has a column for it.
+Cache-read share is a **harness** property, not a model one: the same
+`claude-opus-5` measures 95.3% under Claude Code and 87.1% under l3m, while four
+different models under Claude Code all land within 1.8 points of each other. So
+there is no per-model mix to assign — only a per-harness one, and Kiro's cannot
+be observed.
 
-That default is more caching than any harness here actually achieves.
-`--kiro-mix 95/5` substitutes Claude Code's measured 95.1%/4.4% instead — the
-defensible proxy, since Kiro is an Anthropic-model agentic CLI with automatic
-cache management and architecturally its twin. It gives **$0.1176/credit, +57%**,
-and lands 70% of the way up the existing −13%/+88% band, which is corroboration:
-that band's lopsided upper half was absorbing exactly this bias.
+Measurable harnesses span 75.4%–95.1% cache-read, with Claude Code at the
+ceiling. 90% sits inside that range rather than assuming Kiro caches best of all.
+The numbers are round on purpose: this is a guess and should read as one, where
+Claude Code's measured 95.1/4.4 would read as a measurement while being another
+harness's measurement. Cache-**write** is the term that does the work — at 1.25×
+fresh input it is 12.5× a cache read, so the 5% contributes more than the 10-point
+drop in cache-read takes away.
 
-Note what drives it. At 95/5 the cache-read term is `0.95 × 0.10 = 0.095`, which
-is *below* the current 0.100 — dropping from 100% to 95% caching on its own makes
-Kiro **cheaper**. The correction comes almost entirely from the 5% cache-write at
-`0.05 × 1.25 = 0.0625`, i.e. 40% of the factor from 5% of the tokens. `90/10`
-breaks out of the band entirely, which is the signal it's too aggressive.
+To change it, edit `KIRO_DEFAULT_MIX`. There is no flag, which is what makes the
+mix in that constant provably the one that priced every Kiro row.
 
-Output is deliberately excluded from that mix: `k` was calibrated on context
-tokens, which are input-side, so correcting the input-side mix doesn't
-double-count — whereas [FINDINGS.md](FINDINGS.md) argues the 1.80× bimodality in
-`k` already *is* unreported output.
-
-## Provenance
-
-Every row states how each quantity it reports is *known*, and the table derives
-its markers from those labels alone — it never re-infers provenance from whether
-a field happens to be present. One vocabulary, four slots per row:
-
-| slot | values |
-|---|---|
-| `consumed` | `counted` (summed token buckets) · `metered` (a scalar the harness computed) |
-| `cost` | the price source: `l3m` · `litellm` · `l3m-self` · `kiro-credit` · `unpriced` |
-| `mix` | `measured` · `assumed` (renders `~`) · `no-mix` |
-| `std` | `standardized` · `unpriced` · `ambiguous` · `no-tokens` |
-
-Two checks keep it honest. `provenance()` rejects any label outside the
-vocabulary, so a typo can't fall through a lookup and render as measured.
-`validate_rows()` then checks each label *agrees with the row it describes* — a
-row with no token buckets can't claim a `measured` mix, and nothing can claim
-`standardized` without a standardized rate. It runs on every invocation.
-
-This replaced four unrelated ad-hoc conventions: `tokens is None`, a `"!"` glued
-onto the price-source string, an `assumed_mix` presence check, and `std_rate`
-being falsy. Each was somewhere a new row producer could satisfy nothing and
-still render as though everything were measured.
-
-## Tests
-
-```fish
-cd ccusage; python3 -m unittest discover      # or ./test_ccusage_all.py
-```
-
-Stdlib `unittest`, no dependency to install. They run automatically via
-pre-commit whenever anything under `ccusage/` changes.
-
-Every test corresponds to something that was once wrong. Most of them guard
-provenance — that each row states how its numbers are known, and that the label
-agrees with the row. Two of the sharpest were only reachable after extracting
-`harness_subtotals` out of `render` and `resolve_kiro_pricing` out of `main`; the
-recurring failure mode in this file has been *wiring*, where a correct function
-that nothing calls passes every test about the function.
-
-The suite is checked by mutation rather than trusted: reintroducing each of 24
-known bugs produces a failure in every case. `test_main_actually_calls_it` exists
-purely to fail when the `validate_rows(rows)` call is deleted from `main`, since
-every other test would still pass.
-
-An earlier revision carried four more columns (cache-read/write shares, a
-mix-normalized rate, and their ratio). They were removed for table width; the two
-propagation bugs they once had went with them, and the token counts they
-displayed are still in `--json`.
+Kiro's credits are reported exactly as scanned. `/usage` — Kiro's own
+authoritative total, which does *not* clamp at the plan cap — showed the scan
+running 5.1% low on 2026-08-27 (63,061.16 against 66,425.17). That is documented
+rather than corrected: the gap was one aggregate measurement over one billing
+period, and scaling every day and model by it spreads the miss proportionally
+when its one known component (v1/v2-engine turns, ~0.4%) is not spread that way.
+**Read the Kiro total as a floor, roughly 5% low**, on top of the −13%/+88% band
+on its $/credit.
 
 ## Pricing
 
 The trustworthy cost is always *real tokens × published list price*. Claude,
 Codex, and opencode log real tokens, so their cost is near-exact — **if** the
-price table has the model. Two tables transcribe the same published list
-prices: l3m's Lean-proof-pinned snapshot (Claude family) and an embedded
-LiteLLM snapshot for the rest, refreshable with `--online`. The default
-`--rates l3m` prices the Claude family from l3m and defers everything else to
-LiteLLM; `--rates litellm` prices everything from the LiteLLM table. A model
-neither table knows prices to $0 and is flagged `(!)` on its row rather than
-quietly undercounted. OpenAI models are two-stage priced: turns whose input
-exceeds 272K tokens bill entirely at the long-context rates.
+price table has the model. Prices come from an embedded LiteLLM snapshot,
+refreshable with `--online`; a model it doesn't know prices to $0 and is flagged
+`(!)` on its row rather than quietly undercounted. OpenAI models are two-stage
+priced: turns whose input exceeds 272K tokens bill entirely at long-context rates.
 
 Kiro is the exception: no token counts, only credits, so its dollars are the one
 real *estimate* — the −13%/+88% band rides on the Kiro subtotal alone. The `Unit`
@@ -203,17 +146,10 @@ credits. Model attribution joins the `assistant` records sharing the turn's
 unlike `session.json`'s single `modelId`, which is only the fallback. Turns key on
 `executionId`, so a turn recorded twice counts once. Credits are already scaled by
 each model's rate multiplier, so they are comparable and summable across models
-and match `/usage`'s plan counter; the dollar figure moves with `--credit-rate`
-and the credits never do.
+and match `/usage`'s plan counter.
 
-That scan is measurably incomplete, so the credits it finds are calibrated
-against `/usage` — the one authoritative total Kiro publishes, and which does
-*not* clamp at the plan cap (it reports 664.3% on an org seat, and the true
-figure). Measured 2026-08-27 the scan read **5.1% low**, so credits are scaled by
-`KIRO_COMPLETENESS` = 1.0533. That corrects the count, not the price: the
-−13%/+88% band still rides on the `$`/credit conversion alone. `--raw-credits`
-reports the uncorrected scan; `--verify-credits <total>` re-measures the factor
-against a fresh `/usage` reading and warns if it has drifted more than 2%.
+That scan is known incomplete — `/usage` showed it 5.1% low on 2026-08-27 — and
+is reported uncorrected. See above.
 
 **l3m** burns Bedrock tokens too, but keeps no Claude-Code-shaped token log the
 scanners above could read. Its rows come from l3m's own bookkeeping: every turn
@@ -221,7 +157,7 @@ boundary publishes the session sidecar (`last_state.json` — cumulative cents p
 per-wire token counters) to `refs/agents/state/<agent>/self` in the hub
 (`$L3M_HUB`, settings `hub.path`, else `~/.l3m/hub.git`), so that ref's history is
 a dated series of running totals, and differencing consecutive samples gives daily
-usage. The dollars are l3m's own `cents`, so `--rates` does not move them: l3m
+usage. The dollars are l3m's own `cents`, never re-priced here: l3m
 charges each call at the model that call actually used, which the per-wire
 counters can no longer tell us.
 

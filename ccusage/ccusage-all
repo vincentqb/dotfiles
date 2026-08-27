@@ -89,11 +89,10 @@ cache-creation field at all, while gpt-5.6-sol is genuinely billed for cache
 writes, so its cost here is a slight underestimate. `--json` records this per row
 as a `partial` mix provenance plus the bucket name in `unmeasured`.
 
-Kiro credits are separately calibrated: the session-log scan is measurably
-incomplete against `/usage`, Kiro's own authoritative total, so credits are
-scaled by KIRO_COMPLETENESS (x1.0533 as recorded, ~+5%). That corrects the SCAN,
-not the price -- the -13%/+88% band still rides on the $/credit conversion alone.
-Use `--raw-credits` for the uncorrected scan and `--verify-credits` to re-measure.
+Kiro credits are reported as scanned. `/usage`, Kiro's own authoritative total,
+shows that scan runs about 5% low (63,061.16 against 66,425.17 on 2026-08-27),
+and that is documented rather than corrected for: see kiro_rows. Read the Kiro
+total as a floor about 5% low, on top of the -13%/+88% band on its $/credit.
 
 Every row states how each quantity it reports is KNOWN -- see the provenance
 vocabulary below -- and render derives every marker from those labels rather than
@@ -101,15 +100,9 @@ re-inferring them, with validate_rows() asserting each label agrees with the row
 it describes on every invocation.
 
 Usage:
-  ccusage-all                     # daily table, l3m rates, Kiro calibrated+estimated
-  ccusage-all --rates litellm     # price everything from the LiteLLM table
-  ccusage-all --kiro-mix 95/5     # price Kiro at Claude Code's measured mix
-  ccusage-all --kiro-mix 100/0    # the pre-2026-08 all-cache-read assumption
-  ccusage-all --raw-credits       # Kiro credits exactly as scanned, uncalibrated
-  ccusage-all --since 2026-08-01 --verify-credits 66425.17   # re-check the scan
+  ccusage-all                                   # unified daily table
   ccusage-all --since 2026-08-01 --until 2026-08-14
-  ccusage-all --json              # machine-readable rows + totals + reference mix
-  ccusage-all --online            # refresh LiteLLM prices over the network
+  ccusage-all --online                          # refresh LiteLLM prices first
 """
 
 import argparse
@@ -148,44 +141,35 @@ TOKEN_KEYS = ("inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTo
 
 # --- provenance ---------------------------------------------------------------
 #
-# Every row states how each quantity it reports is KNOWN, and render derives its
-# markers from those labels alone -- it never re-infers provenance from whether a
-# field happens to be present. The same question used to be answered four
-# different ways (tokens is None, a "!" glued onto the price-source string, an
-# assumed_mix presence check, a falsy derived rate), and each was somewhere a new
-# row producer could get it silently wrong while still rendering plausibly.
+# Every row states how each quantity it reports is KNOWN. render reads these
+# labels; it never re-infers provenance from whether a field happens to be set.
 #
 # `mix` -- where the cache-read/write shares come from:
 MEASURED = "measured"     # counted by the harness and read from its own logs
 PARTIAL = "partial"       # counted, but one bucket its log cannot report
-ASSUMED = "assumed"       # follows from a stated assumption; rendered with "~"
-NO_MIX = "no-mix"         # harness publishes no buckets and assumes none
+ASSUMED = "assumed"       # follows from a stated assumption, not observed
 # `cost` -- the price source, or that no table lists the model:
 UNPRICED = "unpriced"
 # `consumed` -- what the quantity is:
 COUNTED = "counted"       # summed token buckets
 METERED = "metered"       # a scalar the harness computed; no breakdown exists
 
-# Token buckets a harness's log cannot report, so a zero there is UNOBSERVABLE
-# rather than measured. Codex is the case: its token_count events carry exactly
-# input / cached_input / output / reasoning_output / total across all 10,257 of
-# them, with no cache-creation field -- while gpt-5.6-sol is genuinely billed for
-# cache writes ($6.25/Mtok base, $12.50 long-context). So codex's cache-write
-# share is a floor, its cost is a slight underestimate, and rendering a confident
-# "0%" invited the false conclusion that it never writes a cache. Every other
-# harness does report the field: claude cache_creation_input_tokens, opencode
-# cache.write, l3m a_cw/c_cw.
+# Buckets a harness's log cannot report, so a zero there is UNOBSERVABLE rather
+# than measured. Codex's token_count events carry only input / cached_input /
+# output / reasoning_output / total -- no cache-creation field -- while
+# gpt-5.6-sol IS billed for cache writes ($6.25/Mtok, $12.50 long-context). Its
+# cache-write share is therefore a floor and its cost a slight underestimate.
+# Every other harness reports the field (claude cache_creation_input_tokens,
+# opencode cache.write, l3m a_cw/c_cw).
 UNOBSERVABLE_BUCKETS = {"codex": ("cacheCreationTokens",)}
 
 
 def provenance(consumed, cost, mix):
-    """Build a row's provenance, rejecting any label outside the vocabulary.
-
-    Strict on purpose: a typo'd label would otherwise fall through render's
-    lookups and silently render as "measured"."""
+    """Build a row's provenance, rejecting any label outside the vocabulary: a
+    typo would otherwise fall through render's lookups and read as measured."""
     labels = {"consumed": consumed, "cost": cost, "mix": mix}
     allowed = {"consumed": {COUNTED, METERED},
-               "mix": {MEASURED, PARTIAL, ASSUMED, NO_MIX}}
+               "mix": {MEASURED, PARTIAL, ASSUMED}}
     for key, valid in allowed.items():
         if labels[key] not in valid:
             raise ValueError(f"provenance {key}={labels[key]!r} not in {sorted(valid)}")
@@ -225,44 +209,30 @@ OPENCODE_DB = (pathlib.Path(os.environ.get("OPENCODE_DATA_DIR",
                                            "~/.local/share/opencode")).expanduser()
                / "opencode.db")
 
-# USD per Kiro credit (default) and the asymmetric band multipliers printed
-# beside the Kiro subtotal. Derived, not guessed: calibrate.py re-derives both
-# from local Kiro data, and FINDINGS.md carries the argument.
-# $/credit if every token were billed at FRESH INPUT prices. This is the
-# primitive -- calibrate.py step 3's `base`, = 1/(anchor x 1e6 x k) -- and every
-# rate below is it times a mix factor, so the assumed mix is always a visible
-# multiplicand rather than something folded invisibly into one constant.
+# $/credit if every token were billed at FRESH INPUT prices: calibrate.py step
+# 3's `base`, = 1/(anchor x 1e6 x k). Every rate below is this times a mix factor,
+# so the assumed mix is always a visible multiplicand. FINDINGS.md has the
+# derivation.
 KIRO_FRESH_INPUT_RATE = 0.7468
 
 # Price ratios relative to fresh input, identical across the Claude family and
 # the GPT family (deepseek is the lone exception at cache-read 0.2):
 KIRO_PRICE_RATIO = {"in": 1.00, "cr": 0.10, "cw": 1.25}
 
-# The assumed input-side token mix for Kiro -- the ONE harness here that assumes
-# a mix instead of counting one, because it publishes no token buckets at all.
+# Kiro publishes no token buckets, so its mix is ASSUMED. Round on purpose: it is
+# a guess and should read as one.
 #
-# DELIBERATELY round, because it is a guess and should look like one. The
-# alternative considered was Claude Code's measured 95.1/4.4, and it was rejected
-# for reading as a measurement while being Claude Code's measurement wearing a
-# Kiro label. False precision is the worse failure here.
+# Cache-read share is a HARNESS property, not a model one: the same claude-opus-5
+# measures 95.3% under Claude Code and 87.1% under l3m, while four models under
+# Claude Code all land within 1.8 points (94.4 / 95.1 / 95.3 / 96.2). Measurable
+# harnesses span 75.4%-95.1% and Claude Code is the ceiling, so 90% sits inside
+# that range rather than assuming Kiro caches best of all.
 #
-# Why 90 and not 95: cache-read share is a HARNESS property, not a model one --
-# the same claude-opus-5 measures 95.3% under Claude Code and 87.1% under l3m,
-# while four different models under Claude Code all land within 1.8 points of
-# each other (94.4 / 95.1 / 95.3 / 96.2). Across the harnesses that can be
-# measured the range is 75.4% to 95.1%, and Claude Code sits at the very top of
-# it. Assuming Kiro is the best cacher on the box is a strong claim; 90% sits
-# inside the observed range instead of pinned to its maximum.
-#
-# The 5% cache-write is the best-grounded part: Anthropic models measure 4.2-4.6%
-# consistently, and 83% of Kiro's credits are Claude models. The 5% fresh-input
-# remainder is an explicit "not every context token is a hit" -- and it is not a
-# rounding artifact, since fresh input costs 10x a cache read and that remainder
-# contributes a quarter of the whole factor.
-#
-# Output is excluded on purpose: k was calibrated on CONTEXT tokens, which are
-# input-side, so correcting the input-side mix does not double-count -- whereas
-# FINDINGS.md argues the 1.80x bimodality in k already IS unreported output.
+# The 5% cache-write is the best-grounded term (Anthropic models measure 4.2-4.6%,
+# and 83% of Kiro credits are Claude). The 5% fresh-input remainder is not a
+# rounding artifact: fresh input is 10x a cache read, so it is a quarter of the
+# factor. Output is excluded -- k was calibrated on context tokens, and
+# FINDINGS.md argues k's 1.80x bimodality already IS unreported output.
 KIRO_DEFAULT_MIX = {"cr": 0.90, "cw": 0.05, "in": 0.05}
 
 
@@ -272,164 +242,41 @@ def kiro_mix_factor(mix):
     return sum(mix[bucket] * KIRO_PRICE_RATIO[bucket] for bucket in KIRO_PRICE_RATIO)
 
 
-# Derived through the same expression --kiro-mix uses, so the mix the table
-# prints is provably the mix that produced the cost. The default path used to
-# pass a hardcoded rate through while the mix was displayed from a separate
-# constant, which meant editing one without the other rendered one assumption
-# while costing at another.
+# Derived from the mix above, never hardcoded, so the two cannot disagree.
 KIRO_DEFAULT_RATE = KIRO_FRESH_INPUT_RATE * kiro_mix_factor(KIRO_DEFAULT_MIX)
 
-# Band multipliers from calibrate.py step 5. Derived at the 100%-cache-read point
-# ($0.0647 / $0.0747 / $0.1405) but stored as RATIOS because both error sources
-# -- the credits-per-token spread and the multiplier-to-price anchor -- scale the
-# rate multiplicatively. So the band recentres itself on whatever mix is in force
-# rather than pinning absolute endpoints that a mix change would fall outside of.
+# Band multipliers from calibrate.py step 5, stored as RATIOS: both error sources
+# (the credits-per-token spread and the multiplier-to-price anchor) scale the rate
+# multiplicatively, so the band recentres on whatever mix is in force.
 KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
 
-# For reference and for `--kiro-mix 100/0`: the mix the rate USED to assume,
-# i.e. that every single token was a cache read. No harness measured on this box
-# achieves it -- Claude Code, the best, reaches 95.1% -- so it was not a neutral
-# default but a known-low one, and the table's own Eff column read ~0.62 against
-# it. See FINDINGS.md.
-KIRO_PURE_CACHE_READ_RATE = KIRO_FRESH_INPUT_RATE * KIRO_PRICE_RATIO["cr"]
-
-# `--kiro-mix CR/CW` substitutes a different assumed mix. Measured input-side
-# mixes of the harnesses that CAN be measured, for calibration:
+# Measured input-side mixes, for comparison against the assumption above.
+# Cache-write is unobservable for codex, not zero, so its factor is a floor.
 #
-#   claude    95.6% cache-read / 4.4% cache-write  -> factor 0.151  ($0.1127)
-#   opencode  86.5% / 0.0% (unmeasurable)          -> 0.209  ($0.1560)
-#   codex     76.4% / 0.0% (unmeasurable)          -> 0.313  ($0.2336)
-#   l3m       79.5% / 5.5%                         -> 0.329  ($0.2457)
-#
-# Two caveats on that table. Cache-write is UNOBSERVABLE for codex and opencode,
-# not zero -- neither log carries a cache-creation field, and gpt-5.6-sol is
-# genuinely billed for it -- so both factors are floors. And cache-read share is
-# a harness property, so these are alternative borrows for Kiro rather than
-# per-model rates: see KIRO_DEFAULT_MIX for why the same model measures 95.3%
-# under one harness and 87.1% under another.
+#   claude    95.6% cache-read / 4.4% cache-write  -> factor 0.151
+#   opencode  86.5% / 0.0%                         -> 0.209
+#   codex     76.4% / unobservable                 -> 0.313
+#   l3m       79.5% / 5.5%                         -> 0.329
 
 
-def kiro_mix_rate(spec):
-    """`--kiro-mix CR/CW` -> {"cr", "cw", "in", "rate"} at that assumed mix.
-
-    CR and CW are percentages of input-side tokens; any remainder is fresh
-    input, which costs 10x a cache read and so is never negligible.
-    `--kiro-mix 100/0` reproduces the pre-2026-08 default. The shares travel with
-    the rate so the table can SHOW the assumption rather than leave Kiro's mix
-    columns blank -- an assumed share is a claim, and a blank hides it."""
-    try:
-        parts = [float(p) for p in spec.split("/")]
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"expected CR/CW percentages, got {spec!r}") from None
-    if len(parts) != 2 or not all(p >= 0 for p in parts) or sum(parts) > 100:
-        raise argparse.ArgumentTypeError(
-            f"expected two non-negative percentages summing to <=100, got {spec!r}")
-    cr, cw = (p / 100 for p in parts)
-    # Round the remainder: 1 - 0.95 - 0.05 is 4.2e-17 in binary floating point,
-    # which would render as a spurious fresh-input share in --json.
-    mix = {"cr": cr, "cw": cw, "in": max(0.0, round(1 - cr - cw, 10))}
-    return {**mix, "rate": KIRO_FRESH_INPUT_RATE * kiro_mix_factor(mix)}
-
-# Credit-extraction completeness, measured against `/usage` inside a Kiro
-# session -- the one authoritative figure Kiro publishes about itself. It is NOT
-# clamped at the plan cap (an earlier revision of FINDINGS.md claimed it was):
-# on an org-provisioned seat it reports the true total and a >100% percentage,
-# so it anchors credits exactly and leaves only the $/credit conversion
-# uncertain.
-#
-# This corrects the SCAN, not the price: the session-log walk misses turns
-# (v1/v2-engine turns that only reach SQLite, interrupted turns whose
-# usage_summary never landed, sessions outside KIRO_SESSIONS). FINDINGS.md
-# accounts for ~0.4% of the gap; the rest is unexplained, so this is an
-# empirical correction, not a modelled one.
-#
-# Re-measure with `--verify-credits`, which prints the current scan against a
-# `/usage` figure you pass in. Caveat on the anchor below: the period start is
-# assumed to be calendar-month (reset is 2026-09-01); if the period actually
-# began later, the true gap is larger.
-KIRO_CREDIT_ANCHOR = {
-    "observed": "2026-08-27",
-    "period_resets": "2026-09-01",
-    "window_since": "2026-08-01",
-    "authoritative_credits": 66425.17,   # /usage, "KIRO POWER", 664.3% of 10000
-    "scanned_credits": 63061.16,         # this script over the same window
-}
-KIRO_COMPLETENESS = (KIRO_CREDIT_ANCHOR["authoritative_credits"]
-                     / KIRO_CREDIT_ANCHOR["scanned_credits"])
-
-# l3m's model price table, transcribed from
-# src/LlmProvider/Defs/Registry.lean (rates snapshot 2026-07-23), cents per 1M
-# tokens, with the four Bedrock/Anthropic cache tiers. Keyed by a canonicalised
-# model name (region/geo/provider prefixes stripped). Only the Claude family is
-# re-priced from l3m: l3m lists the GPT models too, but its mantle price shape
-# has no cache-read tier while the Codex logs report cache reads separately, so
-# re-pricing GPT from l3m would misprice cached input. LiteLLM covers the GPT
-# models seen here, so l3m mode defers all non-Claude models to LiteLLM.
-L3M_CLAUDE = {
-    # canonical prefix          (in,   out,  cacheRead, cacheWrite)
-    "claude-opus-4-8":          (500,  2500, 50,  625),
-    "claude-sonnet-4-6":        (300,  1500, 30,  375),
-    "claude-haiku-4-5":         (100,  500,  10,  125),
-    "claude-fable-5":           (1000, 5000, 100, 1250),
-    "claude-opus-5":            (500,  2500, 50,  625),   # PROVISIONAL (borrowed opus-4.8)
-}
-
-# l3m's short model aliases, from the same table, needed for the l3m HARNESS
-# rows: a session that names no `--model` runs on the configured default, which
-# is normally written as one of these. A leading `a/` (direct Anthropic instead
-# of Bedrock) is stripped before lookup -- same model, different transport.
 L3M_ALIASES = {
-    "opus":   "claude-opus-4-8",
+    "opus": "claude-opus-4-8",
     "sonnet": "claude-sonnet-4-6",
-    "haiku":  "claude-haiku-4-5",
-    "fable":  "claude-fable-5",
-    "gpt":    "gpt-5.6-sol",
+    "haiku": "claude-haiku-4-5",
+    "fable": "claude-fable-5",
+    "gpt": "gpt-5.6-sol",
 }
 
 
 def canon(model):
-    """Reduce a logged model name to an l3m-comparable key.
-
-    Harness logs keep a provider prefix on some names (`openai.gpt-5.6-sol`)
-    and none on others (`claude-opus-4-8`), while
-    l3m ids carry `us.anthropic.` / `global.anthropic.` / `openai.`. Strip all of
-    them so the cores line up, and drop a trailing dated/versioned snapshot
-    (`claude-haiku-4-5-20251001-v1:0`) down to the family key.
-    """
+    """Strip provider/region prefixes (`us.anthropic.`, `openai.`) so names from
+    different logs line up. Dated snapshots resolve to their family by the
+    longest-prefix lookup in litellm_rates."""
     key = (model or "").lower()
     for prefix in ("us.", "eu.", "apac.", "global.", "anthropic.", "openai."):
         while key.startswith(prefix):
             key = key[len(prefix):]
     return key
-
-
-def l3m_claude_rates(model):
-    """The l3m Claude rate tuple for a model name, or None if l3m doesn't list it.
-
-    Exact canonical match first, then longest-prefix (so the haiku snapshot id
-    resolves to `claude-haiku-4-5`)."""
-    key = canon(model)
-    if key in L3M_CLAUDE:
-        return L3M_CLAUDE[key]
-    for name in sorted(L3M_CLAUDE, key=len, reverse=True):
-        if key.startswith(name):
-            return L3M_CLAUDE[name]
-    return None
-
-
-def l3m_cost_usd(rates, tokens):
-    """l3m costCents on Bedrock/Anthropic usage -> USD. Mirrors the Lean
-    `costCents` exactly, including its round-to-nearest-cent (+500000)//1e6."""
-    in_c, out_c, cr_c, cw_c = rates
-    cents = (
-        tokens.get("inputTokens", 0) * in_c
-        + tokens.get("outputTokens", 0) * out_c
-        + tokens.get("cacheReadTokens", 0) * cr_c
-        + tokens.get("cacheCreationTokens", 0) * cw_c
-        + 500000
-    ) // 1000000
-    return cents / 100.0
 
 
 def kiro_turns(session_dir):
@@ -444,9 +291,6 @@ def kiro_turns(session_dir):
     models, summaries = {}, []
     with messages.open() as handle:
         for line in handle:
-            # Cheap substring gate: only two record shapes matter here, and
-            # each necessarily contains its marker. Skips json.loads on the
-            # vast majority of lines (tool output, user turns, ...).
             if "usage_summary" not in line and "reasoningModelId" not in line:
                 continue
             try:
@@ -457,7 +301,7 @@ def kiro_turns(session_dir):
             execution_id = payload.get("executionId") or record.get("id")
 
             if payload.get("type") == "assistant" and payload.get("reasoningModelId"):
-                # Namespaced as "qdev::claude-opus-5"; keep the bare model name.
+                # Namespaced "qdev::claude-opus-5"; keep the bare model name.
                 models.setdefault(execution_id,
                                   payload["reasoningModelId"].rpartition("::")[2])
                 continue
@@ -476,22 +320,20 @@ def kiro_turns(session_dir):
         yield timestamp, execution_id, credits, models.get(execution_id)
 
 
-def kiro_rows(credit_rate, completeness=1.0, assumed_mix=None):
-    """Per (day, model) Kiro credits, read straight from Kiro's session logs.
+def kiro_rows(credit_rate, assumed_mix=None):
+    """Per (day, model) Kiro credits from its session logs. Turns key on
+    `executionId`, stable across re-reads, so a turn recorded twice counts once.
 
-    Credits are what Kiro records, so the dollar figure is derived here at the
-    rate in force. Turns key on `executionId`, which is stable across re-reads,
-    so a turn recorded twice counts once.
+    Credits are reported exactly as found, and the scan is known incomplete:
+    measured 2026-08-27 it read 5.1% below `/usage`, Kiro's own authoritative
+    total (63,061.16 against 66,425.17). Deliberately not scaled up by that ratio
+    -- it was one aggregate measurement over one period, and multiplying every day
+    and model by it spreads the miss proportionally when its known component
+    (v1/v2-engine turns, ~0.4%) is not spread that way. Read the total as a floor,
+    roughly 5% low.
 
-    `completeness` scales the scanned credits up to the total `/usage` reports
-    (KIRO_COMPLETENESS), because the scan is measurably incomplete. It is applied
-    to `consumed` rather than to `rate` so that Consumed x Rate == Cost still
-    holds on every row and the rate stays the documented $/credit.
-
-    `assumed_mix` is the input-side token mix `credit_rate` was derived from,
-    carried onto each row so the table can render it -- marked `~` for assumed,
-    since Kiro measures no buckets. None when the rate came from an explicit
-    --credit-rate and so corresponds to no stated mix."""
+    `assumed_mix` is the mix `credit_rate` came from, carried per row so
+    validate_rows can check the two agree."""
     days = collections.defaultdict(lambda: collections.defaultdict(float))
     seen = set()
     for session_dir in sorted(KIRO_SESSIONS.glob("*/sess_*")):
@@ -512,7 +354,6 @@ def kiro_rows(credit_rate, completeness=1.0, assumed_mix=None):
     rows = []
     for day, models in days.items():
         for model, credits in models.items():
-            credits *= completeness
             rows.append({
                 "day": day, "harness": "kiro", "model": model,
                 "consumed": credits, "unit": "credits", "rate": credit_rate,
@@ -520,10 +361,9 @@ def kiro_rows(credit_rate, completeness=1.0, assumed_mix=None):
                 "assumed_mix": assumed_mix, "unmeasured": (),
                 "provenance": provenance(
                     consumed=METERED, cost="kiro-credit",
-                    # The only harness that assumes its mix instead of counting
-                    # it; NO_MIX when an explicit --credit-rate corresponds to
-                    # no stated mix at all.
-                    mix=ASSUMED if assumed_mix else NO_MIX),
+                    # The only harness that assumes its mix instead of
+                    # counting it, because it publishes no token buckets.
+                    mix=ASSUMED),
             })
     return rows
 
@@ -795,8 +635,6 @@ def claude_file_entries(path):
     try:
         with open(path, "rb") as fh:
             for line in fh:
-                # Cheap gate: only assistant records with usage matter (~5% of
-                # lines by count, but they are the big ones).
                 if b'"type":"assistant"' not in line or b'"usage"' not in line:
                     continue
                 try:
@@ -1210,66 +1048,35 @@ def token_cost_usd(rates, tokens):
             + tokens["cacheCreationTokens"] * cw_r) / 1e6
 
 
-def resolve_kiro_pricing(kiro_mix, credit_rate):
-    """-> (credit_rate, assumed_mix) for the Kiro rows.
-
-    Lives outside main so the wiring is testable: the mutation "pass
-    a hardcoded rate through instead of deriving it from KIRO_DEFAULT_MIX" is
-    invisible to any test that only inspects constants, because the constants
-    stay consistent -- it is the *plumbing* that stops honouring the mix.
-
-    Three cases, and the third is the one that matters:
-      * --kiro-mix: rate derived from the given mix.
-      * explicit --credit-rate: no mix corresponds to it, so None. Notably 0.056,
-        the output-dominated rate, lies on a different axis entirely and
-        back-solves to an impossible >100% cache-read share.
-      * neither: the DEFAULT rate, itself derived from KIRO_DEFAULT_MIX, so the
-        ~100%/~0% the table prints is provably what produced the cost."""
-    if kiro_mix:
-        return kiro_mix["rate"], {k: v for k, v in kiro_mix.items() if k != "rate"}
-    if credit_rate != KIRO_DEFAULT_RATE:
-        return credit_rate, None
-    return KIRO_DEFAULT_RATE, dict(KIRO_DEFAULT_MIX)
-
-
-def token_rows(harness_sums, rates, online):
+def token_rows(harness_sums, online):
     """Per (day, harness, model) rows from the native scanners' sums.
 
-    The scanners are the token ground truth; this only chooses which price
-    table turns those tokens into dollars. harness_sums maps each harness to
-    (sums, long-context portion); the long portion re-prices at the model's
-    long-context rates where it has them."""
+    The scanners are the token ground truth; this only turns those counts into
+    dollars, linearly, from the LiteLLM table. The l3m harness does not come
+    through here -- it self-prices from its own cents."""
     table = litellm_table(online)
     rows = []
     for harness, (sums, long_sums) in harness_sums.items():
         unmeasured = UNOBSERVABLE_BUCKETS.get(harness, ())
         for key, tok in sums.items():
             day, model = key.split("\x00")
-            tokens = {"inputTokens": tok[0], "outputTokens": tok[1],
-                      "cacheReadTokens": tok[2], "cacheCreationTokens": tok[3]}
-            cost, priced_by = None, "litellm"
-            if rates == "l3m":
-                l3m = l3m_claude_rates(model)
-                if l3m is not None:
-                    cost, priced_by = l3m_cost_usd(l3m, tokens), "l3m"
-            if cost is None:
-                lite = litellm_rates(model, table)
-                cost = token_cost_usd(lite, tokens) if lite else 0.0
-                long_context = codex_long_rates(model)
-                long_tok = long_sums.get(key)
-                if lite and long_context and long_tok:
-                    # Two-stage pricing: the long-context portion was charged
-                    # at base rates above; swap it to the long-context rates.
-                    portion = {"inputTokens": long_tok[0], "outputTokens": long_tok[1],
-                               "cacheReadTokens": long_tok[2],
-                               "cacheCreationTokens": long_tok[3]}
-                    cost += (token_cost_usd(long_context[1], portion)
-                             - token_cost_usd(lite, portion))
+            tokens = dict(zip(TOKEN_KEYS, tok, strict=True))
+            rate = litellm_rates(model, table)
+            cost = token_cost_usd(rate, tokens) if rate else 0.0
+
+            long_context = codex_long_rates(model)
+            long_tok = long_sums.get(key)
+            if rate and long_context and long_tok:
+                # Two-stage pricing: the long-context portion was charged at base
+                # rates above; swap it to the long-context rates.
+                portion = dict(zip(TOKEN_KEYS, long_tok, strict=True))
+                cost += (token_cost_usd(long_context[1], portion)
+                         - token_cost_usd(rate, portion))
+
             # A token model that priced to $0 means no table has an entry for it.
             # Named in provenance rather than glued onto the source string as a
             # "!" suffix, so render tests a label instead of parsing one.
-            if cost == 0.0 and any(tokens.values()):
-                priced_by = UNPRICED
+            priced_by = UNPRICED if (cost == 0.0 and any(tokens.values())) else "litellm"
 
             # Consumed is in Mtok so it shares a scale with the $/Mtok rate;
             # the rate is effective (cost / tokens) so Consumed x Rate == Cost.
@@ -1291,14 +1098,10 @@ def validate_rows(rows):
     """Assert the cross-field coherence provenance() alone cannot see.
 
     provenance() checks each label is in the vocabulary; this checks the labels
-    agree with the row they describe. It closes the gap where a producer states a
-    perfectly valid-looking label that contradicts its own data -- a row with no
-    token buckets claiming a MEASURED mix, or a PARTIAL mix with nothing actually
-    unmeasured. Such mutations passed the whole suite before this existed,
-    because every individual label was legal.
-
-    Runs on every invocation: one pass over a few hundred rows, against a class
-    of error that silently mislabels how a dollar figure is known."""
+    agree with the row they describe -- a row with no token buckets claiming a
+    MEASURED mix, or a PARTIAL mix with nothing actually unmeasured. Runs on every
+    invocation: one pass over a few hundred rows, against a class of error that
+    silently mislabels how a dollar figure is known."""
     for row in rows:
         labels, counted = row["provenance"], bool(row["tokens"])
         where = f"{row['harness']}/{row['model']}"
@@ -1322,10 +1125,7 @@ def validate_rows(rows):
 
 
 def harness_subtotals(rows):
-    """Per-harness aggregates, as numbers -- render only formats them.
-
-    Extracted from render so the arithmetic is reachable by a test rather than
-    trapped inside a print loop."""
+    """Per-harness aggregates as numbers; render only formats them."""
     agg = {}
     for row in rows:
         bucket = agg.setdefault(row["harness"],
@@ -1342,10 +1142,8 @@ def harness_subtotals(rows):
 
 
 def render(rows, stream=None):
-    # Resolved at call time, not bound as a default at import time: a default of
-    # sys.stdout captures whatever stdout was when the module loaded, so
-    # reassigning sys.stdout later (a test harness, a caller redirecting output)
-    # silently has no effect on this function.
+    # Resolved at call time: a `stream=sys.stdout` default binds whatever stdout
+    # was at import, so reassigning sys.stdout later would have no effect.
     stream = sys.stdout if stream is None else stream
 
     def money(value):
@@ -1429,53 +1227,28 @@ def render(rows, stream=None):
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--rates", choices=["l3m", "litellm"], default="l3m",
-                        help="token price source (default: l3m for the Claude family, "
-                             "LiteLLM for the rest; litellm = LiteLLM for everything)")
-    parser.add_argument("--credit-rate", type=float, default=KIRO_DEFAULT_RATE,
-                        help="USD per Kiro credit; bypasses the assumed-mix "
-                             f"derivation (default {KIRO_DEFAULT_RATE:.4f})")
-    parser.add_argument("--kiro-mix", metavar="CR/CW", type=kiro_mix_rate,
-                        help="assume this input-side token mix for Kiro instead of the "
-                             "default 100%% cache-read, and derive $/credit from it. "
-                             "'95/5' borrows Claude Code's measured mix -> $0.1176/credit. "
-                             "Overrides --credit-rate")
     parser.add_argument("--since", help="filter from date (YYYY-MM-DD)")
     parser.add_argument("--until", help="filter until date, inclusive (YYYY-MM-DD)")
     parser.add_argument("--offline", dest="offline", action="store_true", default=True,
                         help="use embedded/cached LiteLLM prices (default)")
     parser.add_argument("--online", dest="offline", action="store_false",
                         help="refresh LiteLLM prices over the network first")
-    parser.add_argument("--json", action="store_true", help="emit rows + totals as JSON")
-    parser.add_argument("--raw-credits", dest="calibrate", action="store_false", default=True,
-                        help="report Kiro credits exactly as scanned, without the "
-                             f"x{KIRO_COMPLETENESS:.4f} completeness correction measured "
-                             "against /usage")
-    parser.add_argument("--verify-credits", type=float, metavar="CREDITS",
-                        help="re-measure completeness: pass the credit total from `/usage` "
-                             "inside a Kiro session and compare it against the raw scan "
-                             "over the same window (use with --since/--until)")
     args = parser.parse_args()
 
-    credit_rate, assumed_mix = resolve_kiro_pricing(args.kiro_mix, args.credit_rate)
-    completeness = KIRO_COMPLETENESS if args.calibrate else 1.0
-    if args.verify_credits:
-        completeness = 1.0          # never calibrate the figure being verified
-
-    # The five sources are independent, so read them concurrently. Threads, not
-    # processes: the legs that wait outside the GIL (l3m's git subprocesses,
-    # sqlite, disk I/O when the page cache is cold) genuinely overlap; the
-    # pure-Python JSON parsing serializes under the GIL, but after the first
-    # build the caches leave almost none of it to do. A process pool would
-    # spend more on worker startup than it could reclaim -- and could not be
-    # spawned anyway from a script without a .py suffix.
+    # No flag bypasses this, so KIRO_DEFAULT_MIX is provably what priced every
+    # Kiro row. Edit that constant to change it.
+    credit_rate, assumed_mix = KIRO_DEFAULT_RATE, dict(KIRO_DEFAULT_MIX)
+    # Threads, not processes: the waits that matter (git subprocesses, sqlite,
+    # cold-cache disk I/O) sit outside the GIL, and after the first build the
+    # caches leave almost no JSON parsing to serialize. A process pool could not
+    # be spawned from a file without a .py suffix anyway.
     with concurrent.futures.ThreadPoolExecutor() as pool:
         futures = {
             "claude": pool.submit(claude_sums),
             "codex": pool.submit(codex_sums),
             "opencode": pool.submit(opencode_sums),
         }
-        kiro = pool.submit(kiro_rows, credit_rate, completeness, assumed_mix)
+        kiro = pool.submit(kiro_rows, credit_rate, assumed_mix)
         l3m = pool.submit(l3m_rows, l3m_settings())
         harness_sums = {
             "claude": (futures["claude"].result(), {}),
@@ -1483,7 +1256,7 @@ def main():
             "opencode": (futures["opencode"].result(), {}),
         }
         rows = (kiro.result() + l3m.result()
-                + token_rows(harness_sums, args.rates, not args.offline))
+                + token_rows(harness_sums, not args.offline))
 
     # One date filter for every harness (the scanners run unfiltered so their
     # caches serve every window). Undated rows are kept deliberately -- see the
@@ -1493,39 +1266,7 @@ def main():
     if args.until:
         rows = [r for r in rows if not r["day"] or r["day"] <= args.until]
 
-    if args.verify_credits:
-        scanned = sum(r["consumed"] for r in rows if r["harness"] == "kiro")
-        window = f"{args.since or 'beginning'}..{args.until or 'now'}"
-        ratio = args.verify_credits / scanned if scanned else 0.0
-        print(f"Kiro credit completeness over {window}:")
-        print(f"  /usage authoritative : {args.verify_credits:12,.2f}")
-        print(f"  scanned from logs    : {scanned:12,.2f}")
-        print(f"  completeness factor  : {ratio:12.4f}  "
-              f"({100 * (1 / ratio - 1):+.1f}% scanned vs authoritative)"
-              if ratio else "  completeness factor  :          n/a")
-        print(f"  in effect            : {KIRO_COMPLETENESS:12.4f}  "
-              f"(KIRO_CREDIT_ANCHOR, observed {KIRO_CREDIT_ANCHOR['observed']})")
-        if ratio and abs(ratio / KIRO_COMPLETENESS - 1) > 0.02:
-            print("  -> drifted more than 2% from the recorded anchor; update "
-                  "KIRO_CREDIT_ANCHOR in this script.")
-        return
-
     validate_rows(rows)
-
-    if args.json:
-        totals = collections.defaultdict(float)
-        for row in rows:
-            totals[row["harness"]] += row["cost"]
-        json.dump({
-            "rows": rows,
-            "totals_usd": {"by_harness": dict(totals), "grand": sum(totals.values())},
-            "config": {"rates": args.rates, "credit_rate": credit_rate,
-                       "offline": args.offline, "kiro_band": list(KIRO_BAND),
-                       "kiro_completeness": completeness,
-                       "kiro_credit_anchor": KIRO_CREDIT_ANCHOR},
-        }, sys.stdout, indent=2)
-        print()
-        return
 
     render(rows)
 
