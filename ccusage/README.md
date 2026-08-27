@@ -12,13 +12,13 @@ ccusage-all
 ```
 
 ```
-Date        Day Total  Harness  Model                Consumed  Unit        Rate  Cached     Std   Eff  Cost (USD)
-----------  ---------  -------  ------------------  ---------  -------  -------  ------  ------  ----  ----------
--             $161.27  l3m      l3m-unknown             41.25  Mtok       $3.91     28%       -     -     $161.27
-2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745     96%  $0.813  0.92   $1,347.96
-                       codex    openai.gpt-5.6-sol      81.07  Mtok       $1.02     91%  $0.825  1.24      $83.02
-                       codex    openai.gpt-5.4           2.06  Mtok       $1.43     49%  $0.299  4.78       $2.95
-                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747       -       -     -     $398.36
+Date        Day Total  Harness  Model                Consumed  Unit        Rate   CR   CW     Std   Eff  Cost (USD)
+----------  ---------  -------  ------------------  ---------  -------  -------  ---  ---  ------  ----  ----------
+-             $161.27  l3m      l3m-unknown             41.25  Mtok       $3.91  28%   2%       -     -     $161.27
+2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745  96%   4%  $0.813  0.92   $1,347.96
+                       claude   claude-fable-5           3.38  Mtok       $3.41  80%  20%   $1.62  2.10      $11.54
+                       codex    openai.gpt-5.4           2.06  Mtok       $1.43  49%   0%  $0.299  4.78       $2.95
+                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747    -    -       -     -     $398.36
 ```
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
@@ -27,6 +27,7 @@ across all harnesses, shown once per day.
 ```fish
 ccusage-all                     # default: l3m rates, Kiro calibrated + estimated
 ccusage-all --rates litellm     # price everything from the LiteLLM table
+ccusage-all --kiro-mix 95/5     # price Kiro at Claude Code's measured token mix
 ccusage-all --since 2026-08-01 --until 2026-08-14
 ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
 ccusage-all --raw-credits       # Kiro credits exactly as scanned, uncalibrated
@@ -45,20 +46,50 @@ different $/Mtok under *identical* pricing, as `codex` does against itself above
 
 Don't try to reconcile them. Both price tables already agree exactly (`--rates
 l3m` and `--rates litellm` return the same totals), so the spread is real and
-carries information. Three columns make the comparison valid instead by holding
-the mix fixed:
+carries information. Four columns expose the mix and then hold it fixed:
 
-- **`Cached`** — the row's cache-read share, which drives most of the spread.
+- **`CR` / `CW`** — the row's cache-read and cache-write shares, **measured**
+  from the logs. Watch `CW`, not `CR`: a cache write costs 1.25× fresh input,
+  which is 12.5× a cache read, so a few percent of it outweighs a large swing in
+  `CR`. That's the whole reason `claude-fable-5` at 80/20 reads $3.41/Mtok while
+  `claude-opus-5` at 96/4 reads $0.75.
 - **`Std`** — the row re-priced at the *pooled* mix of every token-logged row in
   the window, so it varies only by model. This is the standardized cost.
 - **`Eff`** — `Rate / Std`: how favourable that row's own mix was. Below 1.00 is
   cheaper than this box's average, above is dearer. `gpt-5.4` at 4.78 is not an
   expensive model, it's a badly-cached one.
 
-A model no price table lists gets no `Std`. Kiro gets none of the three: it logs
-no token buckets, and its $/credit already embeds an *assumed* mix (a flat ×0.1
-cache-read factor — see [FINDINGS.md](FINDINGS.md)), which is exactly why it
-can't join that column honestly.
+A model no price table lists gets no `Std`.
+
+## Kiro is the only harness that assumes a mix
+
+Every other harness *counts* its cache reads and writes — they arrive in the API
+response and go straight into a bucket, priced at their own published tier. No
+estimate is involved. Kiro logs no buckets, so its $/credit has a mix baked into
+the constant:
+
+```
+$0.0747/credit  =  $0.7468 (fresh-input basis)  ×  0.100
+                                                   ^^^^^ asserts 100% cache-read
+```
+
+That is more caching than any harness here actually achieves. `--kiro-mix 95/5`
+substitutes Claude Code's measured 95.1%/4.4% instead — the defensible proxy,
+since Kiro is an Anthropic-model agentic CLI with automatic cache management and
+architecturally its twin. It gives **$0.1176/credit, +57%**, and lands 70% of the
+way up the existing −13%/+88% band, which is corroboration: that band's lopsided
+upper half was absorbing exactly this bias.
+
+Note what drives it. At 95/5 the cache-read term is `0.95 × 0.10 = 0.095`, which
+is *below* the current 0.100 — dropping from 100% to 95% caching on its own makes
+Kiro **cheaper**. The correction comes almost entirely from the 5% cache-write at
+`0.05 × 1.25 = 0.0625`, i.e. 40% of the factor from 5% of the tokens. `90/10`
+breaks out of the band entirely, which is the signal it's too aggressive.
+
+Output is deliberately excluded from that mix: `k` was calibrated on context
+tokens, which are input-side, so correcting the input-side mix doesn't
+double-count — whereas [FINDINGS.md](FINDINGS.md) argues the 1.80× bimodality in
+`k` already *is* unreported output.
 
 ## Pricing
 

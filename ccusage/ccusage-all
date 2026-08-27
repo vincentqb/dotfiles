@@ -61,7 +61,7 @@ happened on were never recorded. It is carried undated rather than dumped on the
 day it first became visible, and it survives `--since`/`--until` like any undated
 row -- dropping it would silently shrink the total.
 
-Columns: Date | Harness | Model | Consumed | Unit | Rate | Cached | Std | Eff |
+Columns: Date | Harness | Model | Consumed | Unit | Rate | CR | CW | Std | Eff |
 Cost (USD), where Consumed x Rate = Cost on every row. `Unit` is `credits` for
 Kiro (metered) and `Mtok` (millions of tokens) for the token-logged harnesses --
 the two are not commensurable, so `Consumed` sums only within a harness;
@@ -74,24 +74,34 @@ output $25.00/Mtok), so a 95%-cached harness and a 75%-cached one show very
 different $/Mtok under IDENTICAL pricing. Do not try to reconcile them -- both
 price tables here already agree exactly, and the spread is real.
 
-To make the comparison valid instead, three columns hold the mix fixed:
-`Cached` is the row's cache-read share, the driver of most of the spread; `Std`
-re-prices the row at the POOLED mix of every token-logged row in the window, so
-it varies only by model; and `Eff` = Rate/Std reads how favourable that row's own
-mix was (<1.00 cheaper than this box's average, >1.00 dearer). A row whose model
-no price table lists gets no Std. Kiro gets none of the three: it logs no token
-buckets, and its $/credit already embeds an ASSUMED mix (a flat x0.1 cache-read
-factor, FINDINGS.md), which is precisely why it cannot join that column honestly.
+To make the comparison valid instead, four columns expose and then fix the mix.
+`CR` and `CW` are the row's cache-read and cache-write shares, MEASURED from the
+logs for every token harness -- no assumption anywhere. Watch CW rather than CR:
+cache-write costs 1.25x fresh input, 12.5x a cache read, so a few percent of it
+outweighs a large swing in CR. That is why claude-fable-5 at 80% CR / 20% CW
+reads $3.41/Mtok while claude-opus-5 at 96%/4% reads $0.75. `Std` re-prices the
+row at the POOLED mix of every token-logged row in the window, so it varies only
+by model; `Eff` = Rate/Std reads how favourable that row's own mix was (<1.00
+cheaper than this box's average, >1.00 dearer) -- codex's gpt-5.4 at Eff 4.78 is
+not an expensive model, it is a badly-cached one. A row whose model no price
+table lists gets no Std.
 
-Kiro credits are calibrated: the session-log scan is measurably incomplete
-against `/usage`, Kiro's own authoritative total, so credits are scaled by
-KIRO_COMPLETENESS (x1.0533 as recorded, ~+5%). That corrects the SCAN, not the
-price -- the -13%/+88% band still rides on the $/credit conversion alone. Use
-`--raw-credits` for the uncorrected scan and `--verify-credits` to re-measure.
+Kiro has none of those four, and it is the only harness that assumes rather than
+measures. Its $/credit embeds a mix: $0.0747 = $0.7468 (fresh-input basis) x
+0.100, and that 0.100 asserts 100% cache-read. `--kiro-mix 95/5` substitutes
+Claude Code's measured mix instead, giving $0.1176/credit (+57%); see
+KIRO_PRICE_RATIO for why cache-write, not cache-read, drives that correction.
+
+Kiro credits are separately calibrated: the session-log scan is measurably
+incomplete against `/usage`, Kiro's own authoritative total, so credits are
+scaled by KIRO_COMPLETENESS (x1.0533 as recorded, ~+5%). That corrects the SCAN,
+not the price -- the -13%/+88% band still rides on the $/credit conversion alone.
+Use `--raw-credits` for the uncorrected scan and `--verify-credits` to re-measure.
 
 Usage:
   ccusage-all                     # daily table, l3m rates, Kiro calibrated+estimated
   ccusage-all --rates litellm     # price everything from the LiteLLM table
+  ccusage-all --kiro-mix 95/5     # price Kiro at Claude Code's measured mix
   ccusage-all --credit-rate .056  # output-heavy end of the Kiro estimate
   ccusage-all --raw-credits       # Kiro credits exactly as scanned, uncalibrated
   ccusage-all --since 2026-08-01 --verify-credits 66425.17   # re-check the scan
@@ -171,6 +181,58 @@ OPENCODE_DB = (pathlib.Path(os.environ.get("OPENCODE_DATA_DIR",
 # from local Kiro data, and FINDINGS.md carries the argument.
 USD_PER_CREDIT = 0.0747
 KIRO_BAND = (0.0647 / 0.0747, 0.1405 / 0.0747)
+
+# The mix assumption hiding inside USD_PER_CREDIT, made explicit. The derivation
+# is $/credit = (fresh-input $/credit) x (mix factor), where the mix factor is a
+# token-share-weighted average of the price ratios below. Kiro's default asserts
+# 100% cache-read, hence 0.100 -- the ONLY harness here that assumes a mix rather
+# than measuring one, because it logs no token buckets at all.
+#
+# Price ratios relative to fresh input, identical across the Claude family and
+# the GPT family (deepseek is the lone exception at cache-read 0.2):
+KIRO_PRICE_RATIO = {"in": 1.00, "cr": 0.10, "cw": 1.25}
+KIRO_ASSUMED_MIX = 0.100                                  # 100% cache-read
+KIRO_FRESH_INPUT_RATE = USD_PER_CREDIT / KIRO_ASSUMED_MIX  # $0.7468/credit
+#
+# `--kiro-mix CR/CW` substitutes a different assumed mix. The measured mixes of
+# the token-logged harnesses, for calibration, are:
+#
+#   claude    95.1% cache-read / 4.4% cache-write  -> input-side factor 0.151
+#   opencode  86.5% / 0.0%                         -> 0.209
+#   codex     75.9% / 0.0%                         -> 0.313
+#   l3m       75.4% / 5.2%                         -> 0.329
+#
+# `--kiro-mix 95/5` borrows Claude Code's, which is the defensible proxy: Kiro is
+# an Anthropic-model agentic CLI with automatic cache management, architecturally
+# its twin, and FINDINGS.md's own premise is that Kiro traffic is overwhelmingly
+# cached input. It yields $0.1176/credit, +57%, and lands 70% of the way up the
+# existing band -- corroboration, since the band's lopsided +88% was absorbing
+# exactly this. Beware: cache-WRITE dominates the correction. At 95/5 the 5%
+# contributes 0.0625 against cache-read's 0.095, so 40% of the factor comes from
+# the small share, and 90/10 breaks out of the band entirely.
+#
+# Output is deliberately excluded: k was calibrated on CONTEXT tokens, which are
+# input-side, so correcting the input-side mix does not double-count -- whereas
+# FINDINGS.md argues the 1.80x bimodality in k already IS unreported output, so
+# adding an output term would count it twice.
+
+
+def kiro_mix_rate(spec):
+    """`--kiro-mix CR/CW` -> USD per credit at that assumed input-side mix.
+
+    CR and CW are percentages of input-side tokens; any remainder is fresh
+    input. `--kiro-mix 95/5` is Claude Code's measured mix."""
+    try:
+        parts = [float(p) for p in spec.split("/")]
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected CR/CW percentages, got {spec!r}")
+    if len(parts) != 2 or not all(p >= 0 for p in parts) or sum(parts) > 100:
+        raise argparse.ArgumentTypeError(
+            f"expected two non-negative percentages summing to <=100, got {spec!r}")
+    cr, cw = (p / 100 for p in parts)
+    factor = (cr * KIRO_PRICE_RATIO["cr"] + cw * KIRO_PRICE_RATIO["cw"]
+              + max(0.0, 1 - cr - cw) * KIRO_PRICE_RATIO["in"])
+    return KIRO_FRESH_INPUT_RATE * factor
 
 # Credit-extraction completeness, measured against `/usage` inside a Kiro
 # session -- the one authoritative figure Kiro publishes about itself. It is NOT
@@ -1148,14 +1210,16 @@ def render(rows, stream=sys.stdout):
         # $/Mtok token rates ($0.76 .. $12.8) both read cleanly in one column.
         return "$0" if not value else f"${value:.3g}"
 
-    def pct(row):
-        """Cache-read share of a row's tokens -- the single number that explains
-        most of the spread in the effective Rate column."""
+    def share(row, key):
+        """One bucket's share of a row's tokens. Cache-read explains most of the
+        spread in Rate; cache-write explains most of the rest, because it costs
+        1.25x fresh input -- 12.5x a cache read -- so a few percent of it moves
+        the blended rate more than a large swing in cache-read does."""
         tokens = row.get("tokens")
         if not tokens:
             return "-"
         total = sum(tokens.values())
-        return f"{100 * tokens['cacheReadTokens'] / total:.0f}%" if total else "-"
+        return f"{100 * tokens[key] / total:.0f}%" if total else "-"
 
     def eff(row):
         """Effective rate over the standardized one: <1.00 means this row's own
@@ -1168,8 +1232,8 @@ def render(rows, stream=sys.stdout):
         return
 
     cols = ["Date", "Day Total", "Harness", "Model", "Consumed", "Unit",
-            "Rate", "Cached", "Std", "Eff", "Cost (USD)"]
-    aligns = ["<", ">", "<", "<", ">", "<", ">", ">", ">", ">", ">"]
+            "Rate", "CR", "CW", "Std", "Eff", "Cost (USD)"]
+    aligns = ["<", ">", "<", "<", ">", "<", ">", ">", ">", ">", ">", ">"]
 
     day_totals = collections.defaultdict(float)
     for row in rows:
@@ -1183,7 +1247,8 @@ def render(rows, stream=sys.stdout):
         day = row["day"] or "-"
         body.append([day, money(day_totals[day]), row["harness"], model,
                      qty(row["consumed"]), row["unit"], fmt_rate(row["rate"]),
-                     pct(row), fmt_rate(row.get("std_rate", 0)) if row.get("std_rate") else "-",
+                     share(row, "cacheReadTokens"), share(row, "cacheCreationTokens"),
+                     fmt_rate(row.get("std_rate", 0)) if row.get("std_rate") else "-",
                      eff(row), money(row["cost"])])
 
     # Subtotals per harness, then the grand total. Consumed sums only within a
@@ -1209,15 +1274,19 @@ def render(rows, stream=sys.stdout):
         rate = bucket["cost"] / bucket["consumed"] if bucket["consumed"] else 0.0
         std = bucket["std"] / bucket["consumed"] if bucket["consumed"] else 0.0
         total_tok = sum(bucket["tokens"].values())
-        cached = (f"{100 * bucket['tokens']['cacheReadTokens'] / total_tok:.0f}%"
-                  if total_tok else "-")
+
+        def bucket_share(key):
+            return f"{100 * bucket['tokens'][key] / total_tok:.0f}%" if total_tok else "-"
+
         subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]), bucket["unit"],
-                          fmt_rate(rate), cached, fmt_rate(std) if std else "-",
+                          fmt_rate(rate), bucket_share("cacheReadTokens"),
+                          bucket_share("cacheCreationTokens"),
+                          fmt_rate(std) if std else "-",
                           f"{rate / std:.2f}" if std else "-", money(bucket["cost"])])
         if harness == "kiro":
             low, high = (bucket["cost"] * b for b in KIRO_BAND)
             band[len(subtotals) - 1] = f"{money(bucket['cost'])} [{low:,.0f}, {high:,.0f}]"
-    total = ["TOTAL", "", "", "", "", "", "", "", "", "", money(grand)]
+    total = ["TOTAL", "", "", "", "", "", "", "", "", "", "", money(grand)]
 
     # Width over everything except the band suffix, which rides the last column
     # (always rightmost) and may overflow it without disturbing the rest.
@@ -1257,6 +1326,11 @@ def main():
                              "LiteLLM for the rest; litellm = LiteLLM for everything)")
     parser.add_argument("--credit-rate", type=float, default=USD_PER_CREDIT,
                         help=f"USD per Kiro credit (default {USD_PER_CREDIT})")
+    parser.add_argument("--kiro-mix", metavar="CR/CW", type=kiro_mix_rate,
+                        help="assume this input-side token mix for Kiro instead of the "
+                             "default 100%% cache-read, and derive $/credit from it. "
+                             "'95/5' borrows Claude Code's measured mix -> $0.1176/credit. "
+                             "Overrides --credit-rate")
     parser.add_argument("--since", help="filter from date (YYYY-MM-DD)")
     parser.add_argument("--until", help="filter until date, inclusive (YYYY-MM-DD)")
     parser.add_argument("--offline", dest="offline", action="store_true", default=True,
@@ -1274,7 +1348,8 @@ def main():
                              "over the same window (use with --since/--until)")
     args = parser.parse_args()
 
-    credit_rate = args.credit_rate
+    # --kiro-mix is already converted to a $/credit rate by its argparse type.
+    credit_rate = args.kiro_mix if args.kiro_mix else args.credit_rate
     completeness = KIRO_COMPLETENESS if args.calibrate else 1.0
     if args.verify_credits:
         completeness = 1.0          # never calibrate the figure being verified
