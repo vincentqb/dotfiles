@@ -24,6 +24,8 @@ brew "ripgrep"
 brew "rsync"
 brew "wget"
 brew "autossh"
+brew "openconnect"
+brew "vpn-slice"
 
 # Git
 brew "gh"
