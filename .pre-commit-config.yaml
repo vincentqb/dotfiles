@@ -5,3 +5,16 @@ repos:
     - id: pip-compile
       args: [requirements.in, -o, requirements.txt, --upgrade]
       files: ^requirements\.(in|txt)$
+
+- repo: local
+  hooks:
+    # ccusage-all reports dollar figures, and its derived columns (Std, Eff) can
+    # be wrong while still rendering plausibly -- two such bugs shipped and
+    # survived several readings of the table before this hook existed. Runs only
+    # when that directory changes.
+    - id: ccusage-tests
+      name: ccusage-all invariants
+      entry: python3 -m unittest discover -s ccusage
+      language: system
+      pass_filenames: false
+      files: ^ccusage/

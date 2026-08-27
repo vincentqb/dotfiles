@@ -114,6 +114,31 @@ tokens, which are input-side, so correcting the input-side mix doesn't
 double-count — whereas [FINDINGS.md](FINDINGS.md) argues the 1.80× bimodality in
 `k` already *is* unreported output.
 
+## Tests
+
+```fish
+cd ccusage; python3 -m unittest discover      # or ./test_ccusage_all.py
+```
+
+Stdlib `unittest`, no dependency to install. They run automatically via
+pre-commit whenever anything under `ccusage/` changes.
+
+Every test corresponds to something that was once wrong. The `Std`/`Eff`
+propagation tests especially: two bugs shipped there and survived several
+readings of the table, because a wrong number in a derived column still renders
+neatly. One divided a volume-weighted `Std` by *total* consumed instead of
+*priced* consumed, which understated `Std` and overstated `Eff` in proportion to
+a harness's unpriced volume — it put opencode at `Eff` 2.57 where the priced
+portion is 0.51, inverting "dearer than average" into "cheaper". The other let
+longest-prefix matching resolve an l3m fallback chain
+(`claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra`) to its first element and price
+the whole thing as pure opus-5.
+
+The suite is checked by mutation rather than trusted: reintroducing each of ten
+known bugs — including both of those, the credit-completeness factor applied to
+the wrong field, the l3m round-to-cent term, and `canon` ceasing to strip
+provider prefixes — produces a failure in every case.
+
 ## Pricing
 
 The trustworthy cost is always *real tokens × published list price*. Claude,

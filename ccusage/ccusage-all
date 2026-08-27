@@ -261,7 +261,8 @@ def kiro_mix_rate(spec):
     try:
         parts = [float(p) for p in spec.split("/")]
     except ValueError:
-        raise argparse.ArgumentTypeError(f"expected CR/CW percentages, got {spec!r}")
+        raise argparse.ArgumentTypeError(
+            f"expected CR/CW percentages, got {spec!r}") from None
     if len(parts) != 2 or not all(p >= 0 for p in parts) or sum(parts) > 100:
         raise argparse.ArgumentTypeError(
             f"expected two non-negative percentages summing to <=100, got {spec!r}")
@@ -1139,12 +1140,24 @@ def token_cost_usd(rates, tokens):
 
 
 def model_rates(model, rates, table):
-    """The (in, out, cache-read, cache-write) USD/Mtok tuple a row is priced at,
-    under the active `--rates` mode, or None when no table lists the model.
+    """The (in, out, cache-read, cache-write) USD/Mtok tuple to STANDARDIZE a row
+    at, under the active `--rates` mode, or None when the model cannot be priced
+    unambiguously.
 
-    Shared by token_rows (which spends it) and standardize (which re-uses it at
-    a common mix), so a row's effective and standardized rates can never be
-    computed from different prices."""
+    None for two distinct reasons, both of which must render "-" rather than a
+    number: no table lists the model at all, or the name is an l3m fallback CHAIN
+    (`claude-opus-5,opus,sonnet,haiku,gpt-5.6-terra`) rather than one model. The
+    chain case is the trap: longest-prefix matching happily resolves it to its
+    first element and prices the whole thing as pure opus-5, even though the
+    calls behind it may have landed on sonnet, haiku or a GPT model. l3m's own
+    `cents` is unaffected -- it charged each call at the model that call really
+    used -- so this only ever corrupted Std/Eff, silently and plausibly.
+
+    Cost deliberately does NOT share this lookup: the l3m path applies
+    round-to-nearest-cent per bucket (l3m_cost_usd) while standardization is
+    linear, so they are not interchangeable."""
+    if "," in model:
+        return None
     if rates == "l3m":
         l3m = l3m_claude_rates(model)
         if l3m is not None:
@@ -1206,7 +1219,7 @@ def standardize(rows, rates, online):
     # calibrated on context tokens, and FINDINGS.md argues the bimodality in k
     # already IS unreported output. Comparing an input-side factor against a
     # pooled one that included output would be the apples-to-oranges version.
-    pooled_mix = dict(zip(("in", "out", "cr", "cw"), shares))
+    pooled_mix = dict(zip(("in", "out", "cr", "cw"), shares, strict=True))
     input_side = pooled_mix["in"] + pooled_mix["cr"] + pooled_mix["cw"]
     if input_side:
         pooled_factor = kiro_mix_factor(
@@ -1215,7 +1228,29 @@ def standardize(rows, rates, online):
             assumed = row.get("assumed_mix")
             if assumed and pooled_factor:
                 row["efficiency"] = kiro_mix_factor(assumed) / pooled_factor
-    return dict(zip(TOKEN_KEYS, shares))
+    return dict(zip(TOKEN_KEYS, shares, strict=True))
+
+
+def resolve_kiro_pricing(kiro_mix, credit_rate):
+    """-> (credit_rate, assumed_mix) for the Kiro rows.
+
+    Lives outside main so the wiring is testable: the mutation "pass
+    USD_PER_CREDIT through instead of deriving it from KIRO_DEFAULT_MIX" is
+    invisible to any test that only inspects constants, because the constants
+    stay consistent -- it is the *plumbing* that stops honouring the mix.
+
+    Three cases, and the third is the one that matters:
+      * --kiro-mix: rate derived from the given mix.
+      * explicit --credit-rate: no mix corresponds to it, so None. Notably 0.056,
+        the output-dominated rate, lies on a different axis entirely and
+        back-solves to an impossible >100% cache-read share.
+      * neither: the DEFAULT rate, itself derived from KIRO_DEFAULT_MIX, so the
+        ~100%/~0% the table prints is provably what produced the cost."""
+    if kiro_mix:
+        return kiro_mix["rate"], {k: v for k, v in kiro_mix.items() if k != "rate"}
+    if credit_rate != USD_PER_CREDIT:
+        return credit_rate, None
+    return KIRO_DEFAULT_RATE, dict(KIRO_DEFAULT_MIX)
 
 
 def token_rows(harness_sums, rates, online):
@@ -1265,6 +1300,53 @@ def token_rows(harness_sums, rates, online):
                 "cost": cost, "tokens": tokens, "priced_by": priced_by,
             })
     return rows
+
+
+def harness_subtotals(rows):
+    """Per-harness aggregates, as numbers -- render only formats them.
+
+    Extracted from render so the arithmetic is testable: the Std/Eff propagation
+    here had a denominator bug that no amount of eyeballing the table caught.
+
+    `std` is volume-weighted over only the rows that HAVE a standardized rate,
+    and divided by THAT volume. Dividing by total consumed instead silently
+    understates Std -- and so overstates Eff -- in proportion to a harness's
+    unpriced volume: it put opencode (80% of its Mtok on a model no price table
+    lists) at Eff 2.57 when the priced portion is 0.51, inverting the reading
+    from "dearer than average" to "cheaper". A harness with nothing priced gets
+    std None rather than 0, so render shows "-" instead of a fabricated zero."""
+    agg = {}
+    for row in rows:
+        bucket = agg.setdefault(row["harness"], {
+            "consumed": 0.0, "cost": 0.0, "unit": "", "tokens": collections.Counter(),
+            "std_weighted": 0.0, "std_consumed": 0.0, "assumed_mix": None,
+            "efficiency": None})
+        bucket["consumed"] += row["consumed"]
+        bucket["cost"] += row["cost"]
+        bucket["unit"] = row["unit"]
+        if row.get("tokens"):
+            bucket["tokens"].update(row["tokens"])
+        if row.get("assumed_mix"):
+            # Every Kiro row shares one assumed mix, so the subtotal's Eff is
+            # that same ratio -- no volume weighting to do.
+            bucket["assumed_mix"] = row["assumed_mix"]
+            bucket["efficiency"] = row.get("efficiency")
+        if row.get("std_rate"):
+            bucket["std_weighted"] += row["std_rate"] * row["consumed"]
+            bucket["std_consumed"] += row["consumed"]
+
+    for bucket in agg.values():
+        consumed, priced = bucket["consumed"], bucket["std_consumed"]
+        bucket["rate"] = bucket["cost"] / consumed if consumed else 0.0
+        bucket["std"] = bucket["std_weighted"] / priced if priced else None
+        total_tokens = sum(bucket["tokens"].values())
+        bucket["cache_shares"] = (
+            {name: bucket["tokens"][key] / total_tokens
+             for name, key in (("cr", "cacheReadTokens"), ("cw", "cacheCreationTokens"))}
+            if total_tokens else None)
+        if bucket["std"]:
+            bucket["efficiency"] = bucket["rate"] / bucket["std"]
+    return agg
 
 
 def render(rows, stream=sys.stdout):
@@ -1339,49 +1421,26 @@ def render(rows, stream=sys.stdout):
     # Subtotals per harness, then the grand total. Consumed sums only within a
     # harness (one unit each); across harnesses only Cost is summable. Only the
     # Kiro subtotal carries the estimate band -- token costs are list-price points.
-    agg = collections.defaultdict(lambda: {"consumed": 0.0, "cost": 0.0, "unit": "",
-                                           "tokens": collections.Counter(), "std": 0.0,
-                                           "assumed_mix": None, "efficiency": None})
-    for row in rows:
-        bucket = agg[row["harness"]]
-        bucket["consumed"] += row["consumed"]
-        bucket["cost"] += row["cost"]
-        bucket["unit"] = row["unit"]
-        if row.get("tokens"):
-            bucket["tokens"].update(row["tokens"])
-        if row.get("assumed_mix"):
-            # Every Kiro row shares one assumed mix, so its Eff is that same
-            # ratio -- no volume weighting to do.
-            bucket["assumed_mix"] = row["assumed_mix"]
-            bucket["efficiency"] = row.get("efficiency")
-        if row.get("std_rate"):
-            # Volume-weighted, so a harness subtotal's Std is what its own token
-            # mix would have cost at the pooled mix.
-            bucket["std"] += row["std_rate"] * row["consumed"]
     subtotals, band = [], {}
     grand = 0.0
-    for harness, bucket in sorted(agg.items()):
+    for harness, bucket in sorted(harness_subtotals(rows).items()):
         grand += bucket["cost"]
-        rate = bucket["cost"] / bucket["consumed"] if bucket["consumed"] else 0.0
-        std = bucket["std"] / bucket["consumed"] if bucket["consumed"] else 0.0
-        total_tok = sum(bucket["tokens"].values())
+        shares, assumed = bucket["cache_shares"], bucket["assumed_mix"]
 
-        def bucket_share(key, name, bucket=bucket, total_tok=total_tok):
-            if total_tok:
-                return f"{100 * bucket['tokens'][key] / total_tok:.0f}%"
-            assumed = bucket["assumed_mix"]
+        def bucket_share(name, shares=shares, assumed=assumed):
+            if shares:
+                return f"{100 * shares[name]:.0f}%"
             return f"~{100 * assumed[name]:.0f}%" if assumed else "-"
 
-        if std:
-            eff_cell = f"{rate / std:.2f}"
-        elif bucket["efficiency"]:
-            eff_cell = f"~{bucket['efficiency']:.2f}"
+        if bucket["efficiency"]:
+            eff_cell = (f"~{bucket['efficiency']:.2f}" if assumed and not bucket["std"]
+                        else f"{bucket['efficiency']:.2f}")
         else:
             eff_cell = "-"
-        subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]), bucket["unit"],
-                          fmt_rate(rate), bucket_share("cacheReadTokens", "cr"),
-                          bucket_share("cacheCreationTokens", "cw"),
-                          fmt_rate(std) if std else "-",
+        subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]),
+                          bucket["unit"], fmt_rate(bucket["rate"]),
+                          bucket_share("cr"), bucket_share("cw"),
+                          fmt_rate(bucket["std"]) if bucket["std"] else "-",
                           eff_cell, money(bucket["cost"])])
         if harness == "kiro":
             low, high = (bucket["cost"] * b for b in KIRO_BAND)
@@ -1448,21 +1507,7 @@ def main():
                              "over the same window (use with --since/--until)")
     args = parser.parse_args()
 
-    # --kiro-mix is already resolved to {"cr","cw","in","rate"} by its argparse
-    # type. An explicit --credit-rate corresponds to no stated mix -- notably
-    # 0.056, the output-dominated rate, lies on a different axis entirely and
-    # back-solves to an impossible >100% cache-read share -- so its rows carry
-    # no assumed mix and render "-" rather than a fabricated one.
-    explicit_rate = args.credit_rate != USD_PER_CREDIT
-    if args.kiro_mix:
-        credit_rate = args.kiro_mix["rate"]
-        assumed_mix = {k: v for k, v in args.kiro_mix.items() if k != "rate"}
-    elif explicit_rate:
-        credit_rate, assumed_mix = args.credit_rate, None
-    else:
-        # Derived from the mix, not USD_PER_CREDIT passed through, so the
-        # ~100%/~0% the table prints is provably the mix that produced the cost.
-        credit_rate, assumed_mix = KIRO_DEFAULT_RATE, dict(KIRO_DEFAULT_MIX)
+    credit_rate, assumed_mix = resolve_kiro_pricing(args.kiro_mix, args.credit_rate)
     completeness = KIRO_COMPLETENESS if args.calibrate else 1.0
     if args.verify_credits:
         completeness = 1.0          # never calibrate the figure being verified
