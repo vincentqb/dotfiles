@@ -91,11 +91,18 @@ logs no buckets. Its CR/CW cells therefore show the mix its $/credit was derived
 from, prefixed `~` so they never read as measurements: the default is `~100%`/
 `~0%`, i.e. $0.0747 = $0.7468 (fresh-input basis) x 0.100 asserting that every
 token was a cache read. Showing that is the point -- an assumed 100% is a claim,
-and a blank cell hides it. Kiro still gets no Std/Eff: those are $/Mtok, and Kiro
-has no Mtok. `--kiro-mix 95/5` substitutes Claude Code's measured mix instead,
-giving $0.1176/credit (+57%); see KIRO_PRICE_RATIO for why cache-write, not
-cache-read, drives that correction. An explicit `--credit-rate` corresponds to no
-stated mix, so those rows render `-`.
+and a blank cell hides it.
+
+Kiro gets an Eff but no Std, and that asymmetry is deliberate. Std is a $/Mtok,
+so filling it would mean synthesizing a token count from k and the per-model
+multiplier -- an invented quantity in a column that elsewhere holds a measured
+one. Eff needs nothing invented: for one model the absolute prices cancel out of
+Rate/Std, leaving a ratio of MIX FACTORS, and Kiro's assumed mix is a factor
+already. So its `~0.62` says its assumption prices context 38% below what the
+token-logged harnesses actually achieve -- and `--kiro-mix 95/5` driving that to
+`~0.98` is the check that Claude Code's measured mix is what it claims to be.
+An explicit `--credit-rate` corresponds to no stated mix, so those rows show
+neither: `-` in CR, CW and Eff alike.
 
 Kiro credits are separately calibrated: the session-log scan is measurably
 incomplete against `/usage`, Kiro's own authoritative total, so credits are
@@ -1166,6 +1173,33 @@ def standardize(rows, rates, online):
         row["std_rate"] = sum(shares[i] * rate[i] for i in range(4))
         if row["std_rate"]:
             row["efficiency"] = row["rate"] / row["std_rate"]
+
+    # Kiro gets an Eff but no Std, and the asymmetry is the honest one.
+    #
+    # Std is a $/Mtok, so filling it would mean synthesizing a token count from
+    # k and the per-model multiplier -- exactly what FINDINGS.md declines to do,
+    # since it renders an invented quantity in a column that everywhere else
+    # holds a measured one.
+    #
+    # Eff needs no such thing. For a single model the absolute prices cancel out
+    # of Rate/Std, leaving the ratio of MIX FACTORS -- and Kiro's assumed mix is
+    # a factor already. So Eff compares Kiro's assumption against the pooled
+    # measured mix directly, in the same units, with nothing invented.
+    #
+    # Both sides are taken input-side (output dropped, remainder renormalized)
+    # because Kiro's assumed mix is deliberately input-side only: k was
+    # calibrated on context tokens, and FINDINGS.md argues the bimodality in k
+    # already IS unreported output. Comparing an input-side factor against a
+    # pooled one that included output would be the apples-to-oranges version.
+    pooled_mix = dict(zip(("in", "out", "cr", "cw"), shares))
+    input_side = pooled_mix["in"] + pooled_mix["cr"] + pooled_mix["cw"]
+    if input_side:
+        pooled_factor = kiro_mix_factor(
+            {bucket: pooled_mix[bucket] / input_side for bucket in KIRO_PRICE_RATIO})
+        for row in rows:
+            assumed = row.get("assumed_mix")
+            if assumed and pooled_factor:
+                row["efficiency"] = kiro_mix_factor(assumed) / pooled_factor
     return dict(zip(TOKEN_KEYS, shares))
 
 
@@ -1250,8 +1284,17 @@ def render(rows, stream=sys.stdout):
     def eff(row):
         """Effective rate over the standardized one: <1.00 means this row's own
         token mix was cheaper than this box's pooled average, >1.00 dearer.
-        Blank where there is no mix, or no price table lists the model."""
-        return f"{row['efficiency']:.2f}" if row.get("efficiency") else "-"
+        Blank where there is no mix, or no price table lists the model.
+
+        For Kiro this is the ratio of its ASSUMED mix factor to the pooled
+        measured one -- prefixed `~` like its CR/CW, since the numerator is a
+        claim. It is the one number that says how far Kiro's assumption sits from
+        what the token-logged harnesses actually achieve, and `--kiro-mix 95/5`
+        driving it to ~1.00 is the check that that mix matches the measurement."""
+        if not row.get("efficiency"):
+            return "-"
+        return (f"~{row['efficiency']:.2f}" if row.get("assumed_mix")
+                else f"{row['efficiency']:.2f}")
 
     if not rows:
         print("No usage data found.", file=stream)
@@ -1283,7 +1326,7 @@ def render(rows, stream=sys.stdout):
     # Kiro subtotal carries the estimate band -- token costs are list-price points.
     agg = collections.defaultdict(lambda: {"consumed": 0.0, "cost": 0.0, "unit": "",
                                            "tokens": collections.Counter(), "std": 0.0,
-                                           "assumed_mix": None})
+                                           "assumed_mix": None, "efficiency": None})
     for row in rows:
         bucket = agg[row["harness"]]
         bucket["consumed"] += row["consumed"]
@@ -1292,7 +1335,10 @@ def render(rows, stream=sys.stdout):
         if row.get("tokens"):
             bucket["tokens"].update(row["tokens"])
         if row.get("assumed_mix"):
+            # Every Kiro row shares one assumed mix, so its Eff is that same
+            # ratio -- no volume weighting to do.
             bucket["assumed_mix"] = row["assumed_mix"]
+            bucket["efficiency"] = row.get("efficiency")
         if row.get("std_rate"):
             # Volume-weighted, so a harness subtotal's Std is what its own token
             # mix would have cost at the pooled mix.
@@ -1311,11 +1357,17 @@ def render(rows, stream=sys.stdout):
             assumed = bucket["assumed_mix"]
             return f"~{100 * assumed[name]:.0f}%" if assumed else "-"
 
+        if std:
+            eff_cell = f"{rate / std:.2f}"
+        elif bucket["efficiency"]:
+            eff_cell = f"~{bucket['efficiency']:.2f}"
+        else:
+            eff_cell = "-"
         subtotals.append(["Subtotal", "", harness, "", qty(bucket["consumed"]), bucket["unit"],
                           fmt_rate(rate), bucket_share("cacheReadTokens", "cr"),
                           bucket_share("cacheCreationTokens", "cw"),
                           fmt_rate(std) if std else "-",
-                          f"{rate / std:.2f}" if std else "-", money(bucket["cost"])])
+                          eff_cell, money(bucket["cost"])])
         if harness == "kiro":
             low, high = (bucket["cost"] * b for b in KIRO_BAND)
             band[len(subtotals) - 1] = f"{money(bucket['cost'])} [{low:,.0f}, {high:,.0f}]"

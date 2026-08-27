@@ -18,7 +18,7 @@ Date        Day Total  Harness  Model                Consumed  Unit        Rate 
 2026-08-26  $1,995.02  claude   claude-opus-5        1,809.02  Mtok      $0.745    96%   4%  $0.813  0.92   $1,347.96
                        claude   claude-fable-5           3.38  Mtok       $3.41    80%  20%   $1.62  2.10      $11.54
                        codex    openai.gpt-5.4           2.06  Mtok       $1.43    49%   0%  $0.299  4.78       $2.95
-                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747  ~100%  ~0%       -     -     $398.36
+                       kiro     gpt-5.6-sol          5,332.86  credits  $0.0747  ~100%  ~0%       -  ~0.62     $398.36
 ```
 
 **Cost = Consumed × Rate** on every row, and `Day Total` is that date's total
@@ -59,7 +59,8 @@ carries information. Four columns expose the mix and then hold it fixed:
   cheaper than this box's average, above is dearer. `gpt-5.4` at 4.78 is not an
   expensive model, it's a badly-cached one.
 
-A model no price table lists gets no `Std`.
+A model no price table lists gets no `Std`. A `~` prefix anywhere in these
+columns means assumed rather than measured — see below.
 
 ## Kiro is the only harness that assumes a mix
 
@@ -76,15 +77,31 @@ $0.0747/credit  =  $0.7468 (fresh-input basis)  ×  0.100
 Kiro's `CR`/`CW` cells show that assumed mix rather than sitting blank, prefixed
 `~` so it can't be mistaken for a measurement — `~100%` / `~0%` by default. An
 assumed 100% is a claim, and hiding it in a constant is how it went unexamined.
-(Kiro still gets no `Std`/`Eff`: those are $/Mtok and Kiro has no Mtok. An
-explicit `--credit-rate` corresponds to no stated mix, so it renders `-`.)
 
-That is more caching than any harness here actually achieves. `--kiro-mix 95/5`
-substitutes Claude Code's measured 95.1%/4.4% instead — the defensible proxy,
-since Kiro is an Anthropic-model agentic CLI with automatic cache management and
-architecturally its twin. It gives **$0.1176/credit, +57%**, and lands 70% of the
-way up the existing −13%/+88% band, which is corroboration: that band's lopsided
-upper half was absorbing exactly this bias.
+Kiro also gets an `Eff`, but no `Std`, and that asymmetry is the honest one:
+
+- **`Std` stays blank.** It's a $/Mtok, so filling it would mean synthesizing a
+  token count from `k` and the per-model multiplier — an invented number in a
+  column that everywhere else holds a measured one.
+- **`Eff` fills.** Nothing is invented: for one model the absolute prices cancel
+  out of `Rate/Std`, leaving a ratio of *mix factors*, and Kiro's assumed mix is
+  a factor already. Both sides are taken input-side, since Kiro's assumed mix is
+  input-side by construction.
+
+So Kiro's default `~0.62` says its assumption prices context **38% below what the
+token-logged harnesses actually achieve** — the whole finding, as one cell. And
+`--kiro-mix 95/5` drives it to `~0.98`, which is the check that Claude Code's
+measured mix is what it claims to be.
+
+An explicit `--credit-rate` corresponds to no stated mix, so it shows `-` in
+`CR`, `CW` and `Eff` alike.
+
+That default is more caching than any harness here actually achieves.
+`--kiro-mix 95/5` substitutes Claude Code's measured 95.1%/4.4% instead — the
+defensible proxy, since Kiro is an Anthropic-model agentic CLI with automatic
+cache management and architecturally its twin. It gives **$0.1176/credit, +57%**,
+and lands 70% of the way up the existing −13%/+88% band, which is corroboration:
+that band's lopsided upper half was absorbing exactly this bias.
 
 Note what drives it. At 95/5 the cache-read term is `0.95 × 0.10 = 0.095`, which
 is *below* the current 0.100 — dropping from 100% to 95% caching on its own makes
