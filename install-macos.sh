@@ -43,6 +43,8 @@ brazil setup completion
 aim plugins install AmazonBuilderCoreAIAgents
 xcode-select --install
 
+aim mcp start-server flywheel-mcp
+
 # Hibernate (25) instead of sleep (3) on lid close
 # https://discussions.apple.com/thread/255421002
 sudo pmset hibernatemode 25
