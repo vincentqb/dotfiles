@@ -135,6 +135,10 @@ if grep -q 'BatchMode=yes' "$T/log"; then
 else
     check "reconnect probes quietly first" y n
 fi
+case " $(probe_argv) " in
+    *" -o ControlPath=none "*) check "reconnect probes bypass multiplexing" y y ;;
+    *) check "reconnect probes bypass multiplexing" y "n: $(probe_argv)" ;;
+esac
 
 # -N is useful for a forwarding-only session, but on a probe it suppresses the
 # appended `true` and makes a healthy connection live forever. The real sessions

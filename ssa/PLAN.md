@@ -8,7 +8,7 @@ Wrap OpenSSH so an interactive shell, tmux attachment, or forwarding-only sessio
 
 - **No blocking prompts:** supervised sessions and probes force `BatchMode=yes`; recovery waits for external state to change.
 - **No implicit command replay:** a supplied remote command that returns 255 may already have run because remote stderr and OpenSSH diagnostics share one stream. Retry only with `--retry-command`.
-- **Finite, side-effect-light probes:** connection probes retain routing/authentication options, clear forwards, and remove session-only flags such as `-N`; they must execute `true` and return.
+- **Finite, side-effect-light probes:** connection probes bypass multiplexing, retain routing/authentication options, clear forwards, and remove session-only flags such as `-N`; they must execute `true` and return.
 - **Detect dead sessions:** refuse effective SSH configuration with `ServerAliveInterval=0` rather than silently rewriting it.
 - **Fail closed on trust changes:** never repair `known_hosts`; stop on a changed or unverifiable host key.
 - **Own child lifecycle:** `INT`/`TERM` stop both OpenSSH and the stderr copier and return conventional 128+signal statuses.

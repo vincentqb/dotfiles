@@ -210,7 +210,7 @@ portal() {
 probe_err=
 probe() {
     probe_err=$(ssh -T -o BatchMode=yes -o ConnectTimeout="$probe_timeout" \
-        -o ControlMaster=no -o ClearAllForwardings=yes \
+        -o ControlMaster=no -o ControlPath=none -o ClearAllForwardings=yes \
         ${probe_compat[@]+"${probe_compat[@]}"} \
         ${probe_opts[@]+"${probe_opts[@]}"} "$host" true 2>&1 >/dev/null)
 }

@@ -212,7 +212,7 @@ ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ./test-ssa
 ```
 
-54 checks against local `ssh`, `ssh-keygen`, and `curl` stubs exercise the paths
+55 checks against local `ssh`, `ssh-keygen`, and `curl` stubs exercise the paths
 that normally need a broken network: changed host key, expired certificate,
 forwarding-only reconnect, portal diagnosis, ambiguous remote stderr, and direct
 `SIGTERM`. The suite makes no network connection and every discovered failure is
