@@ -14,7 +14,7 @@ set -uo pipefail
 
 SSA=$(cd "$(dirname "$0")" && pwd)/ssa
 T=$(mktemp -d "${TMPDIR:-/tmp}/ssa-test.XXXXXX")
-trap 'rm -rf "$T"' EXIT
+trap 'rm -r "$T"' EXIT
 mkdir -p "$T/bin"
 
 cat >"$T/bin/ssh" <<'STUB'
@@ -31,6 +31,10 @@ n=$(cat "$STUB_COUNT" 2>/dev/null || echo 0)
 n=$((n + 1))
 echo "$n" >"$STUB_COUNT"
 printf '%d\t%s\n' "$n" "$*" >>"$STUB_LOG"
+if [[ -n ${STUB_HOLD:-} ]]; then
+    printf '%s\n' "$$" >"$STUB_HOLD"
+    exec sleep 60
+fi
 IFS=';' read -ra plan <<<"$STUB_PLAN"
 step=${plan[$((n - 1))]:-${plan[$((${#plan[@]} - 1))]}}
 rc=${step%%:*}
@@ -39,6 +43,14 @@ msg=${step#*:}
 exit "$rc"
 STUB
 chmod +x "$T/bin/ssh"
+
+# Keep wait-path tests offline and deterministic. Individual cases override the
+# response to model a portal intercepting the connectivity check.
+cat >"$T/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s' "${STUB_PORTAL_CODE:-204}"
+STUB
+chmod +x "$T/bin/curl"
 
 export PATH="$T/bin:$PATH"
 export STUB_COUNT=$T/count STUB_LOG=$T/log
@@ -61,7 +73,11 @@ check() { # check LABEL WANT GOT
 }
 reset() { : >"$T/log"; echo 0 >"$STUB_COUNT"; }
 sessions() { grep -c . "$T/log"; }
-first_argv() { awk -F'\t' 'NR == 1 { print $2 }' "$T/log"; }
+nth_argv() { awk -F'\t' -v n="$1" 'NR == n { print $2 }' "$T/log"; }
+first_argv() { nth_argv 1; }
+last_argv() { awk -F'\t' 'END { print $2 }' "$T/log"; }
+probe_argv() { awk -F'\t' '$2 ~ /ConnectTimeout=/ { print $2; exit }' "$T/log"; }
+yn() { if (($1)); then echo y; else echo n; fi; }
 
 
 # --- exit status is the remote's, not ours -----------------------------------
@@ -74,6 +90,10 @@ reset
 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
 check "clean exit 0" 0 $?
 check "clean exit does not reconnect" 1 "$(sessions)"
+case " $(first_argv) " in
+    *" -o BatchMode=yes "*) check "the real session cannot prompt" y y ;;
+    *) check "the real session cannot prompt" y "n: $(first_argv)" ;;
+esac
 
 # --- failures that must not be retried ---------------------------------------
 
@@ -85,6 +105,19 @@ check "changed host key is not retried" 1 "$(sessions)"
 case $out in
     *changed*) check "changed host key explains itself" y y ;;
     *) check "changed host key explains itself" y "n: $out" ;;
+esac
+
+# Remote stderr and ssh's own diagnostics share one fd. A command can print an
+# auth- or connect-looking line before returning 255, so no classifier can prove
+# it never started: replay always requires the explicit opt-in.
+reset
+out=$(STUB_PLAN='255:Permission denied inside remote command;0:' \
+    $SSA host 'make deploy' 2>&1)
+check "auth-looking remote exit 255 stays 255" 255 $?
+check "auth-looking remote exit is not replayed" 1 "$(sessions)"
+case $out in
+    *"already run"*) check "ambiguous remote exit explains itself" y y ;;
+    *) check "ambiguous remote exit explains itself" y "n: $out" ;;
 esac
 
 # --- failures that must be retried -------------------------------------------
@@ -103,14 +136,28 @@ else
     check "reconnect probes quietly first" y n
 fi
 
+# -N is useful for a forwarding-only session, but on a probe it suppresses the
+# appended `true` and makes a healthy connection live forever. The real sessions
+# keep it; only the finite probe drops it.
+reset
+STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;0:;0:' \
+    $SSA -N -L 8080:localhost:80 host >/dev/null 2>&1
+check "a forwarding-only session reconnects" 0 $?
+case " $(probe_argv) " in
+    *" -N "*) check "the reconnect probe drops -N" y "n: $(probe_argv)" ;;
+    *) check "the reconnect probe drops -N" y y ;;
+esac
+case " $(last_argv) " in
+    *" -N "*) check "the reconnected session keeps -N" y y ;;
+    *) check "the reconnected session keeps -N" y "n: $(last_argv)" ;;
+esac
+
 # --- what a night away looks like --------------------------------------------
 # The probe cadence and the print cadence are separate: a line per probe is
 # ~1100 identical lines over a nine-hour outage, each long enough to wrap. So an
 # unchanged reason is silent, a changed one is news, and a keep-alive line comes
 # once per SSA_NOTE_EVERY. All three are asserted, because the first assertion
 # alone would also pass if printing were broken outright.
-
-yn() { if (($1)); then echo y; else echo n; fi; }
 
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
@@ -133,6 +180,25 @@ case $out in
 esac
 check "the changed reason is not then repeated" 1 "$(grep -c '(waited' <<<"$out")"
 
+# The two stale-master checks consume steps before the real availability probe.
+reset
+out=$(STUB_PORTAL_CODE=302 \
+    STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;255:;255:;255:ssh: connect to host port 22: Connection timed out;0:;0:' \
+    $SSA host </dev/null 2>&1)
+case $out in
+    *"captive portal"*) check "a portal refines a connection failure" y y ;;
+    *) check "a portal refines a connection failure" y "n: $out" ;;
+esac
+
+reset
+out=$(STUB_PORTAL_CODE=302 \
+    STUB_PLAN='255:Permission denied (publickey).;255:;255:;255:Permission denied (publickey).;0:;0:' \
+    $SSA host </dev/null 2>&1)
+case $out in
+    *"captive portal"*) check "a portal guess cannot hide rejected credentials" y "n: $out" ;;
+    *) check "a portal guess cannot hide rejected credentials" y y ;;
+esac
+
 # --- a remote command that may have half-run ---------------------------------
 
 reset
@@ -150,7 +216,7 @@ STUB_PLAN='255:Connection to host closed by remote host.;0:;0:' \
     $SSA --retry-command host 'tail -F log' >/dev/null 2>&1
 check "--retry-command opts back in" 0 $?
 
-# --- bounded waiting --------------------------------------------------------
+# --- bounded waiting ---------------------------------------------------------
 
 reset
 start=$(date +%s)
@@ -161,20 +227,22 @@ elapsed=$(($(date +%s) - start))
 if [[ $elapsed -lt 20 ]]; then verdict=bounded; else verdict="${elapsed}s"; fi
 check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 
-# --- argument handling ------------------------------------------------------
+# --- argument handling -------------------------------------------------------
 
 reset
 STUB_PLAN='0:' $SSA --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
 check "ssh keeps its flags, tmux is appended" \
-    "-p 2222 -J bastion -t host tmux -u new -A -s build" "$(first_argv)"
+    "-o BatchMode=yes -p 2222 -J bastion -t host tmux -u new -A -s build" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA -tp2222 host uptime >/dev/null 2>&1
-check "clustered -tp2222 stays intact" "-tp2222 host uptime" "$(first_argv)"
+check "clustered -tp2222 stays intact" \
+    "-o BatchMode=yes -tp2222 host uptime" "$(first_argv)"
 
 reset
 STUB_PLAN='0:' $SSA host 'echo *' >/dev/null 2>&1
-check "remote command is not globbed locally" "host echo *" "$(first_argv)"
+check "remote command is not globbed locally" \
+    "-o BatchMode=yes host echo *" "$(first_argv)"
 
 reset
 out=$(STUB_PLAN='0:' $SSA --tmux host uptime 2>&1)
@@ -219,7 +287,8 @@ esac
 
 reset
 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
-check "a configured keepalive connects untouched" "host" "$(first_argv)"
+check "a configured keepalive connects untouched" \
+    "-o BatchMode=yes host" "$(first_argv)"
 
 # --- credentials are waited on, never asked for ------------------------------
 # Nothing here may prompt, invoke mwinit, or dead-end on a missing terminal: a
@@ -275,6 +344,44 @@ case $out in
 esac
 
 rm "$T/bin/ssh-keygen"
+
+# --- signals stop the supervised process ------------------------------------
+# A direct TERM (for example from a service manager) reaches the wrapper, not
+# necessarily its process group. It must stop the foreground ssh and its tee,
+# rather than defer the trap until that session eventually exits on its own.
+
+reset
+hold=$T/hold
+STUB_HOLD=$hold STUB_PLAN='0:' $SSA host >/dev/null 2>&1 &
+wrapper=$!
+for _ in {1..40}; do
+    [[ -s $hold ]] && break
+    sleep 0.05
+done
+if [[ -s $hold ]]; then child=$(<"$hold"); else child=; fi
+check "signal test reaches the ssh child" y "$(if [[ -n $child ]]; then echo y; else echo n; fi)"
+kill -TERM "$wrapper" 2>/dev/null
+for _ in {1..40}; do
+    ! kill -0 "$wrapper" 2>/dev/null && break
+    sleep 0.05
+done
+if kill -0 "$wrapper" 2>/dev/null; then
+    wrapper_stopped=n
+    [[ -n $child ]] && kill -TERM "$child" 2>/dev/null
+else
+    wrapper_stopped=y
+fi
+wait "$wrapper" 2>/dev/null
+term_rc=$?
+check "TERM stops the wrapper promptly" y "$wrapper_stopped"
+check "TERM exits with 128+15" 143 "$term_rc"
+if [[ -n $child ]] && kill -0 "$child" 2>/dev/null; then
+    child_stopped=n
+    kill -TERM "$child" 2>/dev/null
+else
+    child_stopped=y
+fi
+check "TERM stops the ssh child" y "$child_stopped"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

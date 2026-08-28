@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ssa -- ssh that waits out a broken network and reconnects. Never prompts: it
-# reports what it is waiting for and picks it up on the next probe.
+# ssa -- ssh that waits out a broken network and reconnects. It never blocks on
+# an SSH prompt: it reports what it is waiting for and retries on the next probe.
 # Why bash, and how each failure mode is detected: README.md.
 
 set -uo pipefail
@@ -8,6 +8,10 @@ set -uo pipefail
 PROG=${0##*/}
 # ssh short options that take an argument (OpenSSH 7.4 synopsis).
 ARGOPTS='bcDEeFIiJLlmOopQRSWw'
+# Options that change what a session does rather than how it connects. A probe
+# must run `true` and finish, so these are omitted from its copy of argv.
+PROBE_SKIP='MNstT'
+PROBE_SKIP_ARGOPTS='OQW'
 # bash 4.2: "${a[@]}" on an empty array dies under set -u, hence ${a[@]+...}.
 
 max_wait=${SSA_MAX_WAIT:-0}
@@ -30,7 +34,7 @@ usage: ssa [--tmux[=NAME]] [--retry-command] [--max-wait=SECS] [ssh args] host [
 
   --tmux[=NAME]    attach-or-create remote tmux NAME (default main), so the
                    session survives a reconnect too; implies -t
-  --retry-command  re-run the remote command after a mid-session drop
+  --retry-command  re-run the remote command after an ambiguous ssh exit 255
   --max-wait=SECS  give up on one reconnect after SECS (0 = never)
 
 Credentials, VPN and portals are waited on, never solved for you.
@@ -43,8 +47,10 @@ now() { date +%s; }
 dur() { if (($1 < 60)); then printf '%ds' "$1"; else printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); fi; }
 
 # One left-to-right pass: our long options and a remote command can be spelled
-# the same, so only tokens before the hostname are ours.
+# the same, so only tokens before the hostname are ours. probe_opts is the same
+# connection with session-only flags removed; unlike -N, its `true` must finish.
 ssh_opts=()
+probe_opts=()
 user_cmd=()
 host=
 argv=("$@")
@@ -60,20 +66,30 @@ while ((i < ${#argv[@]})); do
         --*) die "unknown option $a" ;;
         -?*)
             ssh_opts+=("$a")
+            probe_a=-
             # Consume the next token only if an argument-taking flag ends the
             # cluster: -p22, -p 22 and -tp 22 are all legal.
             r=${a#-}
             while [[ -n $r && $ARGOPTS != *"${r:0:1}"* ]]; do
+                c=${r:0:1}
                 # -f backgrounds ssh, which returns 0 at once and leaves nothing
                 # to supervise. Only the no-argument prefix of a cluster is
                 # examined, so -F and an -i path are not mistaken for it.
-                [[ ${r:0:1} == f ]] &&
+                [[ $c == f ]] &&
                     die "-f backgrounds ssh, leaving nothing to supervise; drop it and background $PROG instead"
+                [[ $PROBE_SKIP != *"$c"* ]] && probe_a+=$c
                 r=${r:1}
             done
+            skip_probe_arg=0
+            if [[ -n $r ]]; then
+                [[ $PROBE_SKIP_ARGOPTS == *"${r:0:1}"* ]] && skip_probe_arg=1
+                ((skip_probe_arg)) || probe_a+=$r
+            fi
+            [[ $probe_a == - ]] || probe_opts+=("$probe_a")
             if [[ -n $r && -z ${r:1} ]]; then
                 ((++i < ${#argv[@]})) || die "option $a needs an argument"
                 ssh_opts+=("${argv[i]}")
+                ((skip_probe_arg)) || probe_opts+=("${argv[i]}")
             fi
             ;;
         # Quoted: the remote command is ssh's to interpret, not ours to glob.
@@ -94,13 +110,20 @@ short_host=${host%%.*}
 # supervise and this whole script does nothing. Refuse rather than inject one --
 # it belongs in ssh_config, where plain ssh benefits too, and a wrapper quietly
 # rewriting connection parameters is worse than being told once.
-[[ $(ssh -G ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" 2>/dev/null |
-    awk '$1 == "serveraliveinterval" { print $2; exit }') == 0 ]] &&
+ssh_config=$(ssh -G ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" 2>/dev/null)
+[[ $(awk '$1 == "serveraliveinterval" { print $2; exit }' <<<"$ssh_config") == 0 ]] &&
     die "$host has no ServerAliveInterval, so ssh will never notice a dead link.
     Add to ~/.ssh/config:
         Host $host
             ServerAliveInterval 30
             ServerAliveCountMax 3"
+
+# Newer clients can inherit RemoteCommand or SessionType from ssh_config. Both
+# conflict with the probe's finite `true`; only pass their reset on clients that
+# advertised the option, because OpenSSH 7.4 rejects both names.
+probe_compat=()
+grep -q '^remotecommand ' <<<"$ssh_config" && probe_compat+=(-o RemoteCommand=none)
+grep -q '^sessiontype ' <<<"$ssh_config" && probe_compat+=(-o SessionType=default)
 
 eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
 if [[ -n $tmux_session ]]; then
@@ -112,8 +135,9 @@ if [[ -n $tmux_session ]]; then
 fi
 
 # fatal: retrying cannot help. auth: credentials refused. connect: no session
-# existed, so retrying is always safe. dropped (the default): one died, so a
-# remote command may have half-run.
+# existed, so retrying an interactive connection is safe. dropped (the default):
+# one died. A supplied remote command is always ambiguous because its stderr is
+# the same stream and it may itself return 255; that policy is enforced below.
 classify() {
     case $1 in
         *"IDENTIFICATION HAS CHANGED"* | *"Host key verification failed"* | \
@@ -171,7 +195,7 @@ short_reason() {
     esac
 }
 
-# The one failure waiting never fixes, so it is worth its own probe.
+# The one connection failure waiting never fixes, so it is worth its own probe.
 portal() {
     local code
     code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
@@ -181,11 +205,14 @@ portal() {
 }
 
 # A real ssh, so aliases, ports and ProxyJump hold, but quiet and short-fused.
-# Our -o win because ssh keeps the first value it obtains for an option.
+# The option copy cannot suppress `true`, start a subsystem/control operation, or
+# open the user's forwards. Our -o values win because ssh keeps the first value.
 probe_err=
 probe() {
-    probe_err=$(ssh -o BatchMode=yes -o ConnectTimeout="$probe_timeout" -o ControlMaster=no \
-        ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" true 2>&1 >/dev/null)
+    probe_err=$(ssh -T -o BatchMode=yes -o ConnectTimeout="$probe_timeout" \
+        -o ControlMaster=no -o ClearAllForwardings=yes \
+        ${probe_compat[@]+"${probe_compat[@]}"} \
+        ${probe_opts[@]+"${probe_opts[@]}"} "$host" true 2>&1 >/dev/null)
 }
 
 # A master that died with the link leaves a socket that fails the next connect
@@ -203,7 +230,7 @@ WAITED=0
 # one, and it was the repetition that made this loop unreadable, not the
 # waiting.
 wait_for() {
-    local delay=1 start reason spotted last last_note
+    local delay=1 start reason spotted last last_note probe_class
     start=$(now)
     last_note=$start
     last=$(short_reason "$1")
@@ -211,8 +238,11 @@ wait_for() {
     while ! probe; do
         WAITED=$(($(now) - start))
         ((max_wait > 0 && WAITED >= max_wait)) && return 1
+        probe_class=$(classify "$probe_err")
         reason=$(short_reason "$(reason_for "$probe_err")")
-        spotted=$(portal) && reason=$spotted
+        if [[ $probe_class == connect ]]; then
+            spotted=$(portal) && reason=$spotted
+        fi
         if [[ $reason != "$last" ]] || (($(now) - last_note >= note_every)); then
             say "${reason:-unreachable} (waited $(dur "$WAITED"))"
             last=$reason
@@ -229,8 +259,21 @@ wait_for() {
 }
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/ssa.XXXXXX") || exit 255
-trap 'rm -rf "$tmpdir"' EXIT
-trap 'exit 130' INT TERM
+ssh_pid=
+tee_pid=
+cleanup() { rm -r "$tmpdir"; }
+stop() {
+    local status=$1
+    trap - INT TERM
+    [[ -n $ssh_pid ]] && kill -TERM "$ssh_pid" 2>/dev/null
+    [[ -n $tee_pid ]] && kill -TERM "$tee_pid" 2>/dev/null
+    [[ -n $ssh_pid ]] && wait "$ssh_pid" 2>/dev/null
+    [[ -n $tee_pid ]] && wait "$tee_pid" 2>/dev/null
+    exit "$status"
+}
+trap cleanup EXIT
+trap 'stop 130' INT
+trap 'stop 143' TERM
 errfile=$tmpdir/err
 fifo=$tmpdir/fifo
 mkfifo "$fifo" || exit 255
@@ -238,20 +281,25 @@ rc=0
 
 # ssh's stderr must both pass through live (a remote command writes to it) and be
 # read back to classify the failure. A fifo does both, and waiting on the tee
-# guarantees the file is complete before it is read.
+# guarantees the file is complete before it is read. ssh is asynchronous only so
+# a signal trap can stop it; explicit stdin keeps ownership of the terminal.
 run_ssh() {
-    local pid
     tee "$errfile" <"$fifo" >&2 &
-    pid=$!
-    ssh ${ssh_opts[@]+"${ssh_opts[@]}"} ${tmux_session:+-t} "$host" \
-        ${eff_cmd[@]+"${eff_cmd[@]}"} 2>"$fifo"
+    tee_pid=$!
+    ssh -o BatchMode=yes ${ssh_opts[@]+"${ssh_opts[@]}"} ${tmux_session:+-t} "$host" \
+        ${eff_cmd[@]+"${eff_cmd[@]}"} <&0 2>"$fifo" &
+    ssh_pid=$!
+    wait "$ssh_pid"
     rc=$?
-    wait "$pid" 2>/dev/null
+    ssh_pid=
+    wait "$tee_pid" 2>/dev/null
+    tee_pid=
 }
 
 while :; do
     run_ssh
-    # Only ssh's own 255 is ours; any other status is the remote command's.
+    # Any non-255 status is definitely the remote command's. Exit 255 needs the
+    # fatal and replay-safety policies below because a remote command may use it.
     ((rc != 255)) && exit "$rc"
 
     err=$(<"$errfile")
@@ -264,8 +312,11 @@ while :; do
         die "not retrying: ${reason:-ssh exited 255}"
     fi
 
-    ((${#user_cmd[@]})) && [[ $class == dropped ]] && ((retry_command == 0)) &&
-        die "dropped, and '${user_cmd[*]}' may have already run (--retry-command to allow)"
+    # Remote stderr shares errfile with ssh diagnostics, and a remote command may
+    # itself return 255. No wording can prove it never started, so replay is
+    # always explicit; tmux remains safe because it is our idempotent command.
+    ((${#user_cmd[@]})) && ((retry_command == 0)) &&
+        die "ssh exited 255, and '${user_cmd[*]}' may have already run (--retry-command to allow)"
 
     # `~.` and a dead link are the same silent 255, so offer a way out. The
     # reason is not repeated here: ssh has just written it to this same
