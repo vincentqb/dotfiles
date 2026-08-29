@@ -13,6 +13,8 @@ brew "fish"
 brew "tmux"
 brew "ansifilter"   # tmux-logging
 cask "kitty"
+cask "ghostty"
+cask "warp"
 
 # CLI core
 brew "bat"
