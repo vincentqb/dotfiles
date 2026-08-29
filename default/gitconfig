@@ -61,7 +61,8 @@
     # https://draculatheme.com/contribute
     pretty = "%C(blue)%h%C(reset) %C(cyan)%<(15,trunc)%cd%C(reset) %<(50,trunc)%s %C(brightblack)%ae%C(reset)%C(auto)%d%C(reset)"
 [log]
-    date = human
+    # -local renders in the local zone so the offset (e.g. "+0000") is dropped
+    date = human-local
 
 # Dracula Dark Theme
 # https://github.com/dracula/git/blob/master/config/gitconfig
