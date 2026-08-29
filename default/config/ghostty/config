@@ -1,0 +1,9 @@
+# Ghostty — https://ghostty.org/docs/config
+# Ported from ../kitty/kitty.conf; Dracula ships with Ghostty, so no
+# vendored palette is needed (it matches ../kitty/dracula.conf exactly).
+theme = Dracula
+
+font-family = Menlo
+font-size = 14
+
+command = /opt/homebrew/bin/fish --login
