@@ -7,3 +7,9 @@ font-family = Menlo
 font-size = 14
 
 command = /opt/homebrew/bin/fish --login
+
+# ssh-terminfo installs the xterm-ghostty entry on remote hosts that lack it,
+# so keys/colors work before tmux starts; ssh-env forwards COLORTERM and
+# TERM_PROGRAM. Setting this key replaces the whole list, so the defaults
+# (cursor, title, path) are repeated here. sudo stays off, as by default.
+shell-integration-features = cursor,title,path,ssh-env,ssh-terminfo
