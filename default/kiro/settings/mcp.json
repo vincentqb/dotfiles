@@ -1,0 +1,53 @@
+{
+  "mcpServers" : {
+    "moptech" : {
+      "disabled" : true,
+      "transport" : "http",
+      "url" : "https://moptech-gamma.mcp.mop.amazon.dev/mcp/",
+      "autoApprove" : [ "ping", "dasboard_get_run_data", "dasboard_get_run_metadata", "insim_initialize_insim_assistant", "insim_load_prompt", "insim_retrieve_knowledge_base", "insim_list_datasets", "insim_get_dataset_details", "insim_execute_query", "insim_create_dataset", "insim_create_table", "insim_validate_experiment_yaml", "insim_execute_experiment_yaml", "gitfarm_get_log", "gitfarm_get_commit", "gitfarm_get_file", "gitfarm_list_files", "knowledge_base_search" ]
+    },
+    "aws-outlook-mcp" : {
+      "command" : "aws-outlook-mcp"
+    },
+    "slack-mcp" : {
+      "command" : "slack-mcp"
+    },
+    "builder-mcp" : {
+      "command" : "builder-mcp",
+      "args" : [ "--include-tools=ReadInternalWebsites,InternalCodeSearch,TicketingReadActions,InternalSearch,SkillsTool" ],
+      "env" : { }
+    },
+    "quicksight-mcp" : {
+      "command" : "quicksight-mcp",
+      "args" : [ ]
+    },
+    "andes-mcp" : {
+      "command" : "andes-mcp",
+      "args" : [ ]
+    },
+    "arcc-mcp" : {
+      "command" : "arcc",
+      "args" : [ "mcp", "start" ]
+    },
+    "local-chorus-mcp" : {
+      "command" : "local-chorus-mcp",
+      "args" : [ ]
+    },
+    "amazon-sharepoint-mcp" : {
+      "command" : "amazon-sharepoint-mcp",
+      "args" : [ ]
+    },
+    "playwright-mcp" : {
+      "command" : "/home/quennv/.toolbox/bin/meshclaw",
+      "args" : [ "mcp-playwright-proxy", "--config", "/home/quennv/.meshclaw/playwright-config.json" ]
+    },
+    "software-builder-insights-prod-mcp" : {
+      "command" : "software-builder-insights-prod-mcp",
+      "args" : [ ]
+    },
+    "creds-agent" : {
+      "command" : "aim",
+      "args" : [ "mcp", "start-server", "local-creds-agent-mcp" ]
+    }
+  }
+}
