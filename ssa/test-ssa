@@ -2,6 +2,10 @@
 # Drive ssa against a stub ssh, so the parts that only run when the network is
 # broken can be tested while it works.
 #
+# Every check is labelled with the property it discharges (T1..T11, stated in
+# README.md). A property with no check here is a claim, so the labels are the
+# link -- and two checks below hold that link together, in both directions.
+#
 # The stub records its argv and fails to a script (STUB_PLAN, one "rc:stderr" per
 # call, the last step repeating), which is what makes the interesting cases
 # reachable: a changed host key, an expired certificate, a drop halfway through a
@@ -30,10 +34,24 @@ fi
 n=$(cat "$STUB_COUNT" 2>/dev/null || echo 0)
 n=$((n + 1))
 echo "$n" >"$STUB_COUNT"
-printf '%d\t%s\n' "$n" "$*" >>"$STUB_LOG"
+# The third field is whether this invocation was handed the caller's terminal,
+# which is what T11 reads back.
+printf '%d\t%s\t%s\n' "$n" "$*" "$(if [[ -t 0 ]]; then echo tty; else echo notty; fi)" >>"$STUB_LOG"
 if [[ -n ${STUB_HOLD:-} ]]; then
     printf '%s\n' "$$" >"$STUB_HOLD"
     exec sleep 60
+fi
+# Emulate a live ControlMaster reached through a ProxyCommand whose credentials
+# have expired: the socket answers, and only an invocation that insists on a
+# fresh handshake has to pay for credentials. This is the shape of a Midway or
+# SSM-proxied host, and it is what makes probe/session equivalence testable.
+if [[ -n ${STUB_MUX_LIVE:-} ]]; then
+    [[ " $* " == *" -O check "* ]] && exit 0
+    if [[ " $* " == *"ControlPath=none"* ]]; then
+        printf '%s\n' 'An error occurred (ExpiredTokenException) when calling the StartSession operation: The security token included in the request is expired' >&2
+        printf '%s\n' 'ssh_exchange_identification: Connection closed by remote host' >&2
+        exit 255
+    fi
 fi
 IFS=';' read -ra plan <<<"$STUB_PLAN"
 step=${plan[$((n - 1))]:-${plan[$((${#plan[@]} - 1))]}}
@@ -61,7 +79,8 @@ export SSA_CERT=/nonexistent SSA_GRACE=0 SSA_PROBE_TIMEOUT=2 SSA_MAX_WAIT=8
 # reports one; STUB_ALIVE=0 is how the two tests below exercise that refusal.
 export STUB_ALIVE=60
 
-pass=0 fail=0
+pass=0 fail=0 skipped=0
+skip() { skipped=$((skipped + 1)); printf 'skip %s\n' "$1"; }
 check() { # check LABEL WANT GOT
     if [[ $2 == "$3" ]]; then
         pass=$((pass + 1))
@@ -77,68 +96,154 @@ nth_argv() { awk -F'\t' -v n="$1" 'NR == n { print $2 }' "$T/log"; }
 first_argv() { nth_argv 1; }
 last_argv() { awk -F'\t' 'END { print $2 }' "$T/log"; }
 probe_argv() { awk -F'\t' '$2 ~ /ConnectTimeout=/ { print $2; exit }' "$T/log"; }
+first_row() { awk -F'\t' -v p="$1" '$2 ~ p { print NR; exit }' "$T/log"; }
+session_tty() { awk -F'\t' 'NR == 1 { print $3 }' "$T/log"; }
 yn() { if (($1)); then echo y; else echo n; fi; }
+# A live certificate cannot be forged, so stub the reader instead. The cert is
+# only ever *read*, to explain a rejection.
+: >"$T/cert"
+keygen_says() {
+    cat >"$T/bin/ssh-keygen" <<STUB
+#!/usr/bin/env bash
+# -f names the cert; a missing one is an error, as it is for the real ssh-keygen.
+[[ -f \${!#} ]] || exit 1
+echo "        Valid: from 2020-01-01T00:00:00 to $1"
+STUB
+    chmod +x "$T/bin/ssh-keygen"
+}
+# The failure table read back out of the script, so the two checks below hold the
+# data itself to the theorems rather than sampling its behaviour.
+table() { sed -n "/^FAILURES='/,/'\$/p" "$SSA" | sed "s/^FAILURES='//; s/'\$//" | grep .; }
 
 
-# --- exit status is the remote's, not ours -----------------------------------
+# --- the gate runs itself ------------------------------------------------------
+# Parsing and linting are part of the suite, not a habit someone remembers to
+# perform before committing.
+
+bash -n "$SSA" 2>/dev/null
+check "the script parses" 0 $?
+if command -v shellcheck >/dev/null 2>&1; then
+    check "shellcheck is clean" "" "$(shellcheck "$SSA" "$0" 2>&1)"
+else
+    skip 'shellcheck: not installed'
+fi
+
+# A property with no check is a claim, and a check labelled for a property nobody
+# stated is a habit. README.md's table states them, the labels below discharge
+# them, and this holds the two together so neither can drift.
+stated=$(awk -F'|' '/^\| *T[0-9]+ *\|/ { gsub(/ /, "", $2); print $2 }' \
+    "$(dirname "$SSA")/README.md" | sort -u)
+proven=$(grep -oE '"T[0-9]+ ' "$0" | tr -d '" ' | sort -u)
+check "every stated property has a check" "" "$(comm -23 <(echo "$stated") <(echo "$proven"))"
+check "every labelled check has a stated property" "" "$(comm -13 <(echo "$stated") <(echo "$proven"))"
+
+# --- T4  status transparency ---------------------------------------------------
+# Any ssh status other than 255 is the remote command's and is ssa's.
 
 reset
 STUB_PLAN='3:' $SSA host true >/dev/null 2>&1
-check "remote exit 3 passes through" 3 $?
+check "T4 remote exit 3 passes through" 3 $?
 
 reset
 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
-check "clean exit 0" 0 $?
-check "clean exit does not reconnect" 1 "$(sessions)"
+check "T4 clean exit 0" 0 $?
+check "T4 clean exit does not reconnect" 1 "$(sessions)"
+
+# --- T5  no blocking prompt ----------------------------------------------------
+# Nothing ssa starts may read from a human, so BatchMode=yes leads both argvs and
+# cannot be overridden: ssh keeps the first value it obtains for an option.
+
 case " $(first_argv) " in
-    *" -o BatchMode=yes "*) check "the real session cannot prompt" y y ;;
-    *) check "the real session cannot prompt" y "n: $(first_argv)" ;;
+    *" -o BatchMode=yes "*) check "T5 the real session cannot prompt" y y ;;
+    *) check "T5 the real session cannot prompt" y "n: $(first_argv)" ;;
 esac
 
-# --- failures that must not be retried ---------------------------------------
+# --- T6  trust is never repaired -----------------------------------------------
 
 reset
 out=$(STUB_PLAN='255:@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED @@@' \
     $SSA host 2>&1)
-check "changed host key exits 255" 255 $?
-check "changed host key is not retried" 1 "$(sessions)"
+check "T6 changed host key exits 255" 255 $?
+check "T6 changed host key is not retried" 1 "$(sessions)"
 case $out in
-    *changed*) check "changed host key explains itself" y y ;;
-    *) check "changed host key explains itself" y "n: $out" ;;
+    *"host key changed"*) check "T6 changed host key names the cause" y y ;;
+    *) check "T6 changed host key names the cause" y "n: $out" ;;
+esac
+case $out in
+    *MITM*) check "T6 the ambiguity with a rebuilt host is stated" y y ;;
+    *) check "T6 the ambiguity with a rebuilt host is stated" y "n: $out" ;;
 esac
 
+# --- T3  at-most-once command --------------------------------------------------
 # Remote stderr and ssh's own diagnostics share one fd. A command can print an
 # auth- or connect-looking line before returning 255, so no classifier can prove
 # it never started: replay always requires the explicit opt-in.
+
 reset
 out=$(STUB_PLAN='255:Permission denied inside remote command;0:' \
     $SSA host 'make deploy' 2>&1)
-check "auth-looking remote exit 255 stays 255" 255 $?
-check "auth-looking remote exit is not replayed" 1 "$(sessions)"
+check "T3 auth-looking remote exit 255 stays 255" 255 $?
+check "T3 auth-looking remote exit is not replayed" 1 "$(sessions)"
 case $out in
-    *"already run"*) check "ambiguous remote exit explains itself" y y ;;
-    *) check "ambiguous remote exit explains itself" y "n: $out" ;;
+    *"may have run"*) check "T3 ambiguous remote exit explains itself" y y ;;
+    *) check "T3 ambiguous remote exit explains itself" y "n: $out" ;;
 esac
 
-# --- failures that must be retried -------------------------------------------
+reset
+out=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' \
+    $SSA host 'make deploy' 2>&1)
+check "T3 dropped remote command exits 255" 255 $?
+check "T3 dropped remote command runs once" 1 "$(sessions)"
+case $out in
+    *"may have run"*) check "T3 dropped remote command explains itself" y y ;;
+    *) check "T3 dropped remote command explains itself" y "n: $out" ;;
+esac
+
+reset
+STUB_PLAN='255:Connection to host closed by remote host.;0:;0:' \
+    $SSA --retry-command host 'tail -F log' >/dev/null 2>&1
+check "T3 --retry-command opts back in" 0 $?
+
+# --- T1, T2  probe fidelity and termination ------------------------------------
+# A probe answers one question -- would the session connect? -- so it may bound
+# the attempt and make it finite, and may not change how the connection is made.
 
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;0:;0:' \
     $SSA host 2>&1)
-check "reconnect after a timeout exits 0" 0 $?
+check "T1 reconnect after a timeout exits 0" 0 $?
 case $out in
-    *"is back after"*) check "reconnect is announced" y y ;;
-    *) check "reconnect is announced" y "n: $out" ;;
+    *"back after"*) check "T1 reconnect is announced" y y ;;
+    *) check "T1 reconnect is announced" y "n: $out" ;;
 esac
-if grep -q 'BatchMode=yes' "$T/log"; then
-    check "reconnect probes quietly first" y y
-else
-    check "reconnect probes quietly first" y n
-fi
 case " $(probe_argv) " in
-    *" -o ControlPath=none "*) check "reconnect probes bypass multiplexing" y y ;;
-    *) check "reconnect probes bypass multiplexing" y "n: $(probe_argv)" ;;
+    *" -o BatchMode=yes "*) check "T5 reconnect probes cannot prompt either" y y ;;
+    *) check "T5 reconnect probes cannot prompt either" y "n: $(probe_argv)" ;;
 esac
+
+# The check that would have caught the regression this list exists for: these six
+# -o names bound the attempt or make it finite. Any other one the probe adds --
+# ControlPath, an identity, a proxy, a cipher -- changes how the connection is
+# made, so the probe could then fail where the session succeeds. The invocation
+# above passes no -o of its own, so every name here is ssa's.
+bounding='BatchMode ConnectTimeout ControlMaster ClearAllForwardings RemoteCommand SessionType'
+extra=$(awk '{ for (i = 2; i <= NF; i++) if ($(i - 1) == "-o") print $i }' <<<"$(probe_argv)" |
+    sed 's/=.*//' | while read -r o; do [[ " $bounding " == *" $o "* ]] || echo "$o"; done)
+check "T1 the probe adds only options that bound the attempt" "" "$extra"
+
+# Inheriting ControlPath is only safe because a socket the master left behind is
+# cleared first: order is what makes "a probe reaches a live master or none" true,
+# so the order is asserted rather than argued.
+check "T1 the stale-master check precedes the first probe" y \
+    "$(yn "$(first_row '-O check') < $(first_row 'ConnectTimeout=')")"
+
+# A live master is how the session will reconnect. A probe that insists on a
+# fresh handshake waits for credentials the session does not need, which is a
+# proxied host (Midway, SSM) refusing to come back after mwinit lapsed.
+reset
+STUB_MUX_LIVE=1 STUB_PLAN='255:Connection to host closed by remote host.;0:' \
+    $SSA host </dev/null >/dev/null 2>&1
+check "T1 a probe reaches a live control master" 0 $?
 
 # -N is useful for a forwarding-only session, but on a probe it suppresses the
 # appended `true` and makes a healthy connection live forever. The real sessions
@@ -146,17 +251,17 @@ esac
 reset
 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;0:;0:' \
     $SSA -N -L 8080:localhost:80 host >/dev/null 2>&1
-check "a forwarding-only session reconnects" 0 $?
+check "T2 a forwarding-only session reconnects" 0 $?
 case " $(probe_argv) " in
-    *" -N "*) check "the reconnect probe drops -N" y "n: $(probe_argv)" ;;
-    *) check "the reconnect probe drops -N" y y ;;
+    *" -N "*) check "T2 the reconnect probe drops -N" y "n: $(probe_argv)" ;;
+    *) check "T2 the reconnect probe drops -N" y y ;;
 esac
 case " $(last_argv) " in
-    *" -N "*) check "the reconnected session keeps -N" y y ;;
-    *) check "the reconnected session keeps -N" y "n: $(last_argv)" ;;
+    *" -N "*) check "T1 the reconnected session keeps -N" y y ;;
+    *) check "T1 the reconnected session keeps -N" y "n: $(last_argv)" ;;
 esac
 
-# --- what a night away looks like --------------------------------------------
+# --- T9  bounded, single-clause output -----------------------------------------
 # The probe cadence and the print cadence are separate: a line per probe is
 # ~1100 identical lines over a nine-hour outage, each long enough to wrap. So an
 # unchanged reason is silent, a changed one is news, and a keep-alive line comes
@@ -166,23 +271,124 @@ esac
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
     $SSA host </dev/null 2>&1)
-check "a steady reason waits through several probes" y "$(yn "$(sessions) >= 3")"
-check "a steady reason is not reprinted per probe" 0 "$(grep -c '(waited' <<<"$out")"
+check "T9 a steady reason waits through several probes" y "$(yn "$(sessions) >= 3")"
+check "T9 a steady reason is not reprinted per probe" 0 "$(grep -c 'still waiting' <<<"$out")"
 
 reset
 out=$(SSA_NOTE_EVERY=1 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
     $SSA host </dev/null 2>&1)
-check "a keep-alive line arrives once per SSA_NOTE_EVERY" y \
-    "$(yn "$(grep -c '(waited' <<<"$out") >= 2")"
+check "T9 a keep-alive line arrives once per SSA_NOTE_EVERY" y \
+    "$(yn "$(grep -c 'still waiting' <<<"$out") >= 2")"
 
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;255:ssh: connect to host port 22: Connection refused' \
     $SSA host </dev/null 2>&1)
 case $out in
-    *"connection refused (waited"*) check "a changed reason is reported once" y y ;;
-    *) check "a changed reason is reported once" y "n: $out" ;;
+    *"still waiting after"*"connection refused"*) check "T9 a changed reason is reported once" y y ;;
+    *) check "T9 a changed reason is reported once" y "n: $out" ;;
 esac
-check "the changed reason is not then repeated" 1 "$(grep -c '(waited' <<<"$out")"
+check "T9 the changed reason is not then repeated" 1 "$(grep -c 'still waiting' <<<"$out")"
+
+# A reason worded with a duration ticks between probes, so comparing the rendered
+# reason reports a change on every one of them and note_every never throttles
+# anything. Measured before the fix: 5 lines in 12 s where this predicts 2. The
+# credential path is the one that matters, because a cert that expired minutes ago
+# is exactly when you are waiting.
+reset
+keygen_says "$(date -d '-90 seconds' +%Y-%m-%dT%H:%M:%S 2>/dev/null || echo 2020-01-02T00:00:00)"
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=$T/cert SSA_NOTE_EVERY=600 \
+    $SSA --max-wait=6 host </dev/null 2>&1)
+check "T9 a ticking duration in the reason does not defeat the cadence" 0 \
+    "$(grep -c 'still waiting' <<<"$out")"
+
+# Every status line is "ssa: <state>: <reason>", and the widest state clause fixes
+# what a reason may occupy. Recomputed from the grammar rather than copied, then
+# every shape is rendered at its worst case -- which is how the give-up line was
+# caught reaching 97 columns while a check that sampled one run saw nothing.
+prefix='ssa: waiting for ' host_max=20
+budget=$((80 - ${#prefix} - host_max - 2))
+long=$(table | awk -F'|' -v b="$budget" 'length($2) > b { print $2 }')
+check "T9 every reason in the table fits an 80-column line" "" "$long"
+cap=$(awk -F= '/^REASON_MAX=/ { print $2; exit }' "$SSA")
+check "T9 the cap on ssh's own wording matches that bound" y "$(yn "$cap <= $budget")"
+h=$(printf "%${host_max}s" '' | tr ' ' x) r=$(printf "%${budget}s" '' | tr ' ' x) d=543h00m
+over=
+for shape in "ssa: waiting for $h: $r" "ssa: still waiting after $d: $r" \
+    "ssa: $h back after $d, reconnecting" "ssa: gave up on $h after $d" \
+    "ssa: not reconnecting: $r"; do
+    ((${#shape} <= 80)) || over+="${#shape} cols: $shape"$'\n'
+done
+check "T9 every status shape fits 80 columns at its worst case" "" "$over"
+
+# An overnight wait is the case this cadence exists for, so its duration has to
+# read as one: minutes alone give "655m00s".
+reset
+keygen_says "$(date -d '-11 hours' +%Y-%m-%dT%H:%M:%S 2>/dev/null || echo 2020-01-02T00:00:00)"
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=$T/cert \
+    $SSA --max-wait=3 host </dev/null 2>&1)
+if grep -qE 'cert expired [0-9]+h[0-9]{2}m ago' <<<"$out"; then
+    check "T9 an overnight duration reads in hours" y y
+else
+    check "T9 an overnight duration reads in hours" y "n: $out"
+fi
+# Nothing ssa writes may itself wrap, which is the failure the cadence exists to
+# avoid. Its own lines are checked here; ssh's verbatim output is ssh's business.
+wide=$(grep -n '^ssa: ' <<<"$out" | awk -F: 'length($0) - length($1) - 1 > 80')
+check "T9 no line ssa wrote exceeds 80 columns" "" "$wide"
+
+# --- T10  one diagnosis --------------------------------------------------------
+# One table maps stderr to a class and a sentence, so the two cannot disagree.
+# These two checks hold the table itself to that, not a sample of its behaviour.
+
+dupes=$(table | awk -F'|' '{ print $3 }' | sort | uniq -d)
+check "T10 no failure pattern appears twice" "" "$dupes"
+shape=$(table | awk -F'|' '$1 !~ /^(fatal|auth|connect)$/ || NF != 3 { print NR": "$0 }')
+check "T10 every row is a known class and three fields" "" "$shape"
+
+# Every row driven end to end, so the clause the table promises is the clause that
+# reaches the terminal. One loop over the data, so a row added later is proven the
+# moment it is added rather than when someone remembers to add a case for it.
+unproven=
+while IFS='|' read -r _ phrase pat; do
+    reset
+    out=$(STUB_PLAN="255:$pat" $SSA --max-wait=1 host </dev/null 2>&1)
+    [[ $out == *"$phrase"* ]] ||
+        unproven+="[$pat] wanted '$phrase', said: $(grep '^ssa: ' <<<"$out" | head -1)"$'\n'
+done < <(table)
+check "T10 every row's clause is what reaches the terminal" "" "$unproven"
+
+# A host rebuilt during the outage being waited out is the ordinary way a key
+# changes mid-wait, and waiting cannot fix it whoever noticed first.
+reset
+out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection refused;255:;255:;255:@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED @@@' \
+    $SSA host </dev/null 2>&1)
+check "T6 a fatal reason found while waiting stops the wait" 255 $?
+case $out in
+    *"not reconnecting: host key changed"*) check "T6 stopping mid-wait names the cause" y y ;;
+    *) check "T6 stopping mid-wait names the cause" y "n: $out" ;;
+esac
+
+# A session with a tty ends its stderr lines with CR. Left in, it sends the cursor
+# back over our own "ssa: " prefix on the next write.
+reset
+out=$(STUB_PLAN=$'255:Connection to host closed by remote host.\r' \
+    $SSA --max-wait=1 host </dev/null 2>&1)
+ours=$(grep '^ssa: ' <<<"$out")
+case $ours in
+    *$'\r'*) check "T9 a tty's carriage returns do not reach the status line" y "n: $(cat -v <<<"$ours")" ;;
+    *) check "T9 a tty's carriage returns do not reach the status line" y y ;;
+esac
+
+# A proxy standing in for the network is part of connecting, so its diagnostic is
+# the reason -- not the generic handshake failure ssh reports underneath it, and
+# not 46 truncated characters of a botocore traceback.
+reset
+out=$(STUB_PLAN='255:An error occurred (ExpiredTokenException) when calling the StartSession operation: The security token included in the request is expired' \
+    $SSA --max-wait=3 host </dev/null 2>&1)
+case $out in
+    *"proxy credentials expired"*) check "T10 expired proxy credentials are named" y y ;;
+    *) check "T10 expired proxy credentials are named" y "n: $out" ;;
+esac
 
 # The two stale-master checks consume steps before the real availability probe.
 reset
@@ -190,8 +396,8 @@ out=$(STUB_PORTAL_CODE=302 \
     STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;255:;255:;255:ssh: connect to host port 22: Connection timed out;0:;0:' \
     $SSA host </dev/null 2>&1)
 case $out in
-    *"captive portal"*) check "a portal refines a connection failure" y y ;;
-    *) check "a portal refines a connection failure" y "n: $out" ;;
+    *"captive portal"*) check "T10 a portal refines a connection failure" y y ;;
+    *) check "T10 a portal refines a connection failure" y "n: $out" ;;
 esac
 
 reset
@@ -199,28 +405,11 @@ out=$(STUB_PORTAL_CODE=302 \
     STUB_PLAN='255:Permission denied (publickey).;255:;255:;255:Permission denied (publickey).;0:;0:' \
     $SSA host </dev/null 2>&1)
 case $out in
-    *"captive portal"*) check "a portal guess cannot hide rejected credentials" y "n: $out" ;;
-    *) check "a portal guess cannot hide rejected credentials" y y ;;
+    *"captive portal"*) check "T10 a portal guess cannot hide rejected credentials" y "n: $out" ;;
+    *) check "T10 a portal guess cannot hide rejected credentials" y y ;;
 esac
 
-# --- a remote command that may have half-run ---------------------------------
-
-reset
-out=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' \
-    $SSA host 'make deploy' 2>&1)
-check "dropped remote command exits 255" 255 $?
-check "dropped remote command runs once" 1 "$(sessions)"
-case $out in
-    *"already run"*) check "dropped remote command explains itself" y y ;;
-    *) check "dropped remote command explains itself" y "n: $out" ;;
-esac
-
-reset
-STUB_PLAN='255:Connection to host closed by remote host.;0:;0:' \
-    $SSA --retry-command host 'tail -F log' >/dev/null 2>&1
-check "--retry-command opts back in" 0 $?
-
-# --- bounded waiting ---------------------------------------------------------
+# --- bounded waiting -----------------------------------------------------------
 
 reset
 start=$(date +%s)
@@ -231,7 +420,16 @@ elapsed=$(($(date +%s) - start))
 if [[ $elapsed -lt 20 ]]; then verdict=bounded; else verdict="${elapsed}s"; fi
 check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 
-# --- argument handling -------------------------------------------------------
+# A bound bash reads as 0 means "wait forever", the opposite of what was asked.
+reset
+out=$($SSA --max-wait=1O host 2>&1)
+check "a non-numeric bound is refused, not read as 0" 255 $?
+case $out in
+    *"whole seconds"*) check "the refusal says what it wanted" y y ;;
+    *) check "the refusal says what it wanted" y "n: $out" ;;
+esac
+
+# --- argument handling ---------------------------------------------------------
 
 reset
 STUB_PLAN='0:' $SSA --tmux=build -p 2222 -J bastion host >/dev/null 2>&1
@@ -263,96 +461,164 @@ check "unknown long option is refused" 255 $?
 $SSA --help >/dev/null 2>&1
 check "--help exits 0" 0 $?
 
-# --- borrowed from autossh ---------------------------------------------------
+# --- T7  liveness precondition -------------------------------------------------
 # -M exists because nothing reconnects if nothing notices the link died, and -f
-# is the case autossh special-cases; here it would make the wrapper a silent no-op.
+# is the case autossh special-cases; here it would make the wrapper a no-op.
 
 reset
 STUB_PLAN='0:' $SSA -f -N -L 8080:localhost:80 host >/dev/null 2>&1
-check "-f is refused, not silently unsupervised" 255 $?
-check "-f never reaches ssh" 0 "$(sessions)"
+check "T7 -f is refused, not silently unsupervised" 255 $?
+check "T7 -f never reaches ssh" 0 "$(sessions)"
 
 reset
 STUB_PLAN='0:' $SSA -F /dev/null host >/dev/null 2>&1
-check "-F is not mistaken for -f" 0 $?
+check "T7 -F is not mistaken for -f" 0 $?
 
 reset
 STUB_PLAN='0:' $SSA -i /tmp/key-for-f host >/dev/null 2>&1
-check "an -i path containing f is not mistaken for -f" 0 $?
+check "T7 an -i path containing f is not mistaken for -f" 0 $?
 
 reset
 out=$(STUB_ALIVE=0 STUB_PLAN='0:' $SSA host 2>&1)
-check "no ServerAliveInterval is refused" 255 $?
-check "no ServerAliveInterval never connects" 0 "$(sessions)"
+check "T7 no ServerAliveInterval is refused" 255 $?
+check "T7 no ServerAliveInterval never connects" 0 "$(sessions)"
 case $out in
-    *ServerAliveInterval*"Host host"*) check "the refusal names the host, not Host *" y y ;;
-    *) check "the refusal names the host, not Host *" y "n: $out" ;;
+    *ServerAliveInterval*"Host host"*) check "T7 the refusal names the host, not Host *" y y ;;
+    *) check "T7 the refusal names the host, not Host *" y "n: $out" ;;
 esac
 
 reset
 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
-check "a configured keepalive connects untouched" \
+check "T7 a configured keepalive connects untouched" \
     "-o BatchMode=yes host" "$(first_argv)"
 
-# --- credentials are waited on, never asked for ------------------------------
+# --- T5  credentials are waited on, never asked for ----------------------------
 # Nothing here may prompt, invoke mwinit, or dead-end on a missing terminal: a
 # rejection is a thing to wait for. Hence `</dev/null` throughout -- no tty is
 # available, and it must still reconnect on its own.
 
+rm "$T/bin/ssh-keygen"
+
 reset
 out=$(STUB_PLAN='255:Permission denied (publickey).;0:;0:' $SSA host </dev/null 2>&1)
-check "rejected credentials, then accepted, exits 0" 0 $?
+check "T5 rejected credentials, then accepted, exits 0" 0 $?
 case $out in
-    *"credentials rejected"*) check "what it waits for is named" y y ;;
-    *) check "what it waits for is named" y "n: $out" ;;
+    *"credentials rejected"*) check "T5 what it waits for is named" y y ;;
+    *) check "T5 what it waits for is named" y "n: $out" ;;
 esac
 
 reset
 out=$(STUB_PLAN='255:Permission denied (publickey).' \
     $SSA --max-wait=3 host </dev/null 2>&1)
-check "rejection with no tty times out, never prompts" 255 $?
+check "T5 rejection with no tty times out, never prompts" 255 $?
 case $out in
-    *"gave up"*) check "timing out is why it stopped" y y ;;
-    *) check "timing out is why it stopped" y "n: $out" ;;
+    *"gave up"*) check "T5 timing out is why it stopped" y y ;;
+    *) check "T5 timing out is why it stopped" y "n: $out" ;;
 esac
-
-# A live certificate cannot be forged, so stub the reader instead. The cert is
-# only ever *read*, to explain a rejection.
-: >"$T/cert"
-keygen_says() {
-    cat >"$T/bin/ssh-keygen" <<STUB
-#!/usr/bin/env bash
-echo "        Valid: from 2020-01-01T00:00:00 to $1"
-STUB
-    chmod +x "$T/bin/ssh-keygen"
-}
 
 keygen_says 2020-01-02T00:00:00
 reset
 out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=$T/cert \
     $SSA --max-wait=3 host </dev/null 2>&1)
 case $out in
-    *"certificate expired"*) check "an expired cert explains the rejection" y y ;;
-    *) check "an expired cert explains the rejection" y "n: $out" ;;
+    *"cert expired"*) check "T10 an expired cert explains the rejection" y y ;;
+    *) check "T10 an expired cert explains the rejection" y "n: $out" ;;
 esac
 
 # A rejection with a live cert is not a cert problem, and saying so is the point:
 # another mwinit would not help.
+# An unreadable certificate is not a diagnosis. `date -d ''` returns midnight
+# today, so this used to read "cert expired 19h55m ago" -- indistinguishable from
+# the true message, and it sends you to mwinit for nothing.
+keygen_says 2020-01-02T00:00:00
+reset
+out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=/nonexistent \
+    $SSA --max-wait=3 host </dev/null 2>&1)
+case $out in
+    *"cert expired"*) check "T10 an unreadable cert is not reported as expired" y "n: $out" ;;
+    *) check "T10 an unreadable cert is not reported as expired" y y ;;
+esac
+
 keygen_says 2099-01-01T00:00:00
 reset
 out=$(STUB_PLAN='255:Permission denied (publickey).' SSA_CERT=$T/cert \
     $SSA --max-wait=3 host </dev/null 2>&1)
 case $out in
-    *"not the cert"*) check "a live cert is ruled out explicitly" y y ;;
-    *) check "a live cert is ruled out explicitly" y "n: $out" ;;
+    *"cert is live"*) check "T10 a live cert is ruled out explicitly" y y ;;
+    *) check "T10 a live cert is ruled out explicitly" y "n: $out" ;;
+esac
+
+# "Too many authentication failures" is a rejection the certificate does not
+# explain, so the note must not be attached to every auth failure alike.
+keygen_says 2020-01-02T00:00:00
+reset
+out=$(STUB_PLAN='255:Too many authentication failures for tester' SSA_CERT=$T/cert \
+    $SSA --max-wait=3 host </dev/null 2>&1)
+case $out in
+    *"cert expired"*) check "T10 the cert note is not attached to every rejection" y "n: $out" ;;
+    *) check "T10 the cert note is not attached to every rejection" y y ;;
 esac
 
 rm "$T/bin/ssh-keygen"
 
-# --- signals stop the supervised process ------------------------------------
+# --- T11  terminal ownership ---------------------------------------------------
+# ssh runs asynchronously so a signal trap can reach it, and bash hands an
+# asynchronous command /dev/null for stdin unless a redirection says otherwise --
+# measured: without `<&0` the child reads /dev/null, with it the child reads the
+# pty. Everything the wrapper does not implement depends on that one token: `~.`,
+# window resize, scrollback, a full-screen program, and the keypress window
+# itself. A dying full-screen program also leaves escape bytes in the input queue,
+# and those are not someone asking to stop. All three need a pty.
+
+cat >"$T/keypress.py" <<'PY'
+import os, pty, select, sys, time
+keys = sys.argv[2].encode()
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp("bash", ["bash", sys.argv[1], "host"])
+time.sleep(0.5)
+os.write(fd, keys)
+buf, t0 = b"", time.time()
+while time.time() - t0 < 40:
+    try:
+        r, _, _ = select.select([fd], [], [], 0.5)
+    except OSError:
+        break
+    if r:
+        try:
+            d = os.read(fd, 4096)
+        except OSError:
+            break
+        if not d:
+            break
+        buf += d
+sys.stderr.write(buf.decode("utf-8", "replace"))
+print(os.WEXITSTATUS(os.waitpid(pid, 0)[1]))
+PY
+
+if command -v python3 >/dev/null 2>&1; then
+    reset
+    rc=$(STUB_PLAN='0:' python3 "$T/keypress.py" "$SSA" '' 2>/dev/null)
+    check "T11 the session exits cleanly under a pty" 0 "$rc"
+    check "T11 the session inherits the terminal, not /dev/null" tty "$(session_tty)"
+
+    reset
+    rc=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' SSA_GRACE=3 \
+        python3 "$T/keypress.py" "$SSA" $'\e[<0;1;1M' 2>/dev/null)
+    check "T11 a queued escape sequence does not abort the reconnect" 0 "$rc"
+
+    reset
+    rc=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' SSA_GRACE=3 \
+        python3 "$T/keypress.py" "$SSA" q 2>/dev/null)
+    check "T11 q still stops the reconnect" 255 "$rc"
+else
+    skip 'T11: no python3, so no pty'
+fi
+
+# --- T8  child containment -----------------------------------------------------
 # A direct TERM (for example from a service manager) reaches the wrapper, not
-# necessarily its process group. It must stop the foreground ssh and its tee,
-# rather than defer the trap until that session eventually exits on its own.
+# necessarily its process group. It must stop the ssh child and its tee, rather
+# than defer the trap until that session eventually exits on its own.
 
 reset
 hold=$T/hold
@@ -363,7 +629,7 @@ for _ in {1..40}; do
     sleep 0.05
 done
 if [[ -s $hold ]]; then child=$(<"$hold"); else child=; fi
-check "signal test reaches the ssh child" y "$(if [[ -n $child ]]; then echo y; else echo n; fi)"
+check "T8 signal test reaches the ssh child" y "$(if [[ -n $child ]]; then echo y; else echo n; fi)"
 kill -TERM "$wrapper" 2>/dev/null
 for _ in {1..40}; do
     ! kill -0 "$wrapper" 2>/dev/null && break
@@ -377,15 +643,26 @@ else
 fi
 wait "$wrapper" 2>/dev/null
 term_rc=$?
-check "TERM stops the wrapper promptly" y "$wrapper_stopped"
-check "TERM exits with 128+15" 143 "$term_rc"
+check "T8 TERM stops the wrapper promptly" y "$wrapper_stopped"
+check "T8 TERM exits with 128+15" 143 "$term_rc"
 if [[ -n $child ]] && kill -0 "$child" 2>/dev/null; then
     child_stopped=n
     kill -TERM "$child" 2>/dev/null
 else
     child_stopped=y
 fi
-check "TERM stops the ssh child" y "$child_stopped"
+check "T8 TERM stops the ssh child" y "$child_stopped"
 
-printf '\n%d passed, %d failed\n' "$pass" "$fail"
+# The count in README.md is a fact about this file, so it is checked rather than
+# trusted -- a number in prose is exactly what drifts. It counts itself, hence the
+# +1, and it only means anything when nothing was skipped.
+if ((skipped == 0)); then
+    check "README.md's check count is current" \
+        "$(grep -oE '^[0-9]+ checks against' "$(dirname "$SSA")/README.md" | grep -oE '^[0-9]+')" \
+        "$((pass + fail + 1))"
+else
+    skip "the check count: $skipped check(s) did not run"
+fi
+
+printf '\n%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skipped"
 [[ $fail -eq 0 ]]

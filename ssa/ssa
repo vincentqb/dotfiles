@@ -1,32 +1,38 @@
 #!/usr/bin/env bash
 # ssa -- ssh that waits out a broken network and reconnects. It never blocks on
 # an SSH prompt: it reports what it is waiting for and retries on the next probe.
-# Why bash, and how each failure mode is detected: README.md.
+# The properties it maintains, and the check that discharges each: README.md.
 
 set -uo pipefail
 
 PROG=${0##*/}
 # ssh short options that take an argument (OpenSSH 7.4 synopsis).
 ARGOPTS='bcDEeFIiJLlmOopQRSWw'
-# Options that change what a session does rather than how it connects. A probe
-# must run `true` and finish, so these are omitted from its copy of argv.
-PROBE_SKIP='MNstT'
-PROBE_SKIP_ARGOPTS='OQW'
+# Options that change what a session does rather than how it connects, or that
+# silence the stream `diagnose` reads. A probe must run `true`, finish, and explain
+# itself, so these are omitted from its copy of argv.
+PROBE_SKIP='MNqstT'
+PROBE_SKIP_ARGOPTS='EOQW'
 # bash 4.2: "${a[@]}" on an empty array dies under set -u, hence ${a[@]+...}.
 
 max_wait=${SSA_MAX_WAIT:-0}
 grace=${SSA_GRACE:-3}
 probe_timeout=${SSA_PROBE_TIMEOUT:-7}
-# A line per probe reads fine for a 30-second outage and is unusable for a
-# night one: 1 s→30 s backoff over nine hours is ~1100 lines of the same
-# sentence. So the probe cadence and the *print* cadence are separate --
-# probes back off to max_delay, prints happen on a change of reason and
-# otherwise once per note_every.
+# A line per probe reads fine for a 30-second outage and is unusable for a night
+# one: nine hours at the max_delay cap is ~540 lines of the same sentence. So the
+# probe cadence and the *print* cadence are separate -- probes back off to
+# max_delay, prints happen on a change of reason and otherwise once per note_every.
 max_delay=${SSA_MAX_DELAY:-60}
 note_every=${SSA_NOTE_EVERY:-600}
 cert=${SSA_CERT:-$HOME/.ssh/id_rsa-cert.pub}
 tmux_session=
 retry_command=0
+# Every status line is `ssa: <state>: <reason>`. The longest state clause is
+# "waiting for " plus a host label, so 80 - len("ssa: waiting for ") - 20 - len(": ")
+# is what a reason may occupy; capping one ssh worded itself is what keeps the
+# whole line inside 80 columns, and a line that wraps is the one a full-screen
+# program shreds. test-ssa recomputes this bound and holds the table to it.
+REASON_MAX=41
 
 usage() {
     cat <<'EOF'
@@ -44,7 +50,13 @@ EOF
 say() { printf '%s: %s\n' "$PROG" "$*" >&2; }
 die() { say "$*"; exit 255; }
 now() { date +%s; }
-dur() { if (($1 < 60)); then printf '%ds' "$1"; else printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); fi; }
+# Hours, because an overnight wait is the case the print cadence exists for and
+# "543m21s" is not a duration anyone reads. Seconds stop mattering at that scale.
+dur() {
+    if (($1 < 60)); then printf '%ds' "$1"
+    elif (($1 < 3600)); then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60))
+    else printf '%dh%02dm' $(($1 / 3600)) $(($1 / 60 % 60)); fi
+}
 
 # One left-to-right pass: our long options and a remote command can be spelled
 # the same, so only tokens before the hostname are ours. probe_opts is the same
@@ -76,7 +88,7 @@ while ((i < ${#argv[@]})); do
                 # to supervise. Only the no-argument prefix of a cluster is
                 # examined, so -F and an -i path are not mistaken for it.
                 [[ $c == f ]] &&
-                    die "-f backgrounds ssh, leaving nothing to supervise; drop it and background $PROG instead"
+                    die "-f backgrounds ssh; background $PROG instead"
                 [[ $PROBE_SKIP != *"$c"* ]] && probe_a+=$c
                 r=${r:1}
             done
@@ -97,11 +109,15 @@ while ((i < ${#argv[@]})); do
     esac
     ((i++))
 done
-[[ -n $host ]] || { usage; exit 2; }
+[[ -n $host ]] || { usage >&2; die 'no host given'; }
+# A bound bash reads as 0 is worse than no bound: --max-wait=1O (letter O) would
+# silently mean "wait forever", which is the opposite of what was asked for.
+for n in "$max_wait" "$grace" "$probe_timeout" "$max_delay" "$note_every"; do
+    [[ $n =~ ^[0-9]+$ ]] || die "expected whole seconds, got '$n'"
+done
 # Messages name the host by its first label. The FQDN of a dev desktop is 50
 # characters, which is most of a line on its own, and every line that wraps is
-# a line that gets shredded by whatever full-screen program shares the
-# terminal -- the reason the output looked mangled, not just verbose.
+# a line that gets shredded by whatever full-screen program shares the terminal.
 short_host=${host%%.*}
 
 # autossh's -M monitor exists because nothing reconnects if nothing notices the
@@ -127,72 +143,86 @@ grep -q '^sessiontype ' <<<"$ssh_config" && probe_compat+=(-o SessionType=defaul
 
 eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
 if [[ -n $tmux_session ]]; then
-    ((${#user_cmd[@]} == 0)) || die "--tmux replaces the remote command; name the session with --tmux=NAME, not --tmux NAME"
+    ((${#user_cmd[@]} == 0)) || die "--tmux replaces the remote command; use --tmux=NAME"
     # -A attaches or creates. -u because a remote command gets no login shell,
     # so LC_* is POSIX and tmux would draw every multibyte cell as "_"; the
     # same session entered by hand looks fine, which makes it look like our bug.
     eff_cmd=(tmux -u new -A -s "$tmux_session")
 fi
 
-# fatal: retrying cannot help. auth: credentials refused. connect: no session
-# existed, so retrying an interactive connection is safe. dropped (the default):
-# one died. A supplied remote command is always ambiguous because its stderr is
-# the same stream and it may itself return 255; that policy is enforced below.
-classify() {
-    case $1 in
-        *"IDENTIFICATION HAS CHANGED"* | *"Host key verification failed"* | \
-        *"Bad configuration option"* | *"illegal option"* | *"unknown option"*) echo fatal ;;
-        *"Permission denied"* | *"Too many authentication failures"*) echo auth ;;
-        *"Could not resolve"* | *"Name or service not known"* | *"Connection refused"* | \
-        *"Connection timed out"* | *"Operation timed out"* | *"No route to host"* | \
-        *"Network is unreachable"* | *exchange_identification*) echo connect ;;
-        *) echo dropped ;;
-    esac
-}
+# Every failure ssh, or a ProxyCommand standing in for the network, can report:
+# the class that decides what we do, the clause we print, and the substring that
+# identifies it. One table rather than three case statements, so a class and a
+# reason cannot drift apart and a new failure mode is one row, not three edits.
+#
+# fatal: retrying cannot help. auth: credentials refused; the host is reachable.
+# connect: no session existed, so retrying an interactive connection is safe.
+# dropped (no row matched): one died. A supplied remote command is ambiguous
+# whatever the text says, because its stderr is this same stream and it may
+# itself return 255; that policy is enforced in the loop, not here.
+#
+# The first matching row wins and the whole of stderr is searched, so a proxy's
+# own diagnostic outranks the generic handshake failure ssh reports underneath it.
+FAILURES='fatal|host key changed|IDENTIFICATION HAS CHANGED
+fatal|host key not verified|Host key verification failed
+fatal|bad ssh option|Bad configuration option
+fatal|bad ssh option|illegal option
+fatal|bad ssh option|unknown option
+auth|credentials rejected|Permission denied
+auth|too many authentication attempts|Too many authentication failures
+auth|proxy credentials expired|ExpiredToken
+auth|proxy has no credentials|Unable to locate credentials
+connect|unresolved host, check DNS or VPN|Could not resolve
+connect|unresolved host, check DNS or VPN|Name or service not known
+connect|unresolved host, check DNS or VPN|nodename nor servname
+connect|connection refused|Connection refused
+connect|connection timed out|Connection timed out
+connect|connection timed out|Operation timed out
+connect|no route to host|No route to host
+connect|network unreachable|Network is unreachable
+connect|refused mid-handshake|exchange_identification'
 
-# Only meaningful once ssh has said Permission denied -- and the host may not use
-# this certificate at all, which is what the second branch reports.
-cert_note() {
+# "Permission denied" does not say why. The certificate's own Valid-to does, so
+# when it can answer it answers for the whole line -- and the host may not use this
+# certificate at all, which is what the second branch reports.
+cert_reason() {
     local to exp
     to=$(ssh-keygen -L -f "$cert" 2>/dev/null | sed -n 's/.*Valid: from .* to \([^ ]*\).*/\1/p')
+    # No certificate to read is not an answer. Without this, `date -d ''` succeeds
+    # and returns midnight today, so an unreadable cert was reported as expired --
+    # a false reason that reads exactly like the true one, and sends you to mwinit.
+    [[ -n $to ]] || return 1
     exp=$(date -d "$to" +%s 2>/dev/null || date -j -f '%Y-%m-%dT%H:%M:%S' "$to" +%s 2>/dev/null) ||
-        return 0
-    if (($(now) > exp)); then printf 'certificate expired %s ago' "$(dur $(($(now) - exp)))"
-    else printf 'certificate is live, so this is not the cert'; fi
+        return 1
+    if (($(now) > exp)); then printf 'cert expired %s ago' "$(dur $(($(now) - exp)))"
+    else printf 'credentials rejected, cert is live'; fi
 }
 
-# ssh explains itself on stderr, so its last real line is the reason. Only
-# credentials need more, because "Permission denied" does not say why.
-reason_for() {
-    if [[ $(classify "$1") == auth ]]; then
-        local note
-        note=$(cert_note)
-        printf 'credentials rejected%s' "${note:+ ($note)}"
-    else
-        grep -v '^Warning: Permanently added' <<<"$1" | grep . | tail -1 | sed 's/^ssh: //'
-    fi
-}
-
-# ssh's diagnostics are written to be read once, not once a minute: "Could not
-# resolve hostname <fqdn>: nodename nor servname provided, or not known" is 90
-# characters that say "DNS". Collapse the reasons we already classify to one
-# clause each and cap anything unrecognized, so a status line stays a line. The
-# full text still reaches you unabridged -- ssh writes it to the terminal
-# itself, and `die` quotes it when we stop.
-short_reason() {
-    case $1 in
-        *"nodename nor servname"* | *"Name or service not known"* | \
-        *"Could not resolve"*) echo "unresolved host (DNS or VPN)" ;;
-        *"Connection refused"*) echo "connection refused" ;;
-        *"Operation timed out"* | *"Connection timed out"*) echo "timed out" ;;
-        *"No route to host"*) echo "no route to host" ;;
-        *"Network is unreachable"*) echo "network unreachable" ;;
-        *exchange_identification*) echo "refused mid-handshake" ;;
-        # Ours, not ssh's: already one clause, and truncating them would eat the
-        # part that says what to do (which cert, which portal).
-        *"credentials rejected"* | *"captive portal"*) echo "$1" ;;
-        *) if ((${#1} > 64)); then printf '%.61s...' "$1"; else echo "$1"; fi ;;
-    esac
+# The one place stderr becomes a decision and a sentence, so the two agree by
+# construction. Sets CLASS, REASON, and KEY -- the reason with anything that ticks
+# taken out of it. A cert expiry is worded with a duration that grows between
+# probes, so comparing REASON would report a change on every probe and defeat the
+# print cadence entirely; KEY is what "has the reason changed?" means.
+CLASS=
+REASON=
+KEY=
+diagnose() {
+    local class phrase pat answer
+    while IFS='|' read -r class phrase pat; do
+        [[ $1 == *"$pat"* ]] || continue
+        CLASS=$class REASON=$phrase KEY=$phrase
+        [[ $phrase == 'credentials rejected' ]] && answer=$(cert_reason) && REASON=$answer
+        return
+    done <<<"$FAILURES"
+    # Unclassified, so ssh's own last line is the reason, capped to one line. ssh
+    # writes it to this terminal unabridged either way. A session with a tty ends
+    # its lines with CR, which would send the cursor back over our own prefix.
+    CLASS=dropped
+    REASON=$(awk '!/^Warning: Permanently added/ && NF { l = $0 }
+        END { gsub(/\r/, "", l); sub(/^ssh: /, "", l); print l }' <<<"$1")
+    ((${#REASON} > REASON_MAX)) && REASON=${REASON:0:REASON_MAX-3}...
+    REASON=${REASON:-'no diagnostic, so ~. or a silent drop'}
+    KEY=$REASON
 }
 
 # The one connection failure waiting never fixes, so it is worth its own probe.
@@ -201,51 +231,59 @@ portal() {
     code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
         http://connectivitycheck.gstatic.com/generate_204 2>/dev/null)
     [[ -n $code && $code != 204 && $code != 000 ]] &&
-        printf 'captive portal? probe got HTTP %s -- sign in from a browser' "$code"
+        printf 'captive portal, HTTP %s -- sign in from a browser' "$code"
 }
 
-# A real ssh, so aliases, ports and ProxyJump hold, but quiet and short-fused.
-# The option copy cannot suppress `true`, start a subsystem/control operation, or
-# open the user's forwards. Our -o values win because ssh keeps the first value.
+# A real ssh, so aliases, ports, ProxyJump and multiplexing all hold. A probe
+# answers one question -- would the session connect? -- so it may bound the
+# attempt and make it finite, and may not change how the connection is made.
+# In particular it keeps the session's ControlPath: reaching a live master is how
+# the session will reconnect, and a probe that insists on a fresh handshake would
+# wait for credentials the session does not need. Our -o values win because ssh
+# keeps the first value it obtains.
 probe_err=
 probe() {
     probe_err=$(ssh -T -o BatchMode=yes -o ConnectTimeout="$probe_timeout" \
-        -o ControlMaster=no -o ControlPath=none -o ClearAllForwardings=yes \
+        -o ControlMaster=no -o ClearAllForwardings=yes \
         ${probe_compat[@]+"${probe_compat[@]}"} \
         ${probe_opts[@]+"${probe_opts[@]}"} "$host" true 2>&1 >/dev/null)
 }
 
 # A master that died with the link leaves a socket that fails the next connect
-# instantly. No-op when multiplexing is off.
+# instantly. Runs before the probe, so the probe reaches a live master or none.
+# No-op when multiplexing is off.
 stale_master() {
     ssh ${ssh_opts[@]+"${ssh_opts[@]}"} -O check "$host" >/dev/null 2>&1 ||
         ssh ${ssh_opts[@]+"${ssh_opts[@]}"} -O exit "$host" >/dev/null 2>&1 || true
 }
 
 WAITED=0
-# One line on entry, then a line only when the reason *changes* -- DNS gave way
-# to refused, or a portal appeared -- or when note_every has passed. `last` is
-# seeded from the entry reason so the first probe does not immediately repeat
-# it. A line per probe is fine for a 30-second outage and unusable for a night
-# one, and it was the repetition that made this loop unreadable, not the
-# waiting.
+# Entered with CLASS and REASON already describing why the session ended. One
+# line on entry, then a line only when the reason *changes* -- DNS gave way to
+# refused, a portal appeared -- or when note_every has passed. `last` is seeded
+# from the entry reason so the first probe does not immediately repeat it. It was
+# the repetition that made this loop unreadable, not the waiting.
 wait_for() {
-    local delay=1 start reason spotted last last_note probe_class
+    local delay=1 start last last_note spotted
     start=$(now)
     last_note=$start
-    last=$(short_reason "$1")
-    say "waiting for $short_host: $last"
+    last=$KEY
+    say "waiting for $short_host: $REASON"
     while ! probe; do
         WAITED=$(($(now) - start))
         ((max_wait > 0 && WAITED >= max_wait)) && return 1
-        probe_class=$(classify "$probe_err")
-        reason=$(short_reason "$(reason_for "$probe_err")")
-        if [[ $probe_class == connect ]]; then
-            spotted=$(portal) && reason=$spotted
-        fi
-        if [[ $reason != "$last" ]] || (($(now) - last_note >= note_every)); then
-            say "${reason:-unreachable} (waited $(dur "$WAITED"))"
-            last=$reason
+        diagnose "$probe_err"
+        # Waiting cannot fix a fatal reason, whoever noticed it first. A host key
+        # can change while we wait -- a host rebuilt during the outage we are
+        # sitting out is the ordinary way that happens.
+        [[ $CLASS == fatal ]] && die "not reconnecting: $REASON"
+        # A portal keeps the connection failure it hides unchanged, so it has to
+        # refine the reason before the comparison below, or it would be silent
+        # until the next keep-alive line.
+        [[ $CLASS == connect ]] && spotted=$(portal) && REASON=$spotted KEY=$spotted
+        if [[ $KEY != "$last" ]] || (($(now) - last_note >= note_every)); then
+            say "still waiting after $(dur "$WAITED"): $REASON"
+            last=$KEY
             last_note=$(now)
         fi
         # Never sleep past --max-wait. The bound is checked before sleeping, so
@@ -282,7 +320,8 @@ rc=0
 # ssh's stderr must both pass through live (a remote command writes to it) and be
 # read back to classify the failure. A fifo does both, and waiting on the tee
 # guarantees the file is complete before it is read. ssh is asynchronous only so
-# a signal trap can stop it; explicit stdin keeps ownership of the terminal.
+# a signal trap can stop it; `<&0` is load-bearing, because bash gives an
+# asynchronous command /dev/null for stdin unless a redirection says otherwise.
 run_ssh() {
     tee "$errfile" <"$fifo" >&2 &
     tee_pid=$!
@@ -302,33 +341,33 @@ while :; do
     # fatal and replay-safety policies below because a remote command may use it.
     ((rc != 255)) && exit "$rc"
 
-    err=$(<"$errfile")
-    class=$(classify "$err")
-    reason=$(reason_for "$err")
+    diagnose "$(<"$errfile")"
 
-    if [[ $class == fatal ]]; then
-        [[ $err == *"IDENTIFICATION HAS CHANGED"* ]] &&
-            say "the host key changed; a rebuilt host and a MITM look alike from here, so fix known_hosts yourself"
-        die "not retrying: ${reason:-ssh exited 255}"
+    if [[ $CLASS == fatal ]]; then
+        [[ $REASON == 'host key changed' ]] &&
+            say "a rebuilt host and a MITM look the same here; verify, then fix known_hosts"
+        die "not reconnecting: $REASON"
     fi
 
     # Remote stderr shares errfile with ssh diagnostics, and a remote command may
     # itself return 255. No wording can prove it never started, so replay is
     # always explicit; tmux remains safe because it is our idempotent command.
     ((${#user_cmd[@]})) && ((retry_command == 0)) &&
-        die "ssh exited 255, and '${user_cmd[*]}' may have already run (--retry-command to allow)"
+        die "ssh exited 255 and '${user_cmd[*]}' may have run; --retry-command allows a replay"
 
-    # `~.` and a dead link are the same silent 255, so offer a way out. The
-    # reason is not repeated here: ssh has just written it to this same
-    # terminal, and echoing it back was half the width of the line.
-    if [[ $class == dropped && -t 0 ]]; then
-        printf '%s: reconnecting in %ss, key to stop... ' "$PROG" "$grace" >&2
-        read -rs -n 1 -t "$grace" && { echo >&2; exit 255; }
-        echo >&2
+    # `~.` and a dead link are the same silent 255, so offer a way out. The key
+    # is named: a dying full-screen program leaves escape bytes in the input
+    # queue, and those are not someone asking to stop.
+    if [[ $CLASS == dropped && -t 0 ]]; then
+        printf '%s: reconnecting in %ss, q to stop' "$PROG" "$grace" >&2
+        read -rs -n 1 -t "$grace" key && [[ $key == q ]] && { printf '\n' >&2; exit 255; }
+        printf '\n' >&2
     fi
 
     stale_master
-    wait_for "${reason:-unreachable}" || die "gave up on $short_host after $(dur "$WAITED")"
-    ((WAITED > 30)) && printf '\a' >&2   # you probably walked away
-    say "$short_host is back after $(dur "$WAITED"); reconnecting"
+    # No reason here: the line before it is the reason, and repeating it is what
+    # pushes this shape past 80 columns.
+    wait_for || die "gave up on $short_host after $(dur "$WAITED")"
+    ((WAITED > 30)) && printf '\a' >&2   # long enough that nobody was watching
+    say "$short_host back after $(dur "$WAITED"), reconnecting"
 done
