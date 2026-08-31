@@ -152,6 +152,14 @@
     "amazon-sharepoint-mcp" : {
       "type" : "local",
       "command" : [ "amazon-sharepoint-mcp" ]
+    },
+    "npm:@playwright/mcp" : {
+      "type" : "local",
+      "command" : [ "npm-playwright-mcp" ]
+    },
+    "software-builder-insights-prod-mcp" : {
+      "type" : "local",
+      "command" : [ "software-builder-insights-prod-mcp" ]
     }
   }
 }

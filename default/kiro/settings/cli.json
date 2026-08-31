@@ -62,5 +62,6 @@
       "argsMaxChars": null,
       "outputMaxChars": null
     }
-  }
+  },
+  "chat.enableAutoAgentUpgrade": true
 }
