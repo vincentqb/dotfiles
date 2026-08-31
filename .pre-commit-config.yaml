@@ -18,3 +18,26 @@ repos:
       language: system
       pass_filenames: false
       files: ^ccusage/
+
+    # Unquoted expansions are the bug class these scripts are made of: every one
+    # of them runs during a machine setup, where $HOME or a `which` result
+    # containing a space fails once, late, on someone else's laptop. `system`
+    # rather than the upstream hook because shellcheck is already in the
+    # Brewfile, and a Docker pull is a poor dependency for a commit.
+    - id: shellcheck
+      name: shellcheck
+      entry: shellcheck
+      language: system
+      types: [shell]
+      exclude_types: [fish]
+
+    # ssa is a recovery tool, so its failures happen when the network is already
+    # broken and nobody is watching. The suite is offline and self-gating: it
+    # runs bash -n and shellcheck itself, holds the failure table to the column
+    # budget, and refuses a property README.md states but nothing checks.
+    - id: ssa-tests
+      name: ssa properties
+      entry: ssa/test-ssa
+      language: system
+      pass_filenames: false
+      files: ^ssa/

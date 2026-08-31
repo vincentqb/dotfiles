@@ -17,7 +17,7 @@ brew bundle
 nvim --headless "+Lazy! sync" +qa
 
 # Fish as default shell
-sudo chsh $USER -s $(which fish)
+sudo chsh "$USER" -s "$(which fish)"
 
 # Cargo + texlab (not in homebrew-core for Linux)
 curl https://sh.rustup.rs -sSf | sh -s -- -y

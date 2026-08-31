@@ -17,7 +17,7 @@ nvim --headless "+Lazy! sync" +qa
 
 # Fish as default shell
 sudo fish -c 'echo (which fish) >> /etc/shells'
-chsh -s $(which fish)
+chsh -s "$(which fish)"
 
 # Keep cargo crates fresh
 cargo install-update -a
@@ -29,14 +29,15 @@ touch ~/toolbox-bootstrap.sh && \
   curl -X POST \
   --data '{"os":"osx"}' \
   -H "Authorization: $(curl -L \
-  --cookie $HOME/.midway/cookie \
-  --cookie-jar $HOME/.midway/cookie \
+  --cookie "$HOME/.midway/cookie" \
+  --cookie-jar "$HOME/.midway/cookie" \
   "https://midway-auth.amazon.com/SSO?client_id=https://us-east-1.prod.release-service.toolbox.builder-tools.aws.dev&response_type=id_token&nonce=$RANDOM&redirect_uri=https://us-east-1.prod.release-service.toolbox.builder-tools.aws.dev:443")" \
   https://us-east-1.prod.release-service.toolbox.builder-tools.aws.dev/v1/bootstrap \
   > ~/toolbox-bootstrap.sh
 bash ~/toolbox-bootstrap.sh
 rm ~/toolbox-bootstrap.sh
-source ~/.$(basename "$SHELL")rc
+# shellcheck disable=SC1090  # the rc file is whichever shell is running this
+source ~/".$(basename "$SHELL")rc"
 toolbox update
 toolbox install ada axe brazilcli cr claude-code aim
 brazil setup completion
