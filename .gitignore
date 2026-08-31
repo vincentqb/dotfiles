@@ -67,5 +67,10 @@
 **/config/rde/
 **/config/smithy-mcp/
 
-# Installed by fisher, not by us.
+# Generated, not authored: fisher installs conf.d and completions from
+# fish_plugins, rustup and Fig drop their own, and fish_config writes the frozen
+# theme and key bindings. fish_plugins is the input and stays tracked; the rest is
+# output, on the same footing as tmux/plugins and functions/_*.fish above.
 **/config/fish/functions/fisher.fish
+**/config/fish/completions/
+**/config/fish/conf.d/
