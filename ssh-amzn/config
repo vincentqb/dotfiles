@@ -1,0 +1,38 @@
+Host *
+    TcpKeepAlive yes
+    ServerAliveInterval 30
+    ServerAliveCountMax 6
+    ControlMaster auto
+    ControlPath ~/.ssh/control:%C
+
+Host ddsk
+    Hostname dev-dsk-quennv-1e-5210c771.us-east-1.amazon.com
+    User ec2-user
+    IdentityFile ~/.ssh/quennv_ec2.pem
+    Port 22
+    RemoteCommand (tmux new || tmux attach -t 0)
+    RequestTTY force
+
+Host ddsk2
+    Hostname dev-dsk-quennv-1d-052430ad.us-east-1.amazon.com
+    User ec2-user
+    IdentityFile ~/.ssh/quennv_ec2.pem
+    Port 22
+    RemoteCommand (tmux new || tmux attach -t 0)
+    RequestTTY force
+
+Host gpu2
+    Hostname ec2-35-86-221-123.us-west-2.compute.amazonaws.com
+    User ec2-user
+    IdentityFile ~/.ssh/quennv_ec2.pem
+    Port 22
+    RemoteCommand (tmux new || tmux attach -t 0)
+    RequestTTY force
+
+Host gpu3
+    Hostname ec2-16-148-31-250.us-west-2.compute.amazonaws.com
+    User ec2-user
+    IdentityFile ~/.ssh/quennv_ec2.pem
+    Port 22
+    RemoteCommand (tmux new || tmux attach -t 0)
+    RequestTTY force
