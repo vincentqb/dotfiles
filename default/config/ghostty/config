@@ -8,8 +8,12 @@ font-size = 14
 
 command = /opt/homebrew/bin/fish --login
 
-# ssh-terminfo installs the xterm-ghostty entry on remote hosts that lack it,
-# so keys/colors work before tmux starts; ssh-env forwards COLORTERM and
-# TERM_PROGRAM. Setting this key replaces the whole list, so the defaults
-# (cursor, title, path) are repeated here. sudo stays off, as by default.
-shell-integration-features = cursor,title,path,ssh-env,ssh-terminfo
+# ssh-env falls TERM back to xterm-256color on remotes that lack the
+# xterm-ghostty entry, and forwards COLORTERM and TERM_PROGRAM. ssh-terminfo is
+# deliberately off: it pipes `infocmp | ssh host tic -x -`, which hangs forever
+# against a host whose ssh_config says `RequestTTY force` (ddsk), because a pty
+# never delivers the EOF `tic` waits on. Install the entry on the host instead:
+#   infocmp -x xterm-ghostty | ssh -o RequestTTY=no HOST 'tic -x -'
+# Setting this key replaces the whole list, so the defaults (cursor, title,
+# path) are repeated here. sudo stays off, as by default.
+shell-integration-features = cursor,title,path,ssh-env
