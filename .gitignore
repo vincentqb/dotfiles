@@ -45,6 +45,9 @@
 **/claude/science-commits/
 **/claude/urgent/
 **/codex/
+!default/codex/
+default/codex/*
+!default/codex/astra.config.toml
 **/kiro/.cli_bash_history
 **/kiro/agents/
 **/kiro/logs/

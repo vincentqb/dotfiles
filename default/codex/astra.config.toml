@@ -1,0 +1,6 @@
+# GPT-6 Astra profile for Codex on Amazon Bedrock.
+# Staged before general internal availability; use once the account exposes the model.
+# Run with: codex --profile astra
+model = "openai.gpt-6-astra"
+model_provider = "amazon-bedrock"
+model_reasoning_effort = "max"
