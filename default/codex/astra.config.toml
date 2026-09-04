@@ -1,6 +1,11 @@
 # GPT-6 Astra profile for Codex on Amazon Bedrock.
-# Staged before general internal availability; use once the account exposes the model.
-# Run with: codex --profile astra
+# Bedrock's verified external ID is openai.gpt-6-astra; bare aliases are invalid.
+# IAD is the first commercial deployment target. As of 2026-09-03 the customer
+# catalog still returned 404; run `astra-probe` to recheck visibility.
+# Run with: ~/.toolbox/bin/codex --profile astra
 model = "openai.gpt-6-astra"
 model_provider = "amazon-bedrock"
 model_reasoning_effort = "max"
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-1"
