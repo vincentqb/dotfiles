@@ -39,3 +39,18 @@ end
 # Added by AIM CLI
 set -gx PATH "/local/home/quennv/.aim/mcp-servers" $PATH
 alias finch='sudo HOME=/home/quennv DOCKER_CONFIG=/home/quennv/.docker finch'
+
+# Keep Amazon toolbox builds ahead of Homebrew on PATH.
+#
+# fish_user_paths (universal, in gitignored fish_variables) had linuxbrew
+# before ~/.toolbox/bin, so `codex` resolved to the stale public Homebrew
+# cask (0.144.x) instead of the ASBX Codex-on-Bedrock build. The public
+# build's /model picker never learns about new Bedrock models (GPT-5.6
+# family, GPT-6-Astra): the model catalog ships with each internal release
+# and is fetched per client version. claude/kiro-cli are toolbox-only, but
+# toolbox-first protects them from future brew-installed shadows too.
+# zsh already ends with `export PATH=$HOME/.toolbox/bin:$PATH`; this is the
+# fish equivalent, run at every shell start so brew reordering can't
+# regress it. (fish_user_paths itself was also reordered, but that file is
+# not tracked, hence this belt-and-suspenders line.)
+fish_add_path --global --move --path ~/.toolbox/bin
