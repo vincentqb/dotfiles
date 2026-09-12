@@ -12,6 +12,7 @@ brew "coreutils"
 brew "fish"
 brew "tmux"
 brew "ansifilter"   # tmux-logging
+brew "util-linux"
 cask "kitty"
 cask "ghostty"
 cask "warp"
