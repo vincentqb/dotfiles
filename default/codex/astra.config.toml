@@ -1,11 +1,26 @@
 # GPT-6 Astra profile for Codex on Amazon Bedrock.
 # Bedrock's verified external ID is openai.gpt-6-astra; bare aliases are invalid.
-# IAD is the first commercial deployment target. As of 2026-09-03 the customer
-# catalog still returned 404; run `astra-probe` to recheck visibility.
+# GA on Bedrock since 2026-09-08 (US CRIS + Global CRIS, 1M context), but as of
+# 2026-09-14 the shared builder path is closed: SCP p-kskhflg1 explicitly denies
+# bedrock-mantle:CreateInference for the Caminus accounts in ALL regions
+# (verified live in IAD/CMH/PDX; control gpt-5.6-sol passes). Run `astra-probe`
+# to recheck -- an OK on any verified-id row means the SCP opened.
+# us-west-2 because Astra runs on Mantle PDX while Toolbox pins us-east-2; this
+# is the region most likely to serve first (per #openai-codex-internal-interest).
+# Working TODAY only via BYOA (personal AWS account, docs.hub.amazon.dev/codex
+# "Use a personal AWS account"):
+#   codex -c 'model_provider="amazon-bedrock-runtime"' \
+#         -c 'model="global.openai.gpt-6-astra"' \
+#         -c 'model_providers.amazon-bedrock-runtime.aws.profile="PERSONAL"' \
+#         -c 'model_providers.amazon-bedrock-runtime.aws.region="us-east-1"'
 # Run with: ~/.toolbox/bin/codex --profile astra
 model = "openai.gpt-6-astra"
 model_provider = "amazon-bedrock"
 model_reasoning_effort = "max"
 
 [model_providers.amazon-bedrock.aws]
-region = "us-east-1"
+region = "us-west-2"
+profile = "codex-DO-NOT-DELETE"
+
+[projects."/local/home/quennv/dotfiles"]
+trust_level = "trusted"

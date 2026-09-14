@@ -1,4 +1,10 @@
 function astra-probe --description 'Probe GPT-6 Astra model IDs and regions through Toolbox Codex'
+    # State as of 2026-09-14: Astra is GA on Bedrock (2026-09-08) but SCP
+    # p-kskhflg1 denies bedrock-mantle:CreateInference on the shared Caminus
+    # accounts in every region, so all verified-id rows read 401-SCP-DENY while
+    # the control passes. The probe exists to catch the flip: any OK on a
+    # verified-id or global-cris row means shared-creds access opened. Until
+    # then the only working path is BYOA (see astra.config.toml).
     set --local codex "$HOME/.toolbox/bin/codex"
     set --local prompt 'Reply exactly OK. Do not call tools.'
     set --local dry_run false
@@ -17,9 +23,7 @@ function astra-probe --description 'Probe GPT-6 Astra model IDs and regions thro
         'verified-id|openai.gpt-6-astra|us-east-1' \
         'verified-id|openai.gpt-6-astra|us-east-2' \
         'verified-id|openai.gpt-6-astra|us-west-2' \
-        'openai-slug|gpt-6-astra|us-east-1' \
-        'bare-alias|astra|us-east-1' \
-        'codex-flag-slug|openai.gpt-6-astra-aeon|us-east-1'
+        'global-cris|global.openai.gpt-6-astra|us-east-1'
     set --local timeout_command
     if command --query timeout
         set timeout_command timeout 90
@@ -58,7 +62,7 @@ function astra-probe --description 'Probe GPT-6 Astra model IDs and regions thro
 
         if string match --quiet --regex '"agent_message".*"text":"OK"' "$joined"
             set result OK
-            if test "$model" = openai.gpt-6-astra
+            if string match --quiet '*gpt-6-astra*' "$model"
                 set astra_available true
             end
         else if string match --quiet '*does not exist*' "$joined"
@@ -76,13 +80,17 @@ function astra-probe --description 'Probe GPT-6 Astra model IDs and regions thro
         printf '%-16s %-30s %-11s %s\n' "$kind" "$model" "$region" "$result"
     end
 
+    # Kiro ids drop the vendor prefix (gpt-5.6-sol, not openai.gpt-5.6-sol), so
+    # match any model_id containing gpt-6 rather than guessing the exact form.
     set --local model_json (kiro-cli chat --list-models --format json 2>/dev/null)
-    for model in openai.gpt-6-astra gpt-6-astra astra
-        if string match --quiet "*\"model_id\":\"$model\"*" "$model_json"
-            printf '%-16s %-30s %-11s %s\n' kiro-catalog "$model" N/A AVAILABLE
-        else
-            printf '%-16s %-30s %-11s %s\n' kiro-catalog "$model" N/A NOT-LISTED
+    set --local kiro_hits (string match --all --regex '"model_id":"[^"]*gpt-6[^"]*"' "$model_json")
+    if set --query kiro_hits[1]
+        for hit in $kiro_hits
+            printf '%-16s %-30s %-11s %s\n' kiro-catalog (string replace --all '"' '' (string split ':' -- "$hit")[2]) N/A AVAILABLE
         end
+        set astra_available true
+    else
+        printf '%-16s %-30s %-11s %s\n' kiro-catalog 'gpt-6*' N/A NOT-LISTED
     end
 
     if $dry_run; or $astra_available
