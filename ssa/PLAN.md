@@ -2,10 +2,11 @@
 
 ## Goal
 
-Wrap OpenSSH so an interactive shell, tmux attachment, or forwarding-only session
-reconnects after credential expiry, VPN loss, captive portals, timeouts, network
-changes, and remote reboots. Preserve OpenSSH's terminal behaviour and
-configuration instead of replacing either.
+Wrap OpenSSH so an interactive shell or tmux attachment reconnects after credential
+expiry, VPN loss, captive portals, timeouts, network changes, and remote reboots.
+Preserve OpenSSH's terminal behaviour and configuration instead of replacing either
+— and take a host, not a copy of ssh's command line: every connection setting
+belongs in `ssh_config`, where the probe and the session both read it.
 
 ## The gate
 
@@ -38,9 +39,14 @@ that may appear in it.
 
 T12 and T13 are the exception that has to sample behaviour: a bound is a claim about
 the clock, so the only way to check it is to point `ssa` at something that will not
-come back and time it. Written with a second or two of slack, against the three to
-six seconds the defects they cover actually cost, so a loaded machine does not read
-as a regression.
+come back and watch what it does next. They assert that the loop kept running rather
+than an exact duration, so a loaded machine does not read as a regression.
+
+`ssa` has no runtime knobs, which would make those checks unwritable if the suite
+could not vary a constant. It generates a copy of the script with one constant
+rewritten, and the rewrite fails unless it matches exactly one line — otherwise a
+renamed constant would leave the check green and testing nothing, which is the
+same class of silent rot the data checks exist to prevent.
 
 ## Kept deliberately short
 
@@ -54,18 +60,38 @@ Not defects, and not worth the code they would take here:
   something it reads by luck rather than by grammar. `TAIL_LINES` keeps luck from
   compounding; a real parser would mean the debug-output dependency this deliberately
   avoids.
+- Refusing ssh's flags means a setting that has no `ssh_config` spelling cannot be
+  passed at all. There is no such setting among the ones this is used with, and the
+  refusal names the flag, so the failure is a sentence rather than a silent
+  difference between the probe and the session.
 
 ## Superseded
 
 Kept because each was a real belief that a check now contradicts. Deleting them
 invites the same edit twice.
 
+- **"A probe must be a filtered copy of the caller's argv."** That is what 42 lines
+  of hand-rolled getopt were for: walking clusters, consuming argument-taking flags,
+  deciding per flag whether a probe may keep it. Each decision could fail in either
+  direction, and both directions are silent -- stricter and `ssa` waits out an
+  outage that is not happening, laxer and it reconnects into an instant failure.
+  ssh's flags are now refused, naming the flag and pointing at `ssh_config`, which
+  both the probe and the session read; the probe's argv is fixed. T1 stopped being
+  an argv-diff proof and became a sentence, and `-f`, `-q`, `-E`, `-N` and the rest
+  need no cases of their own.
+- **"Every timing knob wants an env var, and a wait wants a bound."** Nine knobs,
+  of which one was ever passed. `--max-wait` was never used and gave up on a wait
+  that only a person can judge -- a certificate about to be refreshed is indefinite,
+  so the bound that means something is `^C`. Constants now, and the checks that need
+  a different one generate a copy of the script with that line rewritten, which
+  fails loudly unless it matches exactly one line. What must still terminate is each
+  *call*, which is T12.
 - **"`--max-wait` is checked often enough."** It was read *between* calls, and then
   a call was made that had no obligation to return: `-O check` has no bound of its
   own, and `ConnectTimeout` does not apply to a connection handed to a live master,
   so `--max-wait=1` exited after 3s and after 4s -- and in the worst case after that
-  master's whole keepalive, five minutes on the SSM hosts. Every external call now
-  runs under `timeout` with the smaller of its own cap and what is left. Now T12.
+  master's whole keepalive, five minutes on the SSM hosts. Every call now runs under
+  `timeout`. Now T12, which outlived the flag that motivated it.
 - **"ssh exiting means its stderr has reached us."** A `ProxyCommand` descendant
   inherits fd 2, so the fifo's write end outlives `ssh` and the `tee` reading it
   never sees EOF; waiting on it handed a grandchild the power to delay the
@@ -84,11 +110,10 @@ invites the same edit twice.
   `ssh` prints underneath the proxy's own, so `refused mid-handshake` was a network
   story for `ada credentials update`. Measured against the real host, and the reason
   it took a real host to find: no fixture had a two-line transcript. Now T10.
-- **"Every timing knob wants an env var."** Five of them, and nobody ever turned
-  four: the interface was larger than the tool. Constants, `--retry-command` gone
-  with `--tmux` as the answer instead, and `SSA_MAX_WAIT` gone as a second spelling
-  of `--max-wait`. What is left is two options and the two env vars a check needs to
-  be able to move.
+- **"`probe_compat` is too small to need a check."** Nothing exercised it, so
+  nothing would have caught a `RemoteCommand` reset that stopped being emitted -- and
+  a probe whose `true` is suppressed by `ssh_config` never terminates, which is T2
+  itself. One `ssh -G` stub that advertises the options, and one that does not.
 - **"A probe should bypass multiplexing, so a stale socket cannot fake a healthy
   host."** Half right, and the wrong half was load-bearing. `-o ControlPath=none`
   made the probe stricter than the session, so on a host reached through a
@@ -137,9 +162,12 @@ invites the same edit twice.
 ## Why Bash
 
 Bash is the minimal fit because OpenSSH can retain the terminal directly while the
-wrapper supplies only process supervision, stderr classification, and backoff.
-Python would need terminal and signal plumbing plus an interpreter; fish makes
-script and signal portability harder; Lean does not model the operating-system and
-network boundary these theorems are about — `test-ssa` is the proof assistant this
-problem has. The full argument, with the bash 4.2 sharp edges that cost real bugs,
-is in `README.md`.
+wrapper supplies only process supervision, stderr classification, and backoff. The
+python row is now measured rather than assumed: `uv run --script` preserves the exit
+status, forwards `TERM` so the handler runs, and hands a grandchild the pty, so
+T4/T8/T11 all survive it — but it is not smaller, it loses the keypress window to
+`termios`, and `#!/usr/bin/env -S` does not work on this box at all, so the single
+executable becomes a trampoline. Lean does not model the operating-system and
+network boundary these theorems are about, and the only SSH implementation in the
+language is a toy server. `test-ssa` is the proof assistant this problem has. The
+full argument, with the bash 4.2 sharp edges that cost real bugs, is in `README.md`.

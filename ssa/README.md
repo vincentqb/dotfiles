@@ -39,18 +39,18 @@ names the property that broke and a property with no check fails the suite outri
 
 | | Property | Why it holds |
 |---|---|---|
-| T1 | A probe succeeds iff the supervised session would connect | the probe's argv differs from the session's only by options that bound the attempt or make it finite — [checked against a list](#t1-in-detail), not a habit |
-| T2 | Every probe terminates | `ConnectTimeout` bounds a fresh connect, `true` bounds the session, and `-N` — which would suppress `true` and make a *healthy* probe immortal — is dropped. A probe handed to a live master is bounded by neither, because multiplexed connections ignore `ConnectTimeout`, so a hard kill (`PROBE_WALL`) is what makes this true rather than that master's own keepalive |
-| T3 | A supplied remote command runs at most once | the guard is on the presence of a command, not on how its text classified: its stderr is this same stream, so it can print anything a classifier looks for. There is no flag to opt out of this; `--tmux` is how a command survives a drop |
+| T1 | A probe succeeds iff the supervised session would connect | the probe's argv is fixed — the host, and the handful of `-o` values that bound the attempt — [because ssh's own flags are refused rather than filtered](#t1-in-detail), and every connection setting is read from the same `ssh_config` the session reads |
+| T2 | Every probe terminates | an appended `true` is what makes a *healthy* probe finite, and `ssh_config` can suppress it two ways: `RemoteCommand` replaces it, `SessionType none` forbids one. Both are reset — but only on a client whose `ssh -G` advertised them, since OpenSSH 7.4 rejects the names. A probe handed to a live master is bounded by none of that, because multiplexed connections ignore `ConnectTimeout`, which is what `PROBE_WALL` (T12) is for |
+| T3 | A supplied remote command runs at most once | the guard is on the presence of a command, not on how its text classified: its stderr is this same stream, so it can print anything a classifier looks for. There is no flag to opt out; `--tmux` is how a command survives a drop |
 | T4 | Any `ssh` status other than 255 is `ssa`'s status | `exit 7` on the far end gives 7; only 255 is ambiguous enough to be ours |
 | T5 | No process `ssa` starts can read from a human | `-o BatchMode=yes` leads both argvs, and `ssh` keeps the first value it obtains, so a later `BatchMode=no` cannot win |
 | T6 | A host-key failure stops; `known_hosts` is never written | a rebuilt host and a machine-in-the-middle are indistinguishable from here, so there is no safe automatic answer |
 | T7 | A configuration in which `ssh` could not notice a dead link is refused | an effective `ServerAliveInterval` of 0, and `-f`, each make the wrapper a silent no-op — [refused, not patched over](#taken-from-autossh) |
 | T8 | `INT`/`TERM` leave no descendant, and exit 130/143 | the handler owns both pids, disarms itself, then terminates and reaps, rather than deferring until the session ends on its own |
-| T9 | Every status line is one clause of ≤ 80 columns, and the line count over an outage of length D is at most 2 + D/`SSA_NOTE_EVERY` | [two clocks and a width budget](#t9-in-detail) |
+| T9 | Every status line is one clause of ≤ 80 columns, and the line count over an outage of length D is at most 2 + D/`NOTE_EVERY` | [two clocks and a width budget](#t9-in-detail) |
 | T10 | Every `stderr` maps to exactly one (class, reason), and the two cannot disagree | [one table](#t10-in-detail) |
 | T11 | The supervised `ssh` inherits the caller's terminal | `ssh` runs asynchronously so a signal trap can reach it (T8), and bash hands an asynchronous command `/dev/null` for stdin unless a redirection says otherwise. `<&0` is that redirection — one token, and `~.`, resize, scrollback and every full-screen program rest on it. Measured both ways under a pty |
-| T12 | `--max-wait` is one wall clock over the whole attempt | the stale-master check, every probe, the portal check and the sleeps all run under `timeout` with the smaller of their own cap and what is left — [because checking after the call is not a bound](#t12-in-detail) |
+| T12 | Every `ssh` `ssa` starts is bounded | the wait itself is not: a credential that will be refreshed is indefinite, so `^C` is the only bound that means anything. What must terminate is each call — `-O check` has no bound of its own and `ConnectTimeout` does not reach a live master, so both run under `timeout` at `PROBE_WALL`, [without which one wedged probe *is* the whole wait](#t12-in-detail) |
 | T13 | No descendant can delay a probe or the diagnosis | a `ProxyCommand` grandchild inherits `ssh`'s stderr, and `timeout` kills the `ssh` it started, not that child. So a probe writes stderr to a file rather than a `$(...)` pipe that would wait for the write end to close, and the session's `tee` — which never sees EOF while the child lives — is drained for a bounded time and then stopped. Everything needed was written before `ssh` exited |
 
 Four of them earn more than a line.
@@ -62,22 +62,34 @@ than the session, `ssa` waits for something that is not actually blocking it —
 failure mode of "it stopped reconnecting". If it is **laxer**, `ssa` reconnects
 into an instant failure and spins.
 
-So the obligation is mechanical, and `test-ssa` enforces it against a list: six
-`-o` names, and nothing else, may appear in a probe's argv.
+It used to be kept true by *filtering* the caller's argv: 42 lines of hand-rolled
+getopt deciding, flag by flag, which of ssh's own options a probe may keep, which
+it must drop, and which take an argument that has to be consumed with them. Every
+one of those decisions was a chance to fail in one of the two directions above.
 
-| Probe adds / drops | Why it cannot change reachability |
+So the flags are refused instead, and the probe's argv is fixed:
+
+```
+ssh -T -o BatchMode=yes -o ConnectTimeout=7 -o ControlMaster=no \
+    -o ClearAllForwardings=yes [-o RemoteCommand=none -o SessionType=default] host true
+```
+
+| What the probe carries | Why it cannot change reachability |
 |---|---|
 | `-o ConnectTimeout` | bounds the attempt |
 | `-o BatchMode=yes` | the session forces it too (T5) |
-| `-T`, and drops `-t`/`-T`/`-N`/`-M`/`-s` | shape of the session, not of the connection |
-| drops `-q` and `-E` | silence the stream the diagnosis is read from |
-| appends `true` | the session's payload is not what we are testing |
+| `-T` | shape of the session, not of the connection |
+| `true` | the session's payload is not what we are testing |
 | `-o ControlMaster=no` | declines to *become* a master; still *uses* one |
 | `-o ClearAllForwardings=yes` | a forward that cannot bind warns, it does not fail a connect |
-| drops `-O`, `-Q`, `-W` and their arguments | control and query operations are not connections |
-| `-o RemoteCommand=none`, `-o SessionType=default` | only when `ssh -G` advertises them; both would suppress `true` |
+| `-o RemoteCommand=none`, `-o SessionType=default` | only when `ssh -G` advertises them; either would suppress `true` |
 
-Note what is **not** on that list: `ControlPath`. A probe that overrides it opens a
+Everything else — the port, the identity, `ProxyJump`, the cipher, the forwards —
+lives in `ssh_config`, which both the probe and the session read, so the two agree
+by construction rather than by a filter. `test-ssa` still reads the probe's real
+argv and fails on any seventh `-o`.
+
+Note what is **not** in that list: `ControlPath`. A probe that overrides it opens a
 fresh handshake, and on a host reached through a `ProxyCommand` — `ProxyJump`, a
 Midway bastion, `aws ssm start-session` — a fresh handshake needs credentials that
 a live master does not. Override it and `ssa` waits for `mwinit` on a host it could
@@ -104,12 +116,12 @@ print cadence decides whether the screen is readable afterwards. A line per prob
 is fine for a 30-second outage and unusable for an overnight one: nine hours at the
 60 s cap is ~540 copies of one sentence. So: one line when the wait starts,
 one whenever the *reason changes* (DNS gave way to refused; a portal appeared), and
-otherwise a keep-alive line every `SSA_NOTE_EVERY` — 55 lines for that same night.
+otherwise a keep-alive line every `NOTE_EVERY` — 55 lines for that same night.
 
 What "changed" means is not obvious, and getting it wrong silently costs the whole
 property. A reason worded with a duration — `cert expired 12m30s ago` — is a
 *different string* on every probe, so comparing the rendered reason reports a change
-every time and `SSA_NOTE_EVERY` throttles nothing. Measured before the fix: five
+every time and `NOTE_EVERY` throttles nothing. Measured before the fix: five
 lines in twelve seconds where this predicts two. So the comparison is against the
 reason with the ticking part removed, and only the printing uses the rendered one.
 
@@ -162,29 +174,31 @@ added later is proven the moment it is added.
 
 ### T12 in detail
 
-`--max-wait=1` used to exit after 3s, and after 4s, and in the worst case after
-however long a control socket felt like taking. Not because the arithmetic was
-wrong, but because the bound was read **between** calls: `wait_for` checked the
-clock, then made a call that had no obligation to come back. Three of them:
+`ssa` waits forever, on purpose. A certificate that will be refreshed, a VPN that
+will come back and a closed laptop are all indefinite, and the caller is a person
+at a terminal: `^C` is the bound that means something, and a wrapper that gave up
+on its own is a wrapper you restart by hand. `--max-wait` existed, was never
+passed, and is gone.
+
+So the bound that matters is **per call**, because without one a single wedged
+probe *is* the whole wait. Three calls had no bound of their own:
 
 | Call | Its own bound, before | Worst case |
 |---|---|---|
 | `ssh -O check` / `-O exit` | none at all | as long as the master takes |
-| a probe reaching a live master | none — multiplexed connections ignore `ConnectTimeout` | that master's keepalive, so `60 × 5` = 5 minutes here |
+| a probe reaching a live master | none — multiplexed connections ignore `ConnectTimeout` | that master's keepalive, so `60 × 5` was 5 minutes here |
 | the portal check | `curl --max-time 5` | 5s per probe, added to the wait it is describing |
 
-So every external call now runs under `timeout` with **the smaller of its own cap
-and what is left of the budget**, and a cap already spent fails the call instead of
-starting it. `stale_master` moved inside `wait_for` for the same reason: it ran
-before the clock started, so its time was free.
+Each now runs under `timeout`. The two constants answer different questions.
+`PROBE_CONNECT` (7s) is `ConnectTimeout`, which lets `ssh` explain itself — a bound
+`ssh` knows about produces `connection timed out`, not silence. `PROBE_WALL` (15s)
+is a kill for the paths `ConnectTimeout` cannot reach, so it has to be the larger of
+the two or it would fire first and take the diagnosis with it. A probe killed by it
+says so, because a fragment of an incomplete handshake is not a reason.
 
-The two constants are separate because they answer different questions.
-`PROBE_CONNECT` (7s) is `ConnectTimeout`, which lets `ssh` explain itself in the
-ordinary case — a bound `ssh` knows about produces `connection timed out`, not
-silence. `PROBE_WALL` (15s) is a kill, and exists only for the paths
-`ConnectTimeout` does not reach; it has to be the larger of the two or it would
-fire first and take the diagnosis with it. A probe killed by it says so, because a
-fragment of an incomplete handshake is not a reason.
+The check drives a stub that never returns, against a copy of the script carrying
+`PROBE_WALL=1`, and counts probes in the window: bounded, several happen; unbounded,
+the first one consumes it.
 
 ## The four things it does beyond reading stderr
 
@@ -204,8 +218,8 @@ behalf to fix credentials, a VPN or a portal.
 
 The cost of never prompting is that a permanently broken login — a wrong
 username, a key the host has never seen — looks exactly like a certificate that
-is about to be refreshed, so it waits on that forever too. `--max-wait` bounds it
-when you want a bound; the status line tells you which one you are looking at.
+is about to be refreshed, so it waits on that forever too. The status line tells
+you which one you are looking at, and `^C` is how you stop it.
 
 ## Why bash
 
@@ -220,9 +234,9 @@ just built, with no interpreter to install first.
 | | |
 |---|---|
 | **bash** | Chosen. Terminal handling is free, the dependencies are the tools it must call anyway — `ssh`, `ssh-keygen`, `curl`, `timeout` — and one executable covers it. Costs: substring matching against a table rather than a real parser, and bash 4.2 (Amazon Linux 2) has sharp edges — no `EPOCHSECONDS`, `"${arr[@]}"` on an empty array is fatal under `set -u`, and an asynchronous command gets `/dev/null` for stdin unless a redirection says otherwise. |
-| python | Needs `pty`/`termios`/`signal` work to hand the terminal over cleanly, or `subprocess` with inherited fds — at which point it is this bash script written in Python, plus an interpreter dependency in a tool whose reason to exist is that your connection is broken. Right answer if the classifier ever grows state: per-host history, structured logs, a real state machine. |
+| python | Measured, not assumed. `uv run --script` passes an exit status through unchanged, forwards `TERM` so the handler runs and the grandchild is reaped, and hands a grandchild the pty — T4, T8 and T11 all survive it, at 46 ms of startup. It would win in one structural place: `Popen(stderr=PIPE)` plus a reader thread and a `deque(maxlen=3)` replaces the fifo, the `tee`, the bounded drain and the tail, making T13 *unrepresentable* rather than fixed. It loses the keypress window to `termios`, and on this box `#!/usr/bin/env -S` does not work at all — `/usr/bin/env` is coreutils 8.22 — so "one executable file" becomes a trampoline. Net: not smaller, modestly more robust. Right answer once the classifier grows state: per-host history, structured logs, a real state machine. |
 | fish | The login shell here, but this must be callable from cron, scripts and other shells, and signal plus process-group handling (`trap`, `wait`, fifos) is more awkward in fish for no gain. |
-| lean4 | No. T1 through T11 are properties of POSIX signals, termios and someone else's router, not about pure functions. Lean would fight the IO and the artifact would need a toolchain on every host. `test-ssa` is the proof assistant this problem has. |
+| lean4 | No. T1 through T13 are properties of POSIX signals, termios and someone else's router, not about pure functions. Lean would fight the IO and the artifact would need a toolchain on every host — and the only SSH implementation in the language is a toy server. `test-ssa` is the proof assistant this problem has. |
 
 ## Versus autossh
 
@@ -235,7 +249,7 @@ pointing `AUTOSSH_PATH` at a stub `ssh` that fails on command:
 | Remote command after a drop | re-run: `make deploy` ran **8 times in 25 s**, and would not have stopped | once, then stops (T3) |
 | Exit status | `exit 7` → **1**. Only 0 and 1 ever come out, and statuses 1 and 2 become *restartable* after the first start | `exit 7` → 7 (T4) |
 | Clean logout | **1** if the session was shorter than the 30 s gate; 0 once past it | 0 |
-| Auth failure, first attempt | stops at once — the gate's whole purpose, and it beats waiting forever | waits (bounded only by `--max-wait`) |
+| Auth failure, first attempt | stops at once — the gate's whole purpose, and it beats waiting forever | waits, and says what for |
 | Auth failure after a good session | the gate no longer applies: **8 silent retries in 25 s**, forever, saying nothing beyond ssh's own `Permission denied` | names it, with how long ago the cert expired |
 | `~.` | 255, so it reconnects you to the session you just left | keypress window to stop |
 | Changed host key | same split as auth: stops on the first attempt, retries forever after a good session | stops, naming the cause (T6) |
@@ -300,40 +314,34 @@ idea without needing OpenSSH ≥ 7.6, which matters on Amazon Linux 2 (7.4p1).
 
 ## Usage
 
-Two options. Everything else that used to be one is now a constant in the script,
-because each was a knob nobody ever turned and an option is a thing to get wrong
-at 2am on a broken link.
+Two options and a host. Everything else that used to be a setting is a constant in
+the script, because each was a knob nobody turned and an option is a thing to get
+wrong at 2am on a broken link.
 
 ```fish
-ssa gpu2                                # like ssh, but it comes back
-ssa --tmux gpu2                         # ... and the session survives too
-ssa --tmux=build -J bastion host        # every ssh flag still works
-ssa --max-wait=600 gpu2                 # give up on a reconnect after 10m
-ssa -N -L 8080:localhost:80 host        # supervise a forwarding-only session
+ssa ddsk                                # like ssh, but it comes back
+ssa --tmux=0 ddsk                       # ... and the session survives too
+ssa --tmux=build gpu2                   # a named session
+ssa ddsk uptime                         # a remote command, run at most once
 ```
 
 | Option | Default | |
 |---|---|---|
 | `--tmux[=NAME]` | off, `main` | remote tmux session to attach-or-create; implies `-t`, forces UTF-8 (`tmux -u`) |
-| `--max-wait=SECS` | `0` | give up on one reconnect after SECS; 0 waits forever |
 
-The real session receives every other argument unchanged, plus a leading
-`-o BatchMode=yes` that callers cannot override.
+**ssh's own flags are refused**, naming the flag and pointing at `~/.ssh/config`.
+That is not a limitation being apologised for: it is what makes T1 hold by
+construction rather than by a filter, and every one of those flags has a
+`ssh_config` spelling that plain `ssh` and `kitty +kitten ssh` read too. A
+forwarding-only session is `SessionType none` plus `LocalForward` in a `Host`
+block, which survives a reconnect without `ssa` passing anything.
 
 A supplied remote command is never replayed after an ambiguous 255 (T3) and there
-is no flag to ask for one: run it under `--tmux` if it has to survive a drop. The
-two remaining env vars are the ones a check needs to be able to move —
-`SSA_NOTE_EVERY` (keep-alive line while the reason is unchanged, default 600s;
-raise it for a quieter night, set it low to watch every probe) and `SSA_CERT` (the
-cert read to explain a rejection, default `~/.ssh/id_rsa-cert.pub`). The rest are
-constants at the top of the script: `GRACE` 3s, `PROBE_CONNECT` 7s, `PROBE_WALL`
-15s, `MAX_DELAY` 60s, `DRAIN` 1s, `TAIL_LINES` 3.
+is no flag to ask for one: run it under `--tmux` if it has to survive a drop.
 
-`--max-wait` may be 0, meaning forever; `SSA_NOTE_EVERY` may not, because 0 there
-prints on every probe. Both are refused rather than silently taken to mean
-something else when bash would read them as 0.
+It waits forever (T12). `^C` is the bound.
 
-`timeout(1)` from coreutils is required — it is what bounds a probe (T12) — and
+`timeout(1)` from coreutils is required — it is what bounds a probe — and
 `gtimeout` is accepted where that is the name it has.
 
 ## Install
@@ -348,30 +356,35 @@ ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ./test-ssa
 ```
 
-96 checks against local `ssh`, `ssh-keygen` and `curl` stubs. Each one that
+95 checks against local `ssh`, `ssh-keygen` and `curl` stubs. Each one that
 discharges a property is labelled with its number, so a failure names the property
-that broke; the rest cover argument handling and the gate itself. They
-exercise the paths that normally need a broken network: a changed host key, an
-expired certificate, a live control master behind expired proxy credentials, a
-forwarding-only reconnect, portal diagnosis, ambiguous remote stderr, an escape
-sequence left in the input queue, a probe and a control socket that never come
-back, a descendant that keeps `ssh`'s stderr open after `ssh` has gone, and a
-direct `SIGTERM`.
+that broke; the rest cover the interface and the gate itself. They exercise the
+paths that normally need a broken network: a changed host key, an expired
+certificate, a live control master behind expired proxy credentials, portal
+diagnosis, an SSM 403 under a handshake failure, a stale line from an attempt that
+recovered, ambiguous remote stderr, an escape sequence left in the input queue, a
+probe and a control socket that never come back, a descendant that keeps `ssh`'s
+stderr open after `ssh` has gone, and a direct `SIGTERM`.
 
 Three kinds of check, in increasing order of how long they stay true:
 
 - **behavioural** — drive `ssa` and read what it did (most of them);
-- **argv** — read the argv the stub was called with, which is how T1's "only
-  options that bound the attempt" is enforced against a list rather than a habit;
+- **argv** — read the argv the stub was called with, which is how T1's fixed probe
+  and T2's compatibility resets are held to the claim rather than to a habit;
 - **data** — read the failure table back out of the script and hold the data
   itself to T9's column budget and T10's uniqueness, so a new row cannot break a
   theorem without a check going red.
 
-Two of them are **wall-clock**: T12 and T13 assert that a wrapper told to give up
-after one second does, when the thing it is waiting on has no intention of
-returning. Those are the ones that fail on a loaded machine before they fail on a
-real defect, so they are written with the slack to tell the difference — a second
-or two, against the three-to-six seconds the defects they cover actually cost.
+`ssa` has no runtime knobs, so a check that needs a different clock or a stub
+certificate does not get one: it either points `HOME` at the scratch directory, or
+generates a copy of the script with one constant rewritten — and that rewrite fails
+loudly unless it matches exactly one line, so a renamed constant cannot leave a
+check silently testing nothing.
+
+Two of them are **wall-clock**: T12 and T13 assert that a wedged call is cut off
+and that a live grandchild does not stall the loop. Those are the ones that fail on
+a loaded machine before they fail on a real defect, so they assert *that the loop
+kept running* rather than an exact duration.
 
 The suite makes no network connection. `T11` needs a pty and is skipped, loudly,
 without `python3`.
