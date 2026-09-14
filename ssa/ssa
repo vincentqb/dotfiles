@@ -15,18 +15,29 @@ PROBE_SKIP='MNqstT'
 PROBE_SKIP_ARGOPTS='EOQW'
 # bash 4.2: "${a[@]}" on an empty array dies under set -u, hence ${a[@]+...}.
 
-max_wait=${SSA_MAX_WAIT:-0}
-grace=${SSA_GRACE:-3}
-probe_timeout=${SSA_PROBE_TIMEOUT:-7}
+# Constants, not options. Each of these was a knob nobody ever turned, and an
+# option is a thing to get wrong at 2am on a broken link.
+GRACE=3           # keypress window before a reconnect, so `~.` can stop it
+PROBE_CONNECT=7   # a probe's ConnectTimeout: bounds a fresh handshake
+PROBE_WALL=15     # hard kill for any ssh we start. ConnectTimeout does not apply
+                  # to a connection handed to a live control master, and -O check
+                  # has no bound of its own at all, so without this a "probe" can
+                  # sit inside a wedged master for that master's whole keepalive.
+MAX_DELAY=60      # longest gap between probes
+DRAIN=1           # grace for ssh's stderr to reach us after ssh itself has exited
+# How much of stderr describes how *this* session ended. The deepest real
+# transcript is two lines -- a proxy's own diagnostic, and the handshake failure
+# ssh reports underneath it -- plus one of slack. Reading the whole stream instead
+# diagnoses today's failure from a line left by an attempt that then recovered.
+TAIL_LINES=3
 # A line per probe reads fine for a 30-second outage and is unusable for a night
-# one: nine hours at the max_delay cap is ~540 lines of the same sentence. So the
+# one: nine hours at the MAX_DELAY cap is ~540 lines of the same sentence. So the
 # probe cadence and the *print* cadence are separate -- probes back off to
-# max_delay, prints happen on a change of reason and otherwise once per note_every.
-max_delay=${SSA_MAX_DELAY:-60}
+# MAX_DELAY, prints happen on a change of reason and otherwise once per note_every.
 note_every=${SSA_NOTE_EVERY:-600}
 cert=${SSA_CERT:-$HOME/.ssh/id_rsa-cert.pub}
+max_wait=0
 tmux_session=
-retry_command=0
 # Every status line is `ssa: <state>: <reason>`. The longest state clause is
 # "waiting for " plus a host label, so 80 - len("ssa: waiting for ") - 20 - len(": ")
 # is what a reason may occupy; capping one ssh worded itself is what keeps the
@@ -36,13 +47,14 @@ REASON_MAX=41
 
 usage() {
     cat <<'EOF'
-usage: ssa [--tmux[=NAME]] [--retry-command] [--max-wait=SECS] [ssh args] host [cmd]
+usage: ssa [--tmux[=NAME]] [--max-wait=SECS] [ssh args] host [cmd]
 
   --tmux[=NAME]    attach-or-create remote tmux NAME (default main), so the
                    session survives a reconnect too; implies -t
-  --retry-command  re-run the remote command after an ambiguous ssh exit 255
   --max-wait=SECS  give up on one reconnect after SECS (0 = never)
 
+A supplied remote command is never replayed after an ambiguous exit; run it
+inside --tmux if it has to survive a drop.
 Credentials, VPN and portals are waited on, never solved for you.
 EOF
 }
@@ -73,7 +85,6 @@ while ((i < ${#argv[@]})); do
         --help) usage; exit 0 ;;
         --tmux) tmux_session=main ;;
         --tmux=*) tmux_session=${a#*=} ;;
-        --retry-command) retry_command=1 ;;
         --max-wait=*) max_wait=${a#*=} ;;
         --*) die "unknown option $a" ;;
         -?*)
@@ -111,10 +122,16 @@ while ((i < ${#argv[@]})); do
 done
 [[ -n $host ]] || { usage >&2; die 'no host given'; }
 # A bound bash reads as 0 is worse than no bound: --max-wait=1O (letter O) would
-# silently mean "wait forever", which is the opposite of what was asked for.
-for n in "$max_wait" "$grace" "$probe_timeout" "$max_delay" "$note_every"; do
-    [[ $n =~ ^[0-9]+$ ]] || die "expected whole seconds, got '$n'"
-done
+# silently mean "wait forever", which is the opposite of what was asked for. Only
+# --max-wait may be 0; a keep-alive interval of 0 prints on every probe, which is
+# the wall of text the two clocks exist to prevent.
+[[ $max_wait =~ ^(0|[1-9][0-9]*)$ ]] || die "expected whole seconds, got '$max_wait'"
+[[ $note_every =~ ^[1-9][0-9]*$ ]] ||
+    die "SSA_NOTE_EVERY wants whole seconds above zero, got '$note_every'"
+# Bounding a probe needs a clock we did not write. coreutils on Linux, brew or
+# MacPorts coreutils on a mac, where the same binary is installed as gtimeout.
+timeout_bin=$(command -v timeout || command -v gtimeout) ||
+    die 'needs timeout(1) from coreutils to bound a probe'
 # Messages name the host by its first label. The FQDN of a dev desktop is 50
 # characters, which is most of a line on its own, and every line that wraps is
 # a line that gets shredded by whatever full-screen program shares the terminal.
@@ -131,7 +148,7 @@ ssh_config=$(ssh -G ${ssh_opts[@]+"${ssh_opts[@]}"} "$host" 2>/dev/null)
     die "$host has no ServerAliveInterval, so ssh will never notice a dead link.
     Add to ~/.ssh/config:
         Host $host
-            ServerAliveInterval 30
+            ServerAliveInterval 15
             ServerAliveCountMax 3"
 
 # Newer clients can inherit RemoteCommand or SessionType from ssh_config. Both
@@ -172,6 +189,8 @@ auth|credentials rejected|Permission denied
 auth|too many authentication attempts|Too many authentication failures
 auth|proxy credentials expired|ExpiredToken
 auth|proxy has no credentials|Unable to locate credentials
+auth|proxy rejected, refresh AWS credentials|UnauthorizedRequest
+auth|proxy rejected, refresh AWS credentials|Server authentication failed
 connect|unresolved host, check DNS or VPN|Could not resolve
 connect|unresolved host, check DNS or VPN|Name or service not known
 connect|unresolved host, check DNS or VPN|nodename nor servname
@@ -198,6 +217,17 @@ cert_reason() {
     else printf 'credentials rejected, cert is live'; fi
 }
 
+# The end of stderr, which is the part that describes how *this* session ended. A
+# session accumulates its remote command's stderr, and a host with
+# StrictHostKeyChecking off warns on every single connect, so reading the whole
+# stream lets a line from an attempt that then recovered classify the failure that
+# actually stopped us. First match still wins by row, because a proxy writes its
+# own diagnostic *before* the handshake failure ssh reports underneath it.
+tail_err() {
+    awk -v k="$TAIL_LINES" '!/^Warning: Permanently added/ && NF { l[++n] = $0 }
+        END { for (i = n - k + 1; i <= n; i++) if (i > 0) print l[i] }' <<<"$1"
+}
+
 # The one place stderr becomes a decision and a sentence, so the two agree by
 # construction. Sets CLASS, REASON, and KEY -- the reason with anything that ticks
 # taken out of it. A cert expiry is worded with a duration that grows between
@@ -207,9 +237,10 @@ CLASS=
 REASON=
 KEY=
 diagnose() {
-    local class phrase pat answer
+    local class phrase pat answer text
+    text=$(tail_err "$1")
     while IFS='|' read -r class phrase pat; do
-        [[ $1 == *"$pat"* ]] || continue
+        [[ $text == *"$pat"* ]] || continue
         CLASS=$class REASON=$phrase KEY=$phrase
         [[ $phrase == 'credentials rejected' ]] && answer=$(cert_reason) && REASON=$answer
         return
@@ -218,17 +249,34 @@ diagnose() {
     # writes it to this terminal unabridged either way. A session with a tty ends
     # its lines with CR, which would send the cursor back over our own prefix.
     CLASS=dropped
-    REASON=$(awk '!/^Warning: Permanently added/ && NF { l = $0 }
-        END { gsub(/\r/, "", l); sub(/^ssh: /, "", l); print l }' <<<"$1")
+    REASON=$(awk 'NF { l = $0 }
+        END { gsub(/\r/, "", l); sub(/^ssh: /, "", l); print l }' <<<"$text")
     ((${#REASON} > REASON_MAX)) && REASON=${REASON:0:REASON_MAX-3}...
     REASON=${REASON:-'no diagnostic, so ~. or a silent drop'}
     KEY=$REASON
 }
 
+# One wall clock over a whole reconnect attempt. Every external call is bounded by
+# its own cap *and* by whatever is left of --max-wait, because checking the bound
+# only after a call returns is not a bound: measured before this, --max-wait=1
+# exited after 3s on a slow probe and after 4s on a control socket that would not
+# answer. A cap that has already been spent fails the call rather than running it.
+deadline=0
+bounded() { # bounded CAP cmd...
+    local t=$1 left
+    shift
+    if ((max_wait > 0)); then
+        left=$((deadline - $(now)))
+        ((left < t)) && t=$left
+    fi
+    ((t > 0)) || return 124
+    "$timeout_bin" "$t" "$@"
+}
+
 # The one connection failure waiting never fixes, so it is worth its own probe.
 portal() {
     local code
-    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+    code=$(bounded 5 curl -sS -o /dev/null -w '%{http_code}' \
         http://connectivitycheck.gstatic.com/generate_204 2>/dev/null)
     [[ -n $code && $code != 204 && $code != 000 ]] &&
         printf 'captive portal, HTTP %s -- sign in from a browser' "$code"
@@ -242,19 +290,30 @@ portal() {
 # wait for credentials the session does not need. Our -o values win because ssh
 # keeps the first value it obtains.
 probe_err=
+probe_rc=0
 probe() {
-    probe_err=$(ssh -T -o BatchMode=yes -o ConnectTimeout="$probe_timeout" \
+    # stderr to a file, not a pipe: `timeout` kills the ssh it started, not a
+    # descendant of it, and a `$(...)` capture waits for the write end to close
+    # rather than for the process to die -- so one surviving ProxyCommand child
+    # keeps a probe running long after its bound (T13). A file has no EOF to hold
+    # hostage, and everything ssh wrote is there when the call returns.
+    bounded "$PROBE_WALL" ssh -T -o BatchMode=yes \
+        -o ConnectTimeout="$PROBE_CONNECT" \
         -o ControlMaster=no -o ClearAllForwardings=yes \
         ${probe_compat[@]+"${probe_compat[@]}"} \
-        ${probe_opts[@]+"${probe_opts[@]}"} "$host" true 2>&1 >/dev/null)
+        ${probe_opts[@]+"${probe_opts[@]}"} "$host" true >/dev/null 2>"$tmpdir/probe"
+    probe_rc=$?
+    probe_err=$(<"$tmpdir/probe")
+    return "$probe_rc"
 }
 
 # A master that died with the link leaves a socket that fails the next connect
 # instantly. Runs before the probe, so the probe reaches a live master or none.
 # No-op when multiplexing is off.
 stale_master() {
-    ssh ${ssh_opts[@]+"${ssh_opts[@]}"} -O check "$host" >/dev/null 2>&1 ||
-        ssh ${ssh_opts[@]+"${ssh_opts[@]}"} -O exit "$host" >/dev/null 2>&1 || true
+    bounded "$PROBE_WALL" ssh ${ssh_opts[@]+"${ssh_opts[@]}"} -O check "$host" >/dev/null 2>&1 ||
+        bounded "$PROBE_WALL" ssh ${ssh_opts[@]+"${ssh_opts[@]}"} -O exit "$host" >/dev/null 2>&1 ||
+        true
 }
 
 WAITED=0
@@ -264,15 +323,26 @@ WAITED=0
 # from the entry reason so the first probe does not immediately repeat it. It was
 # the repetition that made this loop unreadable, not the waiting.
 wait_for() {
-    local delay=1 start last last_note spotted
+    local delay=1 start last last_note spotted wedged
     start=$(now)
+    deadline=$((start + max_wait))
     last_note=$start
     last=$KEY
     say "waiting for $short_host: $REASON"
+    # Before the first probe, so a probe reaches a live master or none -- and
+    # inside the budget, because -O check on a master that has stopped answering
+    # has no bound of its own.
+    stale_master
     while ! probe; do
         WAITED=$(($(now) - start))
         ((max_wait > 0 && WAITED >= max_wait)) && return 1
         diagnose "$probe_err"
+        # A probe we had to kill wrote at most a fragment of a handshake, so the
+        # kill is the fact worth reporting rather than the fragment.
+        if ((probe_rc == 124)); then
+            wedged='probe timed out, no answer'
+            REASON=$wedged KEY=$wedged
+        fi
         # Waiting cannot fix a fatal reason, whoever noticed it first. A host key
         # can change while we wait -- a host rebuilt during the outage we are
         # sitting out is the ordinary way that happens.
@@ -288,10 +358,11 @@ wait_for() {
         fi
         # Never sleep past --max-wait. The bound is checked before sleeping, so
         # a 60 s cap would otherwise overshoot it by most of a minute.
+        WAITED=$(($(now) - start))
         ((max_wait > 0 && WAITED + delay > max_wait)) &&
             delay=$((max_wait - WAITED > 1 ? max_wait - WAITED : 1))
         sleep "$delay"
-        ((delay = delay * 2 > max_delay ? max_delay : delay * 2))
+        ((delay = delay * 2 > MAX_DELAY ? MAX_DELAY : delay * 2))
     done
     WAITED=$(($(now) - start))
 }
@@ -331,6 +402,17 @@ run_ssh() {
     wait "$ssh_pid"
     rc=$?
     ssh_pid=
+    # ssh has exited, so everything we need is already in the pipe. But a
+    # ProxyCommand descendant inherits fd 2, and while it lives the write end
+    # stays open and tee never sees EOF -- waiting on tee unconditionally hands a
+    # grandchild the power to delay the diagnosis, and the deadline with it, for
+    # as long as it likes. So the drain is bounded and then tee is stopped.
+    local i
+    for ((i = 0; i < DRAIN * 20; i++)); do
+        kill -0 "$tee_pid" 2>/dev/null || break
+        sleep 0.05
+    done
+    kill -TERM "$tee_pid" 2>/dev/null
     wait "$tee_pid" 2>/dev/null
     tee_pid=
 }
@@ -350,21 +432,20 @@ while :; do
     fi
 
     # Remote stderr shares errfile with ssh diagnostics, and a remote command may
-    # itself return 255. No wording can prove it never started, so replay is
-    # always explicit; tmux remains safe because it is our idempotent command.
-    ((${#user_cmd[@]})) && ((retry_command == 0)) &&
-        die "ssh exited 255 and '${user_cmd[*]}' may have run; --retry-command allows a replay"
+    # itself return 255. No wording can prove it never started, so it is never
+    # replayed; tmux is exempt because it is our own idempotent command.
+    ((${#user_cmd[@]})) &&
+        die "ssh exited 255 and '${user_cmd[*]}' may have run; run it under --tmux to survive a drop"
 
     # `~.` and a dead link are the same silent 255, so offer a way out. The key
     # is named: a dying full-screen program leaves escape bytes in the input
     # queue, and those are not someone asking to stop.
     if [[ $CLASS == dropped && -t 0 ]]; then
-        printf '%s: reconnecting in %ss, q to stop' "$PROG" "$grace" >&2
-        read -rs -n 1 -t "$grace" key && [[ $key == q ]] && { printf '\n' >&2; exit 255; }
+        printf '%s: reconnecting in %ss, q to stop' "$PROG" "$GRACE" >&2
+        read -rs -n 1 -t "$GRACE" key && [[ $key == q ]] && { printf '\n' >&2; exit 255; }
         printf '\n' >&2
     fi
 
-    stale_master
     # No reason here: the line before it is the reason, and repeating it is what
     # pushes this shape past 80 columns.
     wait_for || die "gave up on $short_host after $(dur "$WAITED")"

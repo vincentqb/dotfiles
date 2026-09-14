@@ -9,8 +9,8 @@ configuration instead of replacing either.
 
 ## The gate
 
-The eleven properties T1–T11 are stated in `README.md`; that table is the index and
-is not repeated here. This file holds the rule that keeps them true:
+The thirteen properties T1–T13 are stated in `README.md`; that table is the index
+and is not repeated here. This file holds the rule that keeps them true:
 
 > **Every property names the checks in `test-ssa` that discharge it, and every
 > check names the property it serves. A property with no check is a claim. A check
@@ -36,11 +36,59 @@ script, every row of it is driven end to end in one loop over that same data, an
 is enforced by reading the probe's real argv against a fixed list of the options
 that may appear in it.
 
+T12 and T13 are the exception that has to sample behaviour: a bound is a claim about
+the clock, so the only way to check it is to point `ssa` at something that will not
+come back and time it. Written with a second or two of slack, against the three to
+six seconds the defects they cover actually cost, so a loaded machine does not read
+as a regression.
+
+## Kept deliberately short
+
+Not defects, and not worth the code they would take here:
+
+- `stop` signals the `ssh` it started and its `tee`, not a `ProxyCommand`
+  grandchild. Reaching one means a process group, and putting `ssh` in a new session
+  is exactly what T11 depends on *not* doing. T13 covers the part that costs
+  something — such a child cannot delay us — rather than the part that does not.
+- The classifier is substring matching against a table, so `ssh -v` output remains
+  something it reads by luck rather than by grammar. `TAIL_LINES` keeps luck from
+  compounding; a real parser would mean the debug-output dependency this deliberately
+  avoids.
+
 ## Superseded
 
 Kept because each was a real belief that a check now contradicts. Deleting them
 invites the same edit twice.
 
+- **"`--max-wait` is checked often enough."** It was read *between* calls, and then
+  a call was made that had no obligation to return: `-O check` has no bound of its
+  own, and `ConnectTimeout` does not apply to a connection handed to a live master,
+  so `--max-wait=1` exited after 3s and after 4s -- and in the worst case after that
+  master's whole keepalive, five minutes on the SSM hosts. Every external call now
+  runs under `timeout` with the smaller of its own cap and what is left. Now T12.
+- **"ssh exiting means its stderr has reached us."** A `ProxyCommand` descendant
+  inherits fd 2, so the fifo's write end outlives `ssh` and the `tee` reading it
+  never sees EOF; waiting on it handed a grandchild the power to delay the
+  diagnosis, and the deadline with it, for as long as it liked. `timeout` does not
+  help -- it kills the process it started, not that child -- and a `$(...)` capture
+  waits on the write end rather than on the process, so a probe had the same hole.
+  Bounded drain for the session, a file rather than a pipe for the probe. Now T13.
+- **"The whole of stderr is the right thing to search."** It is shared: the remote
+  command writes to it, a host with `StrictHostKeyChecking` off warns on every
+  connect, and `ssh -v` reports a refusal per address before connecting through
+  another. So a drop was being classified from a line left by an attempt that
+  recovered -- `connection refused`, down the connect path, refined with a portal
+  guess. Only the last `TAIL_LINES` lines, which is the depth a real transcript
+  needs. Row order still decides, because a proxy speaks before ssh does. Now T10.
+- **"A 403 from the SSM proxy is a handshake refusal."** It is the generic line
+  `ssh` prints underneath the proxy's own, so `refused mid-handshake` was a network
+  story for `ada credentials update`. Measured against the real host, and the reason
+  it took a real host to find: no fixture had a two-line transcript. Now T10.
+- **"Every timing knob wants an env var."** Five of them, and nobody ever turned
+  four: the interface was larger than the tool. Constants, `--retry-command` gone
+  with `--tmux` as the answer instead, and `SSA_MAX_WAIT` gone as a second spelling
+  of `--max-wait`. What is left is two options and the two env vars a check needs to
+  be able to move.
 - **"A probe should bypass multiplexing, so a stale socket cannot fake a healthy
   host."** Half right, and the wrong half was load-bearing. `-o ControlPath=none`
   made the probe stricter than the session, so on a host reached through a

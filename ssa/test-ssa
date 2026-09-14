@@ -37,6 +37,22 @@ echo "$n" >"$STUB_COUNT"
 # The third field is whether this invocation was handed the caller's terminal,
 # which is what T11 reads back.
 printf '%d\t%s\t%s\n' "$n" "$*" "$(if [[ -t 0 ]]; then echo tty; else echo notty; fi)" >>"$STUB_LOG"
+# A call that does not come back on its own. STUB_DELAY_CTL is a control socket
+# that stopped answering, STUB_DELAY_PROBE a probe wedged past its own
+# ConnectTimeout -- the two shapes ssa cannot bound by asking ssh nicely.
+if [[ -n ${STUB_DELAY_CTL:-} && " $* " == *" -O "* ]]; then sleep "$STUB_DELAY_CTL"; fi
+if [[ -n ${STUB_DELAY_PROBE:-} && " $* " == *"ConnectTimeout="* ]]; then
+    sleep "$STUB_DELAY_PROBE"
+fi
+# A ProxyCommand descendant outliving ssh with fd 2 still open: the write end of
+# ssa's fifo stays open, so its tee never reaches EOF. It ignores TERM because a
+# grandchild is not ssa's to signal.
+if [[ -n ${STUB_ORPHAN:-} ]]; then
+    (
+        trap '' TERM HUP
+        sleep "$STUB_ORPHAN"
+    ) &
+fi
 if [[ -n ${STUB_HOLD:-} ]]; then
     printf '%s\n' "$$" >"$STUB_HOLD"
     exec sleep 60
@@ -57,7 +73,9 @@ IFS=';' read -ra plan <<<"$STUB_PLAN"
 step=${plan[$((n - 1))]:-${plan[$((${#plan[@]} - 1))]}}
 rc=${step%%:*}
 msg=${step#*:}
-[[ -n $msg && $msg != "$step" ]] && printf '%s\n' "$msg" >&2
+# %b, so a step can carry a multi-line transcript as \n -- the whole point of the
+# mixed-transcript checks, and read(1) above would stop at a real newline.
+[[ -n $msg && $msg != "$step" ]] && printf '%b\n' "$msg" >&2
 exit "$rc"
 STUB
 chmod +x "$T/bin/ssh"
@@ -72,9 +90,10 @@ chmod +x "$T/bin/curl"
 
 export PATH="$T/bin:$PATH"
 export STUB_COUNT=$T/count STUB_LOG=$T/log
-# No real certificate, no keypress window, short timeouts: the point is the
-# control flow, not the clock.
-export SSA_CERT=/nonexistent SSA_GRACE=0 SSA_PROBE_TIMEOUT=2 SSA_MAX_WAIT=8
+# No real certificate: the cert is only ever read, to explain a rejection. Every
+# other knob is now a constant in the script, so a test that must not wait forever
+# passes --max-wait like a caller would.
+export SSA_CERT=/nonexistent
 # ssa refuses a host whose config has no ServerAliveInterval, so the stub
 # reports one; STUB_ALIVE=0 is how the two tests below exercise that refusal.
 export STUB_ALIVE=60
@@ -198,11 +217,10 @@ case $out in
     *"may have run"*) check "T3 dropped remote command explains itself" y y ;;
     *) check "T3 dropped remote command explains itself" y "n: $out" ;;
 esac
-
-reset
-STUB_PLAN='255:Connection to host closed by remote host.;0:;0:' \
-    $SSA --retry-command host 'tail -F log' >/dev/null 2>&1
-check "T3 --retry-command opts back in" 0 $?
+case $out in
+    *--tmux*) check "T3 the refusal points at the way to survive a drop" y y ;;
+    *) check "T3 the refusal points at the way to survive a drop" y "n: $out" ;;
+esac
 
 # --- T1, T2  probe fidelity and termination ------------------------------------
 # A probe answers one question -- would the session connect? -- so it may bound
@@ -270,19 +288,19 @@ esac
 
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
-    $SSA host </dev/null 2>&1)
+    $SSA --max-wait=8 host </dev/null 2>&1)
 check "T9 a steady reason waits through several probes" y "$(yn "$(sessions) >= 3")"
 check "T9 a steady reason is not reprinted per probe" 0 "$(grep -c 'still waiting' <<<"$out")"
 
 reset
 out=$(SSA_NOTE_EVERY=1 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
-    $SSA host </dev/null 2>&1)
+    $SSA --max-wait=8 host </dev/null 2>&1)
 check "T9 a keep-alive line arrives once per SSA_NOTE_EVERY" y \
     "$(yn "$(grep -c 'still waiting' <<<"$out") >= 2")"
 
 reset
 out=$(STUB_PLAN='255:ssh: connect to host port 22: Connection timed out;255:ssh: connect to host port 22: Connection refused' \
-    $SSA host </dev/null 2>&1)
+    $SSA --max-wait=8 host </dev/null 2>&1)
 case $out in
     *"still waiting after"*"connection refused"*) check "T9 a changed reason is reported once" y y ;;
     *) check "T9 a changed reason is reported once" y "n: $out" ;;
@@ -409,6 +427,89 @@ case $out in
     *) check "T10 a portal guess cannot hide rejected credentials" y y ;;
 esac
 
+# Measured against the real host on 2026-08-28: an expired or under-privileged
+# gpuec2 profile makes the SSM ProxyCommand print a 403 and ssh add its own
+# handshake failure underneath. Read from the generic line it said "refused
+# mid-handshake" -- a network story for a credentials problem -- and, being a
+# connect class, it then went looking for a captive portal.
+reset
+out=$(STUB_PORTAL_CODE=302 \
+    STUB_PLAN='255:aws: [ERROR]: An error occurred (403) when calling the StartSession operation: Server authentication failed: <UnauthorizedRequest><message>Forbidden.</message></UnauthorizedRequest>\nssh_exchange_identification: Connection closed by remote host' \
+    $SSA --max-wait=1 host </dev/null 2>&1)
+case $out in
+    *"refresh AWS credentials"*) check "T10 a proxy 403 names the credentials" y y ;;
+    *) check "T10 a proxy 403 names the credentials" y "n: $out" ;;
+esac
+case $out in
+    *"refused mid-handshake"* | *"captive portal"*)
+        check "T10 a proxy 403 is not told as a network failure" y "n: $out" ;;
+    *) check "T10 a proxy 403 is not told as a network failure" y y ;;
+esac
+
+# Only the end of stderr describes how *this* session ended. ssh's own verbose
+# output reports a refusal per address it tries before connecting through another,
+# and a remote command's stderr shares the stream, so searching all of it
+# diagnoses a drop from a line belonging to an attempt that recovered -- and, as a
+# connect class, guesses at a portal too.
+reset
+out=$(STUB_PORTAL_CODE=302 \
+    STUB_PLAN='255:debug1: connect to address 10.0.0.1 port 22: Connection refused\ndebug1: Connecting to host port 22.\ndebug1: Connection established.\ndebug1: Authentication succeeded (publickey).\nConnection to host closed by remote host.' \
+    $SSA --max-wait=1 host </dev/null 2>&1)
+case $out in
+    *"closed by remote host"*) check "T10 a drop is read from the line that ended it" y y ;;
+    *) check "T10 a drop is read from the line that ended it" y "n: $out" ;;
+esac
+case $out in
+    *"connection refused"* | *"captive portal"*)
+        check "T10 an earlier line that recovered is not the reason" y "n: $out" ;;
+    *) check "T10 an earlier line that recovered is not the reason" y y ;;
+esac
+
+# --- T12  one wall clock ---------------------------------------------------------
+# Checking the bound only after a call returns is not a bound. Measured before
+# this: --max-wait=1 exited after 3s when a probe outran it, and after 4s when the
+# control socket did -- and neither is the worst case, because ConnectTimeout does
+# not apply to a probe handed to a live master and -O check has no bound at all.
+
+reset
+start=$(date +%s)
+STUB_DELAY_PROBE=3 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
+    $SSA --max-wait=1 host </dev/null >/dev/null 2>&1
+rc=$?
+elapsed=$(($(date +%s) - start))
+check "T12 a probe that will not return still exits" 255 "$rc"
+check "T12 the probe is cut off at the bound (${elapsed}s)" y "$(yn "$elapsed <= 2")"
+
+reset
+start=$(date +%s)
+STUB_DELAY_CTL=3 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
+    $SSA --max-wait=1 host </dev/null >/dev/null 2>&1
+rc=$?
+elapsed=$(($(date +%s) - start))
+check "T12 a control socket that will not answer does not extend it" 255 "$rc"
+check "T12 the stale-master check counts against the clock (${elapsed}s)" y \
+    "$(yn "$elapsed <= 2")"
+
+# --- T13  a descendant cannot stall the wrapper ----------------------------------
+# ssh's stderr is a fifo so it can pass through live and be read back. A
+# ProxyCommand descendant inherits the write end, so tee never reaches EOF, and
+# waiting on tee let a grandchild hold up the diagnosis for its own lifetime.
+
+reset
+start=$(date +%s)
+STUB_ORPHAN=5 STUB_PLAN='255:ssh: connect to host port 22: Connection timed out' \
+    $SSA --max-wait=1 host </dev/null >/dev/null 2>"$T/orphan"
+rc=$?
+elapsed=$(($(date +%s) - start))
+out=$(<"$T/orphan")
+check "T13 a descendant holding stderr does not delay the exit (${elapsed}s)" y \
+    "$(yn "$elapsed <= 3")"
+check "T13 exiting anyway is still a give-up, not a success" 255 "$rc"
+case $out in
+    *"connection timed out"*) check "T13 the diagnosis survives the bounded drain" y y ;;
+    *) check "T13 the diagnosis survives the bounded drain" y "n: $out" ;;
+esac
+
 # --- bounded waiting -----------------------------------------------------------
 
 reset
@@ -417,7 +518,7 @@ STUB_PLAN='255:ssh: connect to host port 22: Connection refused;255:' \
     $SSA --max-wait=4 host >/dev/null 2>&1
 check "max-wait gives up with 255" 255 $?
 elapsed=$(($(date +%s) - start))
-if [[ $elapsed -lt 20 ]]; then verdict=bounded; else verdict="${elapsed}s"; fi
+if [[ $elapsed -le 6 ]]; then verdict=bounded; else verdict="${elapsed}s"; fi
 check "max-wait bounds the wait (${elapsed}s elapsed)" bounded "$verdict"
 
 # A bound bash reads as 0 means "wait forever", the opposite of what was asked.
@@ -428,6 +529,12 @@ case $out in
     *"whole seconds"*) check "the refusal says what it wanted" y y ;;
     *) check "the refusal says what it wanted" y "n: $out" ;;
 esac
+
+# 0 is meaningful for --max-wait and meaningless for a print cadence: it would
+# print on every probe, which is the wall of text the two clocks exist to prevent.
+reset
+SSA_NOTE_EVERY=0 STUB_PLAN='0:' $SSA host >/dev/null 2>&1
+check "a zero keep-alive interval is refused" 255 $?
 
 # --- argument handling ---------------------------------------------------------
 
@@ -603,12 +710,12 @@ if command -v python3 >/dev/null 2>&1; then
     check "T11 the session inherits the terminal, not /dev/null" tty "$(session_tty)"
 
     reset
-    rc=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' SSA_GRACE=3 \
+    rc=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' \
         python3 "$T/keypress.py" "$SSA" $'\e[<0;1;1M' 2>/dev/null)
     check "T11 a queued escape sequence does not abort the reconnect" 0 "$rc"
 
     reset
-    rc=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' SSA_GRACE=3 \
+    rc=$(STUB_PLAN='255:Connection to host closed by remote host.;0:' \
         python3 "$T/keypress.py" "$SSA" q 2>/dev/null)
     check "T11 q still stops the reconnect" 255 "$rc"
 else
