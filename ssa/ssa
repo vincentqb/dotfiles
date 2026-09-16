@@ -1,46 +1,127 @@
-#!/usr/bin/env bash
-# ssa -- ssh that waits out a broken network and reconnects. It never blocks on
-# an SSH prompt: it reports what it is waiting for and retries on the next probe.
-# The properties it maintains, and the check that discharges each: README.md.
+#!/usr/bin/env python3
+"""ssh that waits out a broken network and reconnects.
 
-set -uo pipefail
+It never blocks on an SSH prompt: it reports what it is waiting for and retries
+on the next probe. README.md states the properties and names the check for each;
+PLAN.md keeps the arguments for the shape. Comments here cover only what is
+invisible at the call site.
 
-PROG=${0##*/}
+Everything above `Ssh` is pure -- stderr to a decision and a sentence, and the
+rendering of a status line -- so it is checked by calling it. Everything below
+talks to ssh, and is checked by driving the real binary against a stub.
+"""
 
-# Constants, not options. Every one of these was a knob nobody turned, and an
-# option is a thing to get wrong at 2am on a broken link. test-ssa exercises the
-# paths that depend on them by generating a copy of this script with one constant
-# rewritten, so none of them needs a runtime interface in order to stay checked.
-GRACE=3           # keypress window before a reconnect, so `~.` can stop it
-PROBE_CONNECT=7   # a probe's ConnectTimeout: bounds a fresh handshake
-PROBE_WALL=15     # hard kill for any ssh we start. ConnectTimeout does not apply
-                  # to a connection handed to a live control master, and -O check
-                  # has no bound of its own at all, so without this a "probe" can
-                  # sit inside a wedged master for that master's whole keepalive.
-MAX_DELAY=60      # longest gap between probes
-DRAIN=1           # grace for ssh's stderr to reach us after ssh itself has exited
-# How much of stderr describes how *this* session ended. The deepest real
-# transcript is two lines -- a proxy's own diagnostic, and the handshake failure
-# ssh reports underneath it -- plus one of slack. Reading the whole stream instead
-# diagnoses today's failure from a line left by an attempt that then recovered.
-TAIL_LINES=3
-# A line per probe reads fine for a 30-second outage and is unusable for a night
-# one: nine hours at the MAX_DELAY cap is ~540 lines of the same sentence. So the
-# probe cadence and the *print* cadence are separate -- probes back off to
-# MAX_DELAY, prints happen on a change of reason and otherwise once per NOTE_EVERY.
-NOTE_EVERY=600
-CERT=$HOME/.ssh/id_rsa-cert.pub
-# Every status line is `ssa: <state>: <reason>`. The longest state clause is
-# "waiting for " plus a host label, so 80 - len("ssa: waiting for ") - 20 - len(": ")
-# is what a reason may occupy; capping one ssh worded itself is what keeps the
-# whole line inside 80 columns, and a line that wraps is the one a full-screen
-# program shreds. test-ssa recomputes this bound and holds the table to it.
-REASON_MAX=41
+from __future__ import annotations
 
-tmux_session=
+import enum
+import os
+import re
+import select
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+import tty
+from collections import deque
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass, field
 
-usage() {
-    cat <<'EOF'
+PROG = "ssa"
+CERT = "~/.ssh/id_rsa-cert.pub"
+
+GRACE = 3.0  # keypress window before a reconnect, so `~.` can stop it
+PROBE_CONNECT = 7  # a probe's ConnectTimeout: bounds a fresh handshake
+MAX_DELAY = 60.0  # longest gap between probes
+DRAIN = 1.0  # grace for ssh's stderr to reach us after ssh itself has exited
+
+# ConnectTimeout does not reach a connection handed to a live control master, and
+# `-O check` has no bound at all, so without a wall clock a "probe" can sit
+# inside a wedged master for that master's whole keepalive. Must exceed
+# PROBE_CONNECT, or it fires first and takes the diagnosis with it.
+PROBE_WALL = 15.0
+
+# How much of stderr describes how *this* session ended. Two lines is the deepest
+# real transcript -- a proxy's diagnostic, and the handshake failure ssh reports
+# underneath it -- plus one of slack. Reading the whole stream instead diagnoses
+# today's failure from a line left by an attempt that then recovered.
+TAIL_LINES = 3
+
+# Probing and printing are separate clocks: a line per probe is fine for a
+# 30-second outage and unusable for an overnight one (~540 copies of one
+# sentence at the MAX_DELAY cap).
+NOTE_EVERY = 600.0
+
+# Every line is `ssa: <state>: <reason>`, and the longest state clause is
+# "waiting for " plus a 20-character host label: 80 - 17 - 20 - 2. A line that
+# wraps is the one a full-screen program shreds.
+REASON_MAX = 41
+
+EXIT_AMBIGUOUS = 255  # ssh's own "something went wrong", the only status we read
+EXIT_INT = 130
+EXIT_TERM = 143
+
+
+class Class(enum.Enum):
+    """What ssa does about a failure, as opposed to what it prints."""
+
+    FATAL = "fatal"  # retrying cannot help
+    AUTH = "auth"  # credentials refused; the host is reachable
+    CONNECT = "connect"  # no session existed, so retrying is safe
+    DROPPED = "dropped"  # nothing matched, so a live session died
+
+
+@dataclass(frozen=True)
+class Rule:
+    """One row of the failure table: a decision, a sentence, and a match."""
+
+    cls: Class
+    reason: str
+    pattern: str
+
+
+# One table rather than three branches, so a class and its sentence cannot drift
+# apart and a new failure mode is one row. First match wins, over the tail only,
+# so a proxy's own diagnostic outranks the generic handshake failure under it.
+RULES: tuple[Rule, ...] = (
+    Rule(Class.FATAL, "host key changed", "IDENTIFICATION HAS CHANGED"),
+    Rule(Class.FATAL, "host key not verified", "Host key verification failed"),
+    Rule(Class.FATAL, "bad ssh option", "Bad configuration option"),
+    Rule(Class.FATAL, "bad ssh option", "illegal option"),
+    Rule(Class.FATAL, "bad ssh option", "unknown option"),
+    Rule(Class.AUTH, "credentials rejected", "Permission denied"),
+    Rule(Class.AUTH, "too many authentication attempts", "Too many authentication failures"),
+    Rule(Class.AUTH, "proxy credentials expired", "ExpiredToken"),
+    Rule(Class.AUTH, "proxy has no credentials", "Unable to locate credentials"),
+    Rule(Class.AUTH, "proxy rejected, refresh AWS credentials", "UnauthorizedRequest"),
+    Rule(Class.AUTH, "proxy rejected, refresh AWS credentials", "Server authentication failed"),
+    Rule(Class.CONNECT, "unresolved host, check DNS or VPN", "Could not resolve"),
+    Rule(Class.CONNECT, "unresolved host, check DNS or VPN", "Name or service not known"),
+    Rule(Class.CONNECT, "unresolved host, check DNS or VPN", "nodename nor servname"),
+    Rule(Class.CONNECT, "connection refused", "Connection refused"),
+    Rule(Class.CONNECT, "connection timed out", "Connection timed out"),
+    Rule(Class.CONNECT, "connection timed out", "Operation timed out"),
+    Rule(Class.CONNECT, "no route to host", "No route to host"),
+    Rule(Class.CONNECT, "network unreachable", "Network is unreachable"),
+    Rule(Class.CONNECT, "refused mid-handshake", "exchange_identification"),
+)
+
+NO_DIAGNOSTIC = "no diagnostic, so ~. or a silent drop"
+WEDGED = "probe timed out, no answer"
+
+# What a probe may add, and nothing else: each bounds the attempt or shapes the
+# session, and none changes whether the host is reachable (README, T1).
+PROBE_OPTS = (
+    "-T",
+    "-o", "BatchMode=yes",
+    "-o", f"ConnectTimeout={PROBE_CONNECT}",
+    "-o", "ControlMaster=no",
+    "-o", "ClearAllForwardings=yes",
+)  # fmt: skip
+
+USAGE = """\
 usage: ssa [--tmux[=NAME]] host [cmd]
 
   --tmux[=NAME]    attach-or-create remote tmux NAME (default main), so the
@@ -50,348 +131,537 @@ ssh flags are refused: connection settings belong in ~/.ssh/config, where plain
 ssh and ssa's own probe both read them. A supplied remote command is never
 replayed after an ambiguous exit; run it under --tmux if it must survive a drop.
 It waits forever by design -- ^C stops it. Credentials, VPN and portals are
-waited on, never solved for you.
-EOF
-}
+waited on, never solved for you."""
 
-say() { printf '%s: %s\n' "$PROG" "$*" >&2; }
-die() { say "$*"; exit 255; }
-now() { date +%s; }
-# Hours, because an overnight wait is the case the print cadence exists for and
-# "543m21s" is not a duration anyone reads. Seconds stop mattering at that scale.
-dur() {
-    if (($1 < 60)); then printf '%ds' "$1"
-    elif (($1 < 3600)); then printf '%dm%02ds' $(($1 / 60)) $(($1 % 60))
-    else printf '%dh%02dm' $(($1 / 3600)) $(($1 / 60 % 60)); fi
-}
 
-# One left-to-right pass: our long option and a remote command can be spelled the
-# same, so only tokens before the hostname are ours.
-#
-# An ssh flag is refused rather than forwarded. Deciding which of ssh's own flags
-# a probe may keep took 42 lines of hand-rolled getopt -- cluster walking,
-# argument-taking flags, an -f special case -- and getting it wrong in either
-# direction is a reconnect that never happens (T1). Every one of those flags has
-# an ssh_config spelling, which plain ssh and `kitty +kitten ssh` read too, so the
-# refusal points there instead. The probe is now a fixed argv: the host, and the
-# handful of -o values that bound the attempt.
-host=
-user_cmd=()
-while (($#)); do
-    case $1 in
-        --help) usage; exit 0 ;;
-        --tmux) tmux_session=main ;;
-        --tmux=*) tmux_session=${1#*=} ;;
-        -*) die "no ssh flags: put $1 in ~/.ssh/config, where the probe reads it too" ;;
-        # Quoted: the remote command is ssh's to interpret, not ours to glob.
-        *)
-            host=$1
-            shift
-            user_cmd=("$@")
-            break
-            ;;
-    esac
-    shift
-done
-[[ -n $host ]] || { usage >&2; die 'no host given'; }
-# Bounding a probe needs a clock we did not write. coreutils on Linux, brew or
-# MacPorts coreutils on a mac, where the same binary is installed as gtimeout.
-timeout_bin=$(command -v timeout || command -v gtimeout) ||
-    die 'needs timeout(1) from coreutils to bound a probe'
-# Messages name the host by its first label. The FQDN of a dev desktop is 50
-# characters, which is most of a line on its own, and every line that wraps is
-# a line that gets shredded by whatever full-screen program shares the terminal.
-short_host=${host%%.*}
+@dataclass(frozen=True)
+class Diagnosis:
+    """Why a connection ended: what to do, what to print, and what "changed".
 
-# autossh's -M monitor exists because nothing reconnects if nothing notices the
-# link died. ssh's ServerAliveInterval is that check, and its default is 0: on a
-# dead link ssh blocks until the kernel gives up, so there is nothing to
-# supervise and this whole script does nothing. Refuse rather than inject one --
-# it belongs in ssh_config, where plain ssh benefits too, and a wrapper quietly
-# rewriting connection parameters is worse than being told once.
-ssh_config=$(ssh -G "$host" 2>/dev/null)
-[[ $(awk '$1 == "serveraliveinterval" { print $2; exit }' <<<"$ssh_config") == 0 ]] &&
-    die "$host has no ServerAliveInterval, so ssh will never notice a dead link.
-    Add to ~/.ssh/config:
-        Host $host
-            ServerAliveInterval 15
-            ServerAliveCountMax 3"
+    `key` is the reason with anything that ticks taken out of it, because a cert
+    expiry is worded with a duration: comparing `reason` would report a change on
+    every probe and defeat the print cadence.
+    """
 
-# Newer clients can inherit RemoteCommand or SessionType from ssh_config. Both
-# conflict with the probe's finite `true`; only pass their reset on clients that
-# advertised the option, because OpenSSH 7.4 rejects both names.
-probe_compat=()
-grep -q '^remotecommand ' <<<"$ssh_config" && probe_compat+=(-o RemoteCommand=none)
-grep -q '^sessiontype ' <<<"$ssh_config" && probe_compat+=(-o SessionType=default)
+    cls: Class
+    reason: str
+    key: str
 
-eff_cmd=(${user_cmd[@]+"${user_cmd[@]}"})
-if [[ -n $tmux_session ]]; then
-    ((${#user_cmd[@]} == 0)) || die "--tmux replaces the remote command; use --tmux=NAME"
-    # -A attaches or creates. -u because a remote command gets no login shell,
-    # so LC_* is POSIX and tmux would draw every multibyte cell as "_"; the
-    # same session entered by hand looks fine, which makes it look like our bug.
-    eff_cmd=(tmux -u new -A -s "$tmux_session")
-fi
+    @classmethod
+    def of(cls, failure: Class, reason: str, key: str | None = None) -> Diagnosis:
+        return cls(failure, reason, reason if key is None else key)
 
-# Every failure ssh, or a ProxyCommand standing in for the network, can report:
-# the class that decides what we do, the clause we print, and the substring that
-# identifies it. One table rather than three case statements, so a class and a
-# reason cannot drift apart and a new failure mode is one row, not three edits.
-#
-# fatal: retrying cannot help. auth: credentials refused; the host is reachable.
-# connect: no session existed, so retrying an interactive connection is safe.
-# dropped (no row matched): one died. A supplied remote command is ambiguous
-# whatever the text says, because its stderr is this same stream and it may
-# itself return 255; that policy is enforced in the loop, not here.
-#
-# The first matching row wins and the tail of stderr is searched, so a proxy's
-# own diagnostic outranks the generic handshake failure ssh reports underneath it.
-FAILURES='fatal|host key changed|IDENTIFICATION HAS CHANGED
-fatal|host key not verified|Host key verification failed
-fatal|bad ssh option|Bad configuration option
-fatal|bad ssh option|illegal option
-fatal|bad ssh option|unknown option
-auth|credentials rejected|Permission denied
-auth|too many authentication attempts|Too many authentication failures
-auth|proxy credentials expired|ExpiredToken
-auth|proxy has no credentials|Unable to locate credentials
-auth|proxy rejected, refresh AWS credentials|UnauthorizedRequest
-auth|proxy rejected, refresh AWS credentials|Server authentication failed
-connect|unresolved host, check DNS or VPN|Could not resolve
-connect|unresolved host, check DNS or VPN|Name or service not known
-connect|unresolved host, check DNS or VPN|nodename nor servname
-connect|connection refused|Connection refused
-connect|connection timed out|Connection timed out
-connect|connection timed out|Operation timed out
-connect|no route to host|No route to host
-connect|network unreachable|Network is unreachable
-connect|refused mid-handshake|exchange_identification'
 
-# "Permission denied" does not say why. The certificate's own Valid-to does, so
-# when it can answer it answers for the whole line -- and the host may not use this
-# certificate at all, which is what the second branch reports.
-cert_reason() {
-    local to exp
-    to=$(ssh-keygen -L -f "$CERT" 2>/dev/null | sed -n 's/.*Valid: from .* to \([^ ]*\).*/\1/p')
-    # No certificate to read is not an answer. Without this, `date -d ''` succeeds
-    # and returns midnight today, so an unreadable cert was reported as expired --
-    # a false reason that reads exactly like the true one, and sends you to mwinit.
-    [[ -n $to ]] || return 1
-    exp=$(date -d "$to" +%s 2>/dev/null || date -j -f '%Y-%m-%dT%H:%M:%S' "$to" +%s 2>/dev/null) ||
-        return 1
-    if (($(now) > exp)); then printf 'cert expired %s ago' "$(dur $(($(now) - exp)))"
-    else printf 'credentials rejected, cert is live'; fi
-}
+def duration(seconds: float) -> str:
+    """Hours, because "543m21s" is not a duration anyone reads."""
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m{seconds % 60:02d}s"
+    return f"{seconds // 3600}h{seconds // 60 % 60:02d}m"
 
-# The end of stderr, which is the part that describes how *this* session ended. A
-# session accumulates its remote command's stderr, and a host with
-# StrictHostKeyChecking off warns on every single connect, so reading the whole
-# stream lets a line from an attempt that then recovered classify the failure that
-# actually stopped us. First match still wins by row, because a proxy writes its
-# own diagnostic *before* the handshake failure ssh reports underneath it.
-tail_err() {
-    awk -v k="$TAIL_LINES" '!/^Warning: Permanently added/ && NF { l[++n] = $0 }
-        END { for (i = n - k + 1; i <= n; i++) if (i > 0) print l[i] }' <<<"$1"
-}
 
-# The one place stderr becomes a decision and a sentence, so the two agree by
-# construction. Sets CLASS, REASON, and KEY -- the reason with anything that ticks
-# taken out of it. A cert expiry is worded with a duration that grows between
-# probes, so comparing REASON would report a change on every probe and defeat the
-# print cadence entirely; KEY is what "has the reason changed?" means.
-CLASS=
-REASON=
-KEY=
-diagnose() {
-    local class phrase pat answer text
-    text=$(tail_err "$1")
-    while IFS='|' read -r class phrase pat; do
-        [[ $text == *"$pat"* ]] || continue
-        CLASS=$class REASON=$phrase KEY=$phrase
-        [[ $phrase == 'credentials rejected' ]] && answer=$(cert_reason) && REASON=$answer
-        return
-    done <<<"$FAILURES"
-    # Unclassified, so ssh's own last line is the reason, capped to one line. ssh
-    # writes it to this terminal unabridged either way. A session with a tty ends
-    # its lines with CR, which would send the cursor back over our own prefix.
-    CLASS=dropped
-    REASON=$(awk 'NF { l = $0 }
-        END { gsub(/\r/, "", l); sub(/^ssh: /, "", l); print l }' <<<"$text")
-    ((${#REASON} > REASON_MAX)) && REASON=${REASON:0:REASON_MAX-3}...
-    REASON=${REASON:-'no diagnostic, so ~. or a silent drop'}
-    KEY=$REASON
-}
+def tail(stderr: str, lines: int = TAIL_LINES) -> str:
+    """The end of stderr, which is the part describing how this session ended."""
+    keep = [
+        line
+        for line in stderr.splitlines()
+        if line.strip() and not line.startswith("Warning: Permanently added")
+    ]
+    return "\n".join(keep[-lines:])
 
-# The one connection failure waiting never fixes, so it is worth its own probe.
-portal() {
-    local code
-    code=$("$timeout_bin" 5 curl -sS -o /dev/null -w '%{http_code}' \
-        http://connectivitycheck.gstatic.com/generate_204 2>/dev/null)
-    [[ -n $code && $code != 204 && $code != 000 ]] &&
-        printf 'captive portal, HTTP %s -- sign in from a browser' "$code"
-}
 
-# A real ssh, so the host's aliases, ports, ProxyJump and multiplexing all hold --
-# they are in ssh_config, which is why refusing flags costs the probe nothing. It
-# answers one question, would the session connect, so it may bound the attempt and
-# make it finite, and may not change how the connection is made. In particular it
-# keeps the session's ControlPath: reaching a live master is how the session will
-# reconnect, and a probe that insists on a fresh handshake would wait for
-# credentials the session does not need. Our -o values win because ssh keeps the
-# first value it obtains.
-probe_err=
-probe_rc=0
-probe() {
-    # stderr to a file, not a pipe: `timeout` kills the ssh it started, not a
-    # descendant of it, and a `$(...)` capture waits for the write end to close
-    # rather than for the process to die -- so one surviving ProxyCommand child
-    # keeps a probe running long after its bound (T13). A file has no EOF to hold
-    # hostage, and everything ssh wrote is there when the call returns.
-    "$timeout_bin" "$PROBE_WALL" ssh -T -o BatchMode=yes \
-        -o ConnectTimeout="$PROBE_CONNECT" \
-        -o ControlMaster=no -o ClearAllForwardings=yes \
-        ${probe_compat[@]+"${probe_compat[@]}"} \
-        "$host" true >/dev/null 2>"$tmpdir/probe"
-    probe_rc=$?
-    probe_err=$(<"$tmpdir/probe")
-    return "$probe_rc"
-}
+def cap(reason: str) -> str:
+    """Hold wording ssh chose, rather than us, to the width budget."""
+    return reason if len(reason) <= REASON_MAX else reason[: REASON_MAX - 3] + "..."
 
-# A master that died with the link leaves a socket that fails the next connect
-# instantly. Runs before the probe, so the probe reaches a live master or none.
-# No-op when multiplexing is off. Bounded, because -O check on a master that has
-# stopped answering has no bound of its own.
-stale_master() {
-    "$timeout_bin" "$PROBE_WALL" ssh -O check "$host" >/dev/null 2>&1 ||
-        "$timeout_bin" "$PROBE_WALL" ssh -O exit "$host" >/dev/null 2>&1 || true
-}
 
-WAITED=0
-# Entered with CLASS and REASON already describing why the session ended. One
-# line on entry, then a line only when the reason *changes* -- DNS gave way to
-# refused, a portal appeared -- or when NOTE_EVERY has passed. `last` is seeded
-# from the entry reason so the first probe does not immediately repeat it. It was
-# the repetition that made this loop unreadable, not the waiting.
-#
-# It waits forever. A credential that will be refreshed, a VPN that will come
-# back and a laptop that is closed are all indefinite, and the caller is a person
-# with a terminal: ^C is the bound, and every individual call below has its own.
-wait_for() {
-    local delay=1 start last last_note spotted wedged
-    start=$(now)
-    last_note=$start
-    last=$KEY
-    say "waiting for $short_host: $REASON"
-    stale_master
-    while ! probe; do
-        WAITED=$(($(now) - start))
-        diagnose "$probe_err"
-        # A probe we had to kill wrote at most a fragment of a handshake, so the
-        # kill is the fact worth reporting rather than the fragment.
-        if ((probe_rc == 124)); then
-            wedged='probe timed out, no answer'
-            REASON=$wedged KEY=$wedged
-        fi
-        # Waiting cannot fix a fatal reason, whoever noticed it first. A host key
-        # can change while we wait -- a host rebuilt during the outage we are
-        # sitting out is the ordinary way that happens.
-        [[ $CLASS == fatal ]] && die "not reconnecting: $REASON"
-        # A portal keeps the connection failure it hides unchanged, so it has to
-        # refine the reason before the comparison below, or it would be silent
-        # until the next keep-alive line.
-        [[ $CLASS == connect ]] && spotted=$(portal) && REASON=$spotted KEY=$spotted
-        if [[ $KEY != "$last" ]] || (($(now) - last_note >= NOTE_EVERY)); then
-            say "still waiting after $(dur "$WAITED"): $REASON"
-            last=$KEY
-            last_note=$(now)
-        fi
-        sleep "$delay"
-        ((delay = delay * 2 > MAX_DELAY ? MAX_DELAY : delay * 2))
-    done
-    WAITED=$(($(now) - start))
-}
+def cert_expiry(
+    valid_to: str | None, now: float, parse: Callable[[str], float | None]
+) -> str | None:
+    """Explain a rejected credential from the certificate's own Valid-to.
 
-tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/ssa.XXXXXX") || exit 255
-ssh_pid=
-tee_pid=
-cleanup() { rm -r "$tmpdir"; }
-stop() {
-    local status=$1
-    trap - INT TERM
-    [[ -n $ssh_pid ]] && kill -TERM "$ssh_pid" 2>/dev/null
-    [[ -n $tee_pid ]] && kill -TERM "$tee_pid" 2>/dev/null
-    [[ -n $ssh_pid ]] && wait "$ssh_pid" 2>/dev/null
-    [[ -n $tee_pid ]] && wait "$tee_pid" 2>/dev/null
-    exit "$status"
-}
-trap cleanup EXIT
-trap 'stop 130' INT
-trap 'stop 143' TERM
-errfile=$tmpdir/err
-fifo=$tmpdir/fifo
-mkfifo "$fifo" || exit 255
-rc=0
+    A missing certificate is not an answer: reporting one as expired reads
+    exactly like the true message and sends you to mwinit for nothing.
+    """
+    if not valid_to:
+        return None
+    expiry = parse(valid_to)
+    if expiry is None:
+        return None
+    if now > expiry:
+        return f"cert expired {duration(now - expiry)} ago"
+    return "credentials rejected, cert is live"
 
-# ssh's stderr must both pass through live (a remote command writes to it) and be
-# read back to classify the failure. A fifo does both. ssh is asynchronous only so
-# a signal trap can stop it; `<&0` is load-bearing, because bash gives an
-# asynchronous command /dev/null for stdin unless a redirection says otherwise.
-run_ssh() {
-    tee "$errfile" <"$fifo" >&2 &
-    tee_pid=$!
-    ssh -o BatchMode=yes ${tmux_session:+-t} "$host" \
-        ${eff_cmd[@]+"${eff_cmd[@]}"} <&0 2>"$fifo" &
-    ssh_pid=$!
-    wait "$ssh_pid"
-    rc=$?
-    ssh_pid=
-    # ssh has exited, so everything we need is already in the pipe. But a
-    # ProxyCommand descendant inherits fd 2, and while it lives the write end
-    # stays open and tee never sees EOF -- waiting on tee unconditionally hands a
-    # grandchild the power to delay the diagnosis for as long as it likes. So the
-    # drain is bounded and then tee is stopped.
-    local i
-    for ((i = 0; i < DRAIN * 20; i++)); do
-        kill -0 "$tee_pid" 2>/dev/null || break
-        sleep 0.05
-    done
-    kill -TERM "$tee_pid" 2>/dev/null
-    wait "$tee_pid" 2>/dev/null
-    tee_pid=
-}
 
-while :; do
-    run_ssh
-    # Any non-255 status is definitely the remote command's. Exit 255 needs the
-    # fatal and replay-safety policies below because a remote command may use it.
-    ((rc != 255)) && exit "$rc"
+def diagnose(stderr: str, cert_note: Callable[[], str | None] = lambda: None) -> Diagnosis:
+    """Map stderr to exactly one decision and one sentence."""
+    text = tail(stderr)
+    for rule in RULES:
+        if rule.pattern in text:
+            if rule.reason == "credentials rejected" and (note := cert_note()):
+                return Diagnosis.of(rule.cls, note, rule.reason)
+            return Diagnosis.of(rule.cls, rule.reason)
 
-    diagnose "$(<"$errfile")"
+    # Unclassified, so ssh's own last line is the reason. A session with a tty
+    # ends its lines with CR, which would send the cursor back over our prefix.
+    last = ""
+    for line in text.splitlines():
+        if line.strip():
+            last = line
+    last = last.replace("\r", "").removeprefix("ssh: ").strip()
+    return Diagnosis.of(Class.DROPPED, cap(last) if last else NO_DIAGNOSTIC)
 
-    if [[ $CLASS == fatal ]]; then
-        [[ $REASON == 'host key changed' ]] &&
-            say "a rebuilt host and a MITM look the same here; verify, then fix known_hosts"
-        die "not reconnecting: $REASON"
-    fi
 
-    # Remote stderr shares errfile with ssh diagnostics, and a remote command may
-    # itself return 255. No wording can prove it never started, so it is never
-    # replayed; tmux is exempt because it is our own idempotent command.
-    ((${#user_cmd[@]})) &&
-        die "ssh exited 255 and '${user_cmd[*]}' may have run; run it under --tmux to survive a drop"
+class Refused(Exception):
+    """A configuration or argument ssa will not supervise."""
 
-    # `~.` and a dead link are the same silent 255, so offer a way out. The key
-    # is named: a dying full-screen program leaves escape bytes in the input
-    # queue, and those are not someone asking to stop.
-    if [[ $CLASS == dropped && -t 0 ]]; then
-        printf '%s: reconnecting in %ss, q to stop' "$PROG" "$GRACE" >&2
-        read -rs -n 1 -t "$GRACE" key && [[ $key == q ]] && { printf '\n' >&2; exit 255; }
-        printf '\n' >&2
-    fi
 
-    # No reason here: the line before it is the reason, and repeating it is what
-    # pushes this shape past 80 columns.
-    wait_for
-    ((WAITED > 30)) && printf '\a' >&2   # long enough that nobody was watching
-    say "$short_host back after $(dur "$WAITED"), reconnecting"
-done
+class Helped(Exception):
+    """--help was asked for."""
+
+
+@dataclass(frozen=True)
+class Options:
+    host: str
+    command: tuple[str, ...] = ()
+    tmux: str | None = None
+
+    @property
+    def label(self) -> str:
+        """The first label: an FQDN is most of a line, and a wrapped line is
+        one a full-screen program shreds."""
+        return self.host.split(".")[0]
+
+    @property
+    def remote(self) -> tuple[str, ...]:
+        """-A attaches or creates, which is what makes a replay after a drop
+        safe. -u because a remote command gets no login shell, so LC_* is POSIX
+        and tmux would draw every multibyte cell as "_"."""
+        if self.tmux is not None:
+            return ("tmux", "-u", "new", "-A", "-s", self.tmux)
+        return self.command
+
+
+def parse(argv: Sequence[str]) -> Options:
+    """One left-to-right pass: only tokens before the hostname are ours.
+
+    Hand-rolled rather than argparse for one reason -- `--tmux` must not consume
+    the token after it, since `ssa --tmux gpu2` names a host, not a session. An
+    ssh flag is refused rather than filtered, because every one has an
+    ssh_config spelling that the probe reads too (README, T1).
+    """
+    tmux: str | None = None
+    for index, token in enumerate(argv):
+        if token == "--help":
+            raise Helped
+        if token == "--tmux":
+            tmux = "main"
+        elif token.startswith("--tmux="):
+            tmux = token.split("=", 1)[1]
+        elif token.startswith("--"):
+            raise Refused(f"unknown option {token}")
+        elif token.startswith("-"):
+            raise Refused(
+                f"no ssh flags: put {token} in ~/.ssh/config, where the probe reads it too"
+            )
+        else:
+            command = tuple(argv[index + 1 :])  # ssh's to interpret, not ours
+            if tmux is not None and command:
+                raise Refused("--tmux replaces the remote command; use --tmux=NAME")
+            return Options(host=token, command=command, tmux=tmux)
+    raise Refused("no host given")
+
+
+def keepalive_refusal(host: str) -> str:
+    return (
+        f"{host} has no ServerAliveInterval, so ssh will never notice a dead link.\n"
+        "    Add to ~/.ssh/config:\n"
+        f"        Host {host}\n"
+        "            ServerAliveInterval 15\n"
+        "            ServerAliveCountMax 3"
+    )
+
+
+def probe_resets(config: str) -> tuple[str, ...]:
+    """Reset only what `ssh -G` advertised: either option would suppress the
+    probe's finite `true`, and a client that does not know the name rejects it."""
+    resets: list[str] = []
+    if re.search(r"^remotecommand ", config, re.MULTILINE):
+        resets += ["-o", "RemoteCommand=none"]
+    if re.search(r"^sessiontype ", config, re.MULTILINE):
+        resets += ["-o", "SessionType=default"]
+    return tuple(resets)
+
+
+def render(reason: str) -> str:
+    return f"{PROG}: {reason}"
+@dataclass
+class Reporter:
+    """Status lines: one on entry, one per change of reason, else one per
+    NOTE_EVERY. It was the repetition that made this loop unreadable."""
+
+    clock: Callable[[], float] = time.monotonic
+    stream: object = sys.stderr
+    last: str | None = field(default=None, init=False)
+    noted: float = field(default=0.0, init=False)
+
+    def say(self, message: str) -> None:
+        print(render(message), file=self.stream, flush=True)
+
+    def waiting(self, label: str, why: Diagnosis) -> None:
+        self.say(f"waiting for {label}: {why.reason}")
+        self.last, self.noted = why.key, self.clock()
+
+    def still(self, waited: float, why: Diagnosis) -> None:
+        if why.key != self.last or self.clock() - self.noted >= NOTE_EVERY:
+            self.say(f"still waiting after {duration(waited)}: {why.reason}")
+            self.last, self.noted = why.key, self.clock()
+
+    def back(self, label: str, waited: float) -> None:
+        if waited > 30:  # long enough that nobody was watching
+            print("\a", end="", file=self.stream, flush=True)
+        self.say(f"{label} back after {duration(waited)}, reconnecting")
+
+
+def portal(run: Callable[[list[str]], tuple[int, str]]) -> str | None:
+    """Is something answering *for* the network? Reported, never signed into."""
+    code, out = run(
+        [
+            "curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "5",
+            "http://connectivitycheck.gstatic.com/generate_204",
+        ]
+    )  # fmt: skip
+    out = out.strip()
+    if code == 0 and out and out not in {"204", "000"}:
+        return f"captive portal, HTTP {out} -- sign in from a browser"
+    return None
+
+
+def grace(seconds: float = GRACE) -> bool:
+    """A keypress window before reconnecting, and the key is *named*: a dying
+    full-screen program leaves escape bytes in the input queue, and those are not
+    someone asking to stop."""
+    if not sys.stdin.isatty():
+        return True
+    print(f"{PROG}: reconnecting in {seconds:.0f}s, q to stop", end="", file=sys.stderr, flush=True)
+    fd = sys.stdin.fileno()
+    saved = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        deadline = time.monotonic() + seconds
+        while (left := deadline - time.monotonic()) > 0:
+            if select.select([fd], [], [], left)[0] and os.read(fd, 1) == b"q":
+                return False
+        return True
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+        print(file=sys.stderr, flush=True)
+
+
+def _kill_group(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        proc.kill()
+
+
+@dataclass
+class Ssh:
+    """Every call that reaches the network.
+
+    A probe is a real ssh, so aliases, ports, ProxyJump and multiplexing all hold
+    -- they live in ssh_config, which is why refusing flags costs it nothing. It
+    may bound the attempt and may not change how the connection is made; in
+    particular it keeps the session's ControlPath, because reaching a live master
+    is how the session will reconnect (README, T1).
+    """
+
+    host: str
+    resets: tuple[str, ...] = ()
+    current: subprocess.Popen | None = field(default=None, init=False, repr=False)
+
+    def config(self) -> str:
+        done = subprocess.run(["ssh", "-G", self.host], capture_output=True, text=True, check=False)
+        return done.stdout
+
+    def probe(self) -> tuple[int, str]:
+        """Would the session connect? Bounded, and unable to prompt."""
+        return self._bounded(["ssh", *PROBE_OPTS, *self.resets, self.host, "true"])
+
+    def drop_stale_master(self) -> None:
+        """A master that died with the link leaves a socket that fails the next
+        connect instantly, so the probe reaches a live master or none."""
+        alive, _ = self._bounded(["ssh", "-O", "check", self.host])
+        if alive != 0:
+            self._bounded(["ssh", "-O", "exit", self.host])
+
+    def stop(self) -> None:
+        """^C should not wait out a probe's bound."""
+        if self.current is not None and self.current.poll() is None:
+            _kill_group(self.current)
+
+    def _bounded(self, argv: list[str]) -> tuple[int, str]:
+        """Run argv under a wall clock, and wait on the *process*.
+
+        stderr goes to a file, not a pipe: a ProxyCommand child inherits it and
+        killing does not reach that child, so waiting for EOF would wait for the
+        grandchild. A file has no EOF to hold hostage.
+        """
+        with tempfile.TemporaryFile() as errors:
+            proc = subprocess.Popen(
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=errors,
+                start_new_session=True,
+            )
+            self.current = proc
+            try:
+                status = proc.wait(timeout=PROBE_WALL)
+            except subprocess.TimeoutExpired:
+                _kill_group(proc)
+                proc.wait()
+                status = 124
+            finally:
+                self.current = None
+            errors.seek(0)
+            return status, errors.read().decode("utf-8", "replace")
+
+
+@dataclass
+class Session:
+    """One supervised ssh on our own terminal."""
+
+    options: Options
+    proc: subprocess.Popen | None = field(default=None, init=False, repr=False)
+
+    def argv(self) -> list[str]:
+        argv = ["ssh", "-o", "BatchMode=yes"]
+        if self.options.tmux is not None:
+            argv.append("-t")
+        return [*argv, self.options.host, *self.options.remote]
+
+    def run(self) -> tuple[int, str]:
+        """Stream stderr through, and keep its tail to classify the failure.
+
+        The drain is bounded by ssh's exit plus DRAIN, because a ProxyCommand
+        grandchild inherits the pipe and reading to EOF would wait for it.
+        select rather than a reader thread: a thread blocked in readline() holds
+        the pipe's lock, and closing the pipe then waits for that lock -- the
+        same bound reintroduced as a deadlock (README, T13).
+        """
+        chunks: deque[str] = deque(maxlen=64)
+        proc = subprocess.Popen(self.argv(), stderr=subprocess.PIPE, bufsize=0)
+        self.proc = proc
+        assert proc.stderr is not None
+        fd = proc.stderr.fileno()
+        status: int | None = None
+        deadline = 0.0
+        try:
+            while True:
+                if select.select([fd], [], [], 0.1)[0]:
+                    try:
+                        chunk = os.read(fd, 65536)
+                    except OSError:
+                        break
+                    if not chunk:
+                        break  # EOF: nothing holds the write end open
+                    sys.stderr.buffer.write(chunk)
+                    sys.stderr.buffer.flush()
+                    chunks.append(chunk.decode("utf-8", "replace"))
+                elif status is None:
+                    status = proc.poll()
+                    if status is not None:
+                        deadline = time.monotonic() + DRAIN
+                elif time.monotonic() > deadline:
+                    break
+        finally:
+            proc.stderr.close()
+            if status is None:
+                status = proc.wait()
+            self.proc = None
+        return status, "".join(chunks)
+
+    def stop(self) -> None:
+        proc = self.proc
+        if proc is None:
+            return
+        # CONT first: a stopped child leaves TERM pending, so it would be killed
+        # without ever restoring the terminal.
+        for sig in (signal.SIGCONT, signal.SIGTERM):
+            try:
+                proc.send_signal(sig)
+            except ProcessLookupError:
+                return
+        try:
+            proc.wait(timeout=DRAIN)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+@dataclass
+class Supervisor:
+    """The reconnect loop. It waits forever: a credential that will be
+    refreshed, a VPN that will come back and a closed laptop are all indefinite,
+    so ^C is the bound that means anything and every call has its own."""
+
+    options: Options
+    ssh: Ssh
+    report: Reporter
+    clock: Callable[[], float] = time.monotonic
+    sleep: Callable[[float], None] = time.sleep
+    delays: Iterable[float] | None = None
+    cert: str = CERT
+    session: Session | None = field(default=None, init=False, repr=False)
+
+    def diagnose(self, stderr: str) -> Diagnosis:
+        return diagnose(stderr, self._cert_note)
+
+    def _cert_note(self) -> str | None:
+        done = subprocess.run(
+            ["ssh-keygen", "-L", "-f", os.path.expanduser(self.cert)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        found = re.search(r"Valid: from \S+ to (\S+)", done.stdout)
+        return cert_expiry(found.group(1) if found else None, time.time(), _parse_date)
+
+    def run(self) -> int:
+        while True:
+            self.session = Session(self.options)
+            status, stderr = self.session.run()
+            self.session = None
+
+            if status != EXIT_AMBIGUOUS:  # definitely the remote command's
+                return status
+
+            why = self.diagnose(stderr)
+            if why.cls is Class.FATAL:
+                if why.reason == "host key changed":
+                    self.report.say(
+                        "a rebuilt host and a MITM look the same here; verify, then fix known_hosts"
+                    )
+                self.report.say(f"not reconnecting: {why.reason}")
+                return EXIT_AMBIGUOUS
+
+            # Remote stderr shares this stream, and a remote command may itself
+            # return 255. No wording can prove it never started, so it is never
+            # replayed; tmux is exempt because it is our own idempotent command.
+            if self.options.command:
+                self.report.say(
+                    f"ssh exited 255 and '{' '.join(self.options.command)}' may have run; "
+                    "run it under --tmux to survive a drop"
+                )
+                return EXIT_AMBIGUOUS
+
+            if why.cls is Class.DROPPED and not grace():
+                return EXIT_AMBIGUOUS
+
+            self.report.back(self.options.label, self.wait(why))
+
+    def wait(self, why: Diagnosis) -> float:
+        """Probe until the session would connect, reporting what we wait for."""
+        start = self.clock()
+        self.report.waiting(self.options.label, why)
+        self.ssh.drop_stale_master()
+        for delay in self.delays if self.delays is not None else _backoff():
+            status, stderr = self.ssh.probe()
+            if status == 0:
+                return self.clock() - start
+
+            why = self.diagnose(stderr)
+            if status == 124:
+                # A killed probe wrote at most a fragment of a handshake, so the
+                # kill is the fact worth reporting.
+                why = Diagnosis.of(why.cls, WEDGED)
+            if why.cls is Class.FATAL:
+                # A host rebuilt during the outage we are sitting out is the
+                # ordinary way a key changes mid-wait.
+                self.report.say(f"not reconnecting: {why.reason}")
+                raise SystemExit(EXIT_AMBIGUOUS)
+            if why.cls is Class.CONNECT and (spotted := portal(_run)):
+                # A portal leaves the failure it hides unchanged, so it has to
+                # refine the reason before the cadence compares it.
+                why = Diagnosis.of(why.cls, spotted)
+
+            self.report.still(self.clock() - start, why)
+            self.sleep(delay)
+        return self.clock() - start
+
+    def stop(self, status: int) -> None:
+        if self.session is not None:
+            self.session.stop()
+        self.ssh.stop()
+        raise SystemExit(status)
+
+
+def _backoff(cap_at: float = MAX_DELAY) -> Iterable[float]:
+    delay = 1.0
+    while True:
+        yield delay
+        delay = min(delay * 2, cap_at)
+
+
+def _run(argv: list[str]) -> tuple[int, str]:
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, check=False, timeout=PROBE_WALL)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return 1, ""
+    return done.returncode, done.stdout
+
+
+def _parse_date(value: str) -> float | None:
+    from datetime import datetime
+
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            # ssh-keygen prints a naive local timestamp, so it is read as one.
+            return datetime.strptime(value, fmt).timestamp()  # noqa: DTZ007
+        except ValueError:
+            continue
+    return None
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    report = Reporter()
+    try:
+        options = parse(list(sys.argv[1:] if argv is None else argv))
+    except Helped:
+        print(USAGE)
+        return 0
+    except Refused as refused:
+        report.say(str(refused))
+        return EXIT_AMBIGUOUS
+
+    if shutil.which("ssh") is None:
+        report.say("needs ssh")
+        return EXIT_AMBIGUOUS
+
+    ssh = Ssh(options.host)
+    config = ssh.config()
+    # Nothing reconnects if nothing notices the link died, and ssh's default
+    # ServerAliveInterval is 0: it would block until the kernel gives up, with
+    # nothing to supervise. Refused rather than injected, because it belongs in
+    # ssh_config where plain ssh benefits too (README, T7).
+    interval = re.search(r"^serveraliveinterval (\d+)", config, re.MULTILINE)
+    if interval and interval.group(1) == "0":
+        report.say(keepalive_refusal(options.host))
+        return EXIT_AMBIGUOUS
+    ssh.resets = probe_resets(config)
+
+    supervisor = Supervisor(options=options, ssh=ssh, report=report)
+    signal.signal(signal.SIGINT, lambda *_: supervisor.stop(EXIT_INT))
+    signal.signal(signal.SIGTERM, lambda *_: supervisor.stop(EXIT_TERM))
+    try:
+        return supervisor.run()
+    except SystemExit as exit_:
+        return int(exit_.code or 0)
+    except KeyboardInterrupt:
+        return EXIT_INT
+
+
+if __name__ == "__main__":
+    sys.exit(main())

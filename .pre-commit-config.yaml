@@ -32,12 +32,13 @@ repos:
       exclude_types: [fish]
 
     # ssa is a recovery tool, so its failures happen when the network is already
-    # broken and nobody is watching. The suite is offline and self-gating: it
-    # runs bash -n and shellcheck itself, holds the failure table to the column
-    # budget, and refuses a property README.md states but nothing checks.
+    # broken and nobody is watching. The suite is offline and needs no
+    # dependency: stdlib unittest against local ssh, ssh-keygen and curl stubs.
+    # ./mutants.sh is the gate on the gate and is not run here -- it costs a
+    # minute and only matters when a property or its check changes.
     - id: ssa-tests
       name: ssa properties
-      entry: ssa/test-ssa
+      entry: ssa/test_ssa.py
       language: system
       pass_filenames: false
       files: ^ssa/
