@@ -160,6 +160,10 @@
     "software-builder-insights-prod-mcp" : {
       "type" : "local",
       "command" : [ "software-builder-insights-prod-mcp" ]
+    },
+    "enterprise-asana-mcp" : {
+      "type" : "local",
+      "command" : [ "enterprise-asana-mcp" ]
     }
   }
 }

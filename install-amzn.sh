@@ -58,6 +58,9 @@ aim mcp install software-builder-insights-prod-mcp
 
 aim mcp start-server flywheel-mcp
 
+aim agents install AIChampionKit
+aim mcp install enterprise-asana-mcp
+
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
 # toolbox install grasp-mcp
 # grasp-mcp config initialize

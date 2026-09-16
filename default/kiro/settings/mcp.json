@@ -48,6 +48,10 @@
     "creds-agent" : {
       "command" : "aim",
       "args" : [ "mcp", "start-server", "local-creds-agent-mcp" ]
+    },
+    "enterprise-asana-mcp" : {
+      "command" : "enterprise-asana-mcp",
+      "args" : [ ]
     }
   }
 }
