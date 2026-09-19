@@ -107,6 +107,22 @@ if os.environ.get("STUB_HOLD"):
     time.sleep(60)
     sys.exit(0)
 
+# A session on a link that died: ssh never exits on its own, because its
+# keepalive is defeated (a master with stale values, or a suspend). Probes are
+# exempt -- they answer from the plan -- and a *second* session falls through,
+# so a reconnect after the watchdog's kill can be observed. The TERM handler
+# records that the watchdog, not a fallback kill, ended the session.
+hold = os.environ.get("STUB_HOLD_SESSION")
+if hold and "ConnectTimeout=" not in argv and not os.path.exists(hold + ".termed"):
+    def _watch_termed(_signum, _frame):
+        open(hold + ".termed", "w").write("termed")
+        os._exit(143)
+
+    signal.signal(signal.SIGTERM, _watch_termed)
+    open(hold, "w").write(str(os.getpid()))
+    time.sleep(float(os.environ.get("STUB_HOLD_FOR", "60")))
+    sys.exit(0)
+
 # A live ControlMaster reached through a ProxyCommand whose credentials have
 # expired: the socket answers, and only a fresh handshake pays for credentials.
 if os.environ.get("STUB_MUX_LIVE") and "ControlPath=none" in argv:
@@ -435,6 +451,7 @@ class Cadence(unittest.TestCase):
         now[0] += ssa.NOTE_EVERY
         report.still(39300, why)
         report.back("h" * 20, 39300)
+        report.say(f"link dead: {'r' * ssa.REASON_MAX}")
         for line in stream.lines:
             self.assertLessEqual(len(line), 80, line)
 
@@ -609,6 +626,92 @@ class Behaviour(Harness):
         )
         self.addCleanup(_reap, proc)
         return proc, _await_pid(hold)
+
+
+class Watch(Harness):
+    """T14: a dead link is noticed by ssa itself, while the session is up.
+
+    These drive Session and Supervisor in-process so the cadence constants can
+    be patched down; the ssh, the probes and the kill are all real processes.
+    The stub's held session is a link that died under ssh with its keepalive
+    defeated -- it never exits on its own, which is exactly the frozen screen.
+    """
+
+    REFUSED = "255:ssh: connect to host h port 22: Connection refused"
+
+    def _run(self, plan: str, wall=None, every: float = 0.2, hold: str = "8.0"):
+        options = ssa.parse(["host"])
+        watch = ssa.Watchdog(ssh=ssa.Ssh("host"), **({"wall": wall} if wall else {}))
+        session = ssa.Session(options, watch=watch)
+        env = {
+            **self.env,
+            "STUB_PLAN": plan,
+            "STUB_HOLD_SESSION": str(self.tmp / "hold"),
+            "STUB_HOLD_FOR": hold,
+        }
+        with mock.patch.dict(os.environ, env), mock.patch.object(ssa, "WATCH_EVERY", every):
+            status, _ = session.run()
+        return session, status
+
+    def test_a_dead_link_is_noticed_and_the_session_dropped(self) -> None:
+        session, _ = self._run(f"{self.REFUSED};{self.REFUSED}")
+        self.assertIsNotNone(session.why, "the watchdog never declared the link dead")
+        self.assertIs(ssa.Class.CONNECT, session.why.cls)
+        self.assertTrue(
+            (self.tmp / "hold.termed").exists(),
+            "the session was killed rather than asked to stop",
+        )
+
+    def test_an_auth_refusal_never_drops_a_live_session(self) -> None:
+        """A cert expiring mid-session is daily, and proves the path is up."""
+        session, status = self._run("255:Permission denied (publickey).", hold="2.0")
+        self.assertIsNone(session.why)
+        self.assertEqual(0, status)
+        self.assertGreaterEqual(len(self.probes()), 2, "the probes never ran")
+
+    def test_one_wedged_probe_is_not_a_dead_link(self) -> None:
+        """The far end paging can wedge one probe; the second one is the link."""
+        session, status = self._run(f"{self.REFUSED};0:", hold="2.0")
+        self.assertIsNone(session.why)
+        self.assertEqual(0, status)
+
+    def test_a_resume_probes_at_once_instead_of_on_the_cadence(self) -> None:
+        """Monotonic clocks stop during a suspend, and so does ssh's keepalive
+        schedule; the wall clock outrunning them is the wake ssa acts on."""
+        ticks = {"n": 0}
+
+        def wall() -> float:
+            ticks["n"] += 1
+            return time.time() + (ssa.RESUME_JUMP + 5 if ticks["n"] > 5 else 0.0)
+
+        session, _ = self._run("0:", wall=wall, every=60.0, hold="2.0")
+        self.assertIsNone(session.why)
+        self.assertGreaterEqual(len(self.probes()), 1, "no probe followed the resume")
+
+    def test_a_watchdog_kill_reconnects_without_a_grace_window(self) -> None:
+        """End to end: kill, report, wait, reconnect -- and the kill's status is
+        never mistaken for the remote command's (T4)."""
+        stream = Cadence.Stream()
+        options = ssa.parse(["host"])
+        supervisor = ssa.Supervisor(
+            options=options,
+            ssh=ssa.Ssh("host"),
+            report=ssa.Reporter(stream=stream),
+            delays=[0.05] * 50,
+        )
+        env = {
+            **self.env,
+            "STUB_PLAN": f"{self.REFUSED};{self.REFUSED};0:;0:",
+            "STUB_HOLD_SESSION": str(self.tmp / "hold"),
+            "STUB_HOLD_FOR": "8.0",
+        }
+        with mock.patch.dict(os.environ, env), mock.patch.object(ssa, "WATCH_EVERY", 0.2):
+            status = supervisor.run()
+        self.assertEqual(0, status)
+        text = "\n".join(stream.lines)
+        self.assertIn("link dead: connection refused", text)
+        self.assertIn("waiting for host", text)
+        self.assertIn("back after", text)
 
 
 def _bounded_probe_driver() -> str:

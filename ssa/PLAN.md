@@ -10,7 +10,7 @@ belongs in `ssh_config`, where the probe and the session both read it.
 
 ## The gate
 
-T1–T13 are stated in `README.md`; that table is the index and is not repeated here.
+T1–T14 are stated in `README.md`; that table is the index and is not repeated here.
 This file holds the rules that keep them true.
 
 > **Every property names the check that discharges it, and every check that
@@ -140,6 +140,20 @@ invites the same edit twice.
 - **"A cert note explains any rejected credential."** `Too many authentication
   failures` is not a cert expiry, and saying it was sent you to `mwinit` for nothing.
   The note is attached to one row, not to a class. Now T10.
+- **"`ssh`'s `ServerAliveInterval` is the only in-session detector a session
+  needs."** The alias this replaces began as `autossh -M <port>` — a live
+  monitor loop, polled every 5 seconds — and was quietly degraded to `-M 0`
+  before the first rewrite, which then cited the degraded alias as evidence the
+  monitor was redundant. Three things defeat the keepalive, all real here: a
+  multiplexed session's keepalive belongs to the *master*, which keeps whatever
+  values it started with; the monotonic clock it is scheduled on stops during a
+  suspend, so an overnight death is noticed interval × countmax of *awake* time
+  after the lid opens; and the product is per-host config, 45 seconds to five
+  minutes across this machine's hosts. "The screen is just frozen" was all
+  three. The watchdog probes on its own clock and drops the session itself; an
+  `AUTH` probe failure resets the count rather than adding to it, because a
+  refusal proves the path is up and a certificate expires mid-session daily.
+  Now T14.
 - **"A stopped child still reaps on `SIGTERM`."** It does not: `TERM` stays pending
   while the process is stopped, so the wrapper's kill fallback ended it and `ssh`
   never restored the terminal. `SIGCONT` precedes `SIGTERM`. Now T8 — and the first

@@ -82,5 +82,21 @@ mutate 'self.ssh.drop_stale_master()' 'pass  # dropped'
 check 'a stale control socket is never dropped' \
     Behaviour.test_the_stale_master_check_precedes_the_first_probe
 
+mutate 'if self.fails >= WATCH_FAILS:' 'if False:'
+check 'a dead link is never declared, so the session stays frozen' \
+    Watch.test_a_dead_link_is_noticed_and_the_session_dropped
+
+mutate 'if status == 124 or why.cls is Class.CONNECT:' 'if True:'
+check 'an auth refusal counts as a dead link, dropping a live session' \
+    Watch.test_an_auth_refusal_never_drops_a_live_session
+
+mutate 'if slept > RESUME_JUMP:' 'if False:'
+check 'a resume waits out the cadence instead of probing at once' \
+    Watch.test_a_resume_probes_at_once_instead_of_on_the_cadence
+
+mutate 'killed = self.session.why' 'killed = None'
+check "a watchdog kill is returned as the remote command's status" \
+    Watch.test_a_watchdog_kill_reconnects_without_a_grace_window
+
 printf '\n%d killed, %d survived\n' "$killed" "$survived"
 [[ $survived -eq 0 ]]

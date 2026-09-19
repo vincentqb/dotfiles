@@ -54,6 +54,21 @@ TAIL_LINES = 3
 # sentence at the MAX_DELAY cap).
 NOTE_EVERY = 600.0
 
+# The in-session watchdog (T14). WATCH_EVERY exceeds PROBE_WALL so at most one
+# probe is ever in flight, and the arithmetic it fixes is the detection bound:
+# a link death is declared within 2 x WATCH_EVERY + PROBE_WALL, 55 seconds --
+# against ssh's own keepalive, which here ranges from 45 seconds to 5 minutes
+# per host, is owned by a master that keeps whatever it started with, and
+# counts only awake time across a suspend. WATCH_FAILS is 2 because one wedged
+# probe can be the far end paging, not the link; the second one is the link.
+WATCH_EVERY = 20.0
+WATCH_FAILS = 2
+
+# A wall clock that outran the monotonic one is a suspend: monotonic clocks
+# stop while the machine sleeps, which is exactly why ssh's keepalive schedule
+# survives a night's death unnoticed. Big enough that NTP steps do not qualify.
+RESUME_JUMP = 30.0
+
 # Every line is `ssa: <state>: <reason>`, and the longest state clause is
 # "waiting for " plus a 20-character host label: 80 - 17 - 20 - 2. A line that
 # wraps is the one a full-screen program shreds.
@@ -386,9 +401,12 @@ class Ssh:
         done = subprocess.run(["ssh", "-G", self.host], capture_output=True, text=True, check=False)
         return done.stdout
 
+    def probe_argv(self) -> list[str]:
+        return ["ssh", *PROBE_OPTS, *self.resets, self.host, "true"]
+
     def probe(self) -> tuple[int, str]:
         """Would the session connect? Bounded, and unable to prompt."""
-        return self._bounded(["ssh", *PROBE_OPTS, *self.resets, self.host, "true"])
+        return self._bounded(self.probe_argv())
 
     def drop_stale_master(self) -> None:
         """A master that died with the link leaves a socket that fails the next
@@ -431,11 +449,117 @@ class Ssh:
 
 
 @dataclass
+class Watchdog:
+    """ssa's own answer to "did the link die?", run while the session is up.
+
+    ssh's ServerAliveInterval x CountMax is the in-session detector, and three
+    things defeat it: a multiplexed session does no keepalive of its own (the
+    *master* enforces whatever values it started with, for its whole
+    ControlPersist life), the monotonic clock it is scheduled on stops during a
+    suspend (so a night's link death is noticed interval x countmax of *awake*
+    time after the lid opens), and the product is per-host config -- 45 seconds
+    to 5 minutes across the hosts this is used with. The original tool,
+    `autossh -M <port>`, detected end to end with its own monitor loop; `-M 0`
+    crept into the alias, and the rewrites inherited the regression (README,
+    T14). This restores the monitor using the probe ssa already has: through a
+    live master it rides the session's own transport, so it is the same
+    end-to-end test without autossh's forwarded port pair.
+
+    Only CONNECT-class and wedged probes count toward dropping the session: an
+    AUTH failure proves the path is up -- a certificate expiring mid-session is
+    a daily event a live session survives -- so it resets the count instead.
+    The probe never blocks the caller: it is started here and collected on a
+    later tick, because a 15-second wait inside the session loop would stall
+    the stderr drain that T13 exists to protect.
+    """
+
+    ssh: Ssh
+    clock: Callable[[], float] = time.monotonic
+    wall: Callable[[], float] = time.time
+    due: float | None = field(default=None, init=False)
+    seen: tuple[float, float] | None = field(default=None, init=False)
+    proc: subprocess.Popen | None = field(default=None, init=False, repr=False)
+    errors: object = field(default=None, init=False, repr=False)
+    deadline: float = field(default=0.0, init=False)
+    fails: int = field(default=0, init=False)
+
+    def tick(self) -> Diagnosis | None:
+        """Advance the monitor; a Diagnosis means the link is dead."""
+        now = self.clock()
+        if self.due is None:
+            # The session just connected, which is itself a proven link.
+            self.due = now + WATCH_EVERY
+        if self.seen is not None:
+            slept = (self.wall() - self.seen[1]) - (now - self.seen[0])
+            if slept > RESUME_JUMP:
+                self.due = now  # the link had a whole sleep to die; ask now
+        self.seen = (now, self.wall())
+        if self.proc is None:
+            if now >= self.due:
+                self._start(now)
+            return None
+        status = self.proc.poll()
+        if status is None:
+            if now < self.deadline:
+                return None
+            _kill_group(self.proc)
+            self.proc.wait()
+            status = 124
+        return self._collect(status, now)
+
+    def _start(self, now: float) -> None:
+        # Not a context manager on purpose: the file outlives this call, read
+        # and closed by _collect on a later tick, or by stop.
+        self.errors = tempfile.TemporaryFile()  # noqa: SIM115
+        self.proc = subprocess.Popen(
+            self.ssh.probe_argv(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=self.errors,
+            start_new_session=True,
+        )
+        self.deadline = now + PROBE_WALL
+        self.due = now + WATCH_EVERY
+
+    def _collect(self, status: int, now: float) -> Diagnosis | None:
+        self.errors.seek(0)
+        stderr = self.errors.read().decode("utf-8", "replace")
+        self.errors.close()
+        self.errors = None
+        self.proc = None
+        if status == 0:
+            self.fails = 0
+            return None
+        why = diagnose(stderr)
+        if status == 124:
+            why = Diagnosis.of(why.cls, WEDGED)
+        if status == 124 or why.cls is Class.CONNECT:
+            self.fails += 1
+            if self.fails >= WATCH_FAILS:
+                return why
+        else:
+            self.fails = 0
+        return None
+
+    def stop(self) -> None:
+        """Leave no probe behind (T8), whoever is stopping the session."""
+        if self.proc is not None and self.proc.poll() is None:
+            _kill_group(self.proc)
+            self.proc.wait()
+        if self.errors is not None:
+            self.errors.close()
+            self.errors = None
+        self.proc = None
+
+
+@dataclass
 class Session:
     """One supervised ssh on our own terminal."""
 
     options: Options
+    watch: Watchdog | None = None
     proc: subprocess.Popen | None = field(default=None, init=False, repr=False)
+    why: Diagnosis | None = field(default=None, init=False)
 
     def argv(self) -> list[str]:
         argv = ["ssh", "-o", "BatchMode=yes"]
@@ -461,6 +585,16 @@ class Session:
         deadline = 0.0
         try:
             while True:
+                if (
+                    self.watch is not None
+                    and status is None
+                    and self.why is None
+                    and (why := self.watch.tick()) is not None
+                ):
+                    # The link is dead and ssh has not noticed; end the
+                    # session ourselves so the wait loop can take over.
+                    self.why = why
+                    self.stop()
                 if select.select([fd], [], [], 0.1)[0]:
                     try:
                         chunk = os.read(fd, 65536)
@@ -478,6 +612,8 @@ class Session:
                 elif time.monotonic() > deadline:
                     break
         finally:
+            if self.watch is not None:
+                self.watch.stop()
             proc.stderr.close()
             if status is None:
                 status = proc.wait()
@@ -485,6 +621,8 @@ class Session:
         return status, "".join(chunks)
 
     def stop(self) -> None:
+        if self.watch is not None:
+            self.watch.stop()
         proc = self.proc
         if proc is None:
             return
@@ -531,14 +669,21 @@ class Supervisor:
 
     def run(self) -> int:
         while True:
-            self.session = Session(self.options)
+            self.session = Session(self.options, watch=Watchdog(ssh=self.ssh))
             status, stderr = self.session.run()
+            killed = self.session.why
             self.session = None
 
-            if status != EXIT_AMBIGUOUS:  # definitely the remote command's
-                return status
+            if killed is not None:
+                # The watchdog ended the session, so the status is the kill's,
+                # not the remote command's, and `~.` is ruled out: no grace.
+                why = killed
+                self.report.say(f"link dead: {why.reason}")
+            else:
+                if status != EXIT_AMBIGUOUS:  # definitely the remote command's
+                    return status
+                why = self.diagnose(stderr)
 
-            why = self.diagnose(stderr)
             if why.cls is Class.FATAL:
                 if why.reason == "host key changed":
                     self.report.say(
@@ -551,13 +696,14 @@ class Supervisor:
             # return 255. No wording can prove it never started, so it is never
             # replayed; tmux is exempt because it is our own idempotent command.
             if self.options.command:
+                cause = "link dead" if killed is not None else "ssh exited 255"
                 self.report.say(
-                    f"ssh exited 255 and '{' '.join(self.options.command)}' may have run; "
+                    f"{cause} and '{' '.join(self.options.command)}' may have run; "
                     "run it under --tmux to survive a drop"
                 )
                 return EXIT_AMBIGUOUS
 
-            if why.cls is Class.DROPPED and not grace():
+            if killed is None and why.cls is Class.DROPPED and not grace():
                 return EXIT_AMBIGUOUS
 
             self.report.back(self.options.label, self.wait(why))

@@ -6,9 +6,10 @@ reconnects, instead of dropping you at a local prompt.
 `ssh` already detects a dead link — that is what `ServerAliveInterval` is for —
 and then exits. This is the part after "detect".
 
-The name is inherited: `ssa` was a fish abbreviation for
-`AUTOSSH_POLL=5 autossh -M 0`, and this replaces it, keeping the muscle memory.
-[Versus autossh](#versus-autossh) is the honest comparison.
+The name is inherited: `ssa` began as a fish alias for `AUTOSSH_POLL=5 autossh
+-M <port>` — a live monitor loop — later quietly degraded to `-M 0`, monitor
+off. This replaces both, keeping the muscle memory and restoring the monitor
+(T14). [Versus autossh](#versus-autossh) is the honest comparison.
 
 ```fish
 ssa --tmux gpu2
@@ -35,7 +36,7 @@ finds on `PATH` and needs nothing else installed.
 
 ## What it guarantees
 
-Thirteen properties are what the script is for; everything else is detail. Each
+Fourteen properties are what the script is for; everything else is detail. Each
 is **discharged by a check in `test_ssa.py`**, and `./mutants.sh` breaks each
 property in turn to prove the check can actually fail.
 
@@ -54,6 +55,7 @@ property in turn to prove the check can actually fail.
 | T11 | The supervised `ssh` inherits the caller's terminal | it is a plain child with no redirection of `stdin`/`stdout`, so `~.`, resize, scrollback and every full-screen program work. Only `stderr` is a pipe, because the diagnosis is read from it |
 | T12 | Every `ssh` `ssa` starts is bounded | the wait itself is not: a credential that will be refreshed is indefinite, so `^C` is the only bound that means anything. What must terminate is each call — `-O check` has no bound of its own and `ConnectTimeout` does not reach a live master, so both run under `PROBE_WALL`, [without which one wedged probe *is* the whole wait](#t12-in-detail) |
 | T13 | No descendant can delay a probe or the diagnosis | a `ProxyCommand` grandchild inherits `ssh`'s stderr and outlives it, so **waiting for EOF waits for the grandchild**. A probe writes stderr to a file (no EOF to hold hostage) and waits on the *process*; the session drains with `select` until `ssh` exits plus `DRAIN` |
+| T14 | A dead link is noticed within a bound, even when `ssh`'s own keepalive cannot fire | an in-session watchdog probes every `WATCH_EVERY`, each probe bounded by T12's `PROBE_WALL` and never blocking the loop that T13 owns. Two consecutive connect-class or wedged probes end the session and hand it to the wait loop, so the bound is 2 × `WATCH_EVERY` + `PROBE_WALL` — 55 s. A resume (the wall clock outrunning the monotonic one) probes at once, because a suspend stops the clock keepalives are scheduled on. An `AUTH` failure never counts: it *proves* the path is up, and a certificate expiring mid-session is a daily event a live session survives. [Why the keepalive alone was not enough](#taken-from-autossh) |
 
 Four of them earn more than a line.
 
@@ -261,6 +263,7 @@ pointing `AUTOSSH_PATH` at a stub `ssh` that fails on command:
 | `~.` | 255, so it reconnects you to the session you just left | keypress window to stop |
 | Changed host key | same split as auth: stops on the first attempt, retries forever after a good session | stops, naming the cause (T6) |
 | Captive portal | invisible | reported |
+| Dead link the keepalive cannot see (a mux master with stale values, a suspend) | frozen until the kernel gives up | dropped and reconnected within 55 s (T14) |
 
 The row that matters here is the second-to-last. A 20 h Midway certificate expires
 *during* a session's life, which is precisely when autossh's gate has stopped
@@ -268,14 +271,34 @@ protecting — so the failure it handles worst is the one that happens daily.
 
 ### Taken from autossh
 
-`-M <port>` passes traffic through a forwarded port to catch a connection that is
-hung but still alive. `ServerAliveInterval` supersedes it — which is why the
-abbreviation used `-M 0` — but the underlying point generalises: **nothing
-reconnects if nothing notices the link died.** ssh's default `ServerAliveInterval`
-is 0, and on this machine only the `gpu2`/`gpu3` include sets it. On every other
-host `ssh` blocks until the kernel gives up on the socket, with nothing to
-supervise — the script silently does nothing at all. So `ssa` reads the effective
-value and **refuses** when it is 0, naming the fix:
+`-M <port>` passes traffic through a forwarded port pair on its own clock and
+restarts `ssh` when the echo stops coming back. The alias began with that
+monitor live — `autossh -M <random port>`, polled every 5 seconds — and was
+later quietly degraded to `-M 0`, monitor off. The first rewrite inherited the
+degraded alias, argued "`ServerAliveInterval` supersedes `-M`", and dropped the
+monitor entirely. That argument is wrong three ways, all measured here:
+
+- a **multiplexed session does no keepalive of its own**: the master enforces
+  whatever values it was started with, for its whole `ControlPersist` life, so
+  the value validated at startup is not necessarily the one governing the
+  session.
+- keepalives are scheduled on the **monotonic clock, which stops during a
+  suspend**: a link that died overnight is noticed interval × countmax of
+  *awake* time after the lid opens — "close the laptop", the case this exists
+  for, is the one it detects worst.
+- the product is **per-host config**: 15×3 — 45 seconds — on the SSM hosts and
+  60×5 — five minutes — on their `-direct` twins, on the machine this was
+  written on.
+
+"The screen is just frozen" was all three. So T14 restores the monitor as
+`ssa`'s own job, using the probe it already has: through a live master the
+probe rides the session's own transport, which is autossh's end-to-end test
+without the port pair. The keepalive still matters — it is the fast path, and
+whichever detector fires first wins — so the underlying point stands:
+**nothing reconnects if nothing notices the link died.** ssh's default
+`ServerAliveInterval` is 0: on such a host `ssh` blocks until the kernel gives
+up on the socket. So `ssa` reads the effective value and **refuses** when it
+is 0, naming the fix:
 
 ```
 ssa: localhost has no ServerAliveInterval, so ssh will never notice a dead link.
@@ -292,12 +315,14 @@ once. It reads the value `ssh -G` resolves *for that host* and names the host in
 fix, so a per-host block is enough — a `Host *` block, or an explicit
 `-o ServerAliveInterval=…`, satisfies it too.
 
-The *value* matters as much as its presence, and only the host's own config can set
-it. `ServerAliveInterval` × `ServerAliveCountMax` is how long `ssh` keeps a dead
-link before terminating the session, and nothing here can reconnect sooner than
-that: the `60 × 5` the SSM hosts started with is five minutes of sitting in a
-session that is already gone, which is most of what "it does not reconnect very
-well" turns out to mean. `15 × 3` is 45 seconds.
+The *value* still matters: `ServerAliveInterval` × `ServerAliveCountMax` is how
+long `ssh` keeps a dead link before terminating the session, and when it is the
+smaller bound it is the detector that fires — the `60 × 5` the SSM hosts started
+with was five minutes of sitting in a session that is already gone, which was
+most of what "it does not reconnect very well" turned out to mean. `15 × 3` is
+45 seconds. T14's watchdog caps the wait at 55 seconds whatever the product
+says, but a keepalive `ssh` enforces itself is a detector with no probe traffic
+at all, so the refusal keeps pointing at the config.
 
 Refusing `-f` is the same lesson from the other end. autossh strips it and forces
 `gate_time = 0`; here it made ssh background itself and return 0 immediately, so
@@ -364,8 +389,8 @@ ln -s ~/dotfiles/ssa/ssa ~/bin/ssa
 ## Tests
 
 ```fish
-./test_ssa.py          # 60 checks, ~30s, no network
-./mutants.sh           # 12 mutants, each must be caught
+./test_ssa.py          # 65 checks, ~40s, no network
+./mutants.sh           # 16 mutants, each must be caught
 ```
 
 Three kinds of check, in increasing order of cost:
@@ -379,6 +404,7 @@ Three kinds of check, in increasing order of cost:
   live control master behind expired proxy credentials, an SSM 403 under a handshake
   failure, a stale line from an attempt that recovered, a probe and a control socket
   that never come back, a descendant that keeps stderr open after `ssh` has gone, a
+  link that dies under a session whose `ssh` cannot notice, a
   **stopped** session, and a direct `SIGTERM`.
 - **pty** — allocate a terminal, because ownership of it, an escape sequence left in
   the input queue, and restoring the termios settings afterwards cannot be observed
@@ -391,9 +417,10 @@ rather than an exact duration, so a loaded machine does not read as a regression
 remote command, make a changed host key retryable, drop `BatchMode`, search all of
 stderr, compare the rendered reason, unbound a probe, accept any keypress, let the
 probe force a fresh handshake, let `--tmux` eat the next token, skip `SIGCONT` on a
-stopped child, treat a clean logout as ambiguous, never drop a stale socket — and
-requires the matching check to go red. A check that survives its mutant is
-decoration. It found one: the `SIGCONT` claim was asserted only through the kill
+stopped child, treat a clean logout as ambiguous, never drop a stale socket, never
+declare a dead link, count an auth refusal as one, sleep through a resume, hand a
+watchdog kill back as the remote command's status — and requires the matching
+check to go red. A check that survives its mutant is decoration. It found one: the `SIGCONT` claim was asserted only through the kill
 fallback, which passed either way.
 
 Every discovered failure is kept as a regression. The suite makes no network
