@@ -1,6 +1,6 @@
 {
   "chat.defaultAgent": "nitrogen-dev-plus",
-  "chat.defaultModel": "claude-fable-5",
+  "chat.defaultModel": "claude-fable-5.1",
   "chat.modelDefaults": {
     "claude-opus-4.8": {
       "output_config": {
