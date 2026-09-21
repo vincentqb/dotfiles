@@ -30,6 +30,7 @@ brew "autossh"
 brew "openconnect"
 brew "vpn-slice"
 brew "xmlstarlet"  # Required for OpenConnect CSD wrapper
+brew "verapdf"
 
 # Git
 brew "gh"
