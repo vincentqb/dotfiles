@@ -1,0 +1,32 @@
+# BYOA profile for codex: the GPT-6 family through the REGULAR Bedrock Runtime
+# (bedrock-runtime.<region>.amazonaws.com/openai/v1/responses), not Mantle.
+# Use with: codex --profile byoa            (default: GPT-6 Sol)
+#           codex --profile byoa -m us.openai.gpt-6-luna
+#           codex --profile byoa -m us.openai.gpt-6-astra
+#
+# STATE 2026-09-23, verified live end-to-end: this provider + profile + region
+# parses, signs, and reaches Bedrock — the request dies exactly at IAM with
+#   not authorized to perform: bedrock:InvokeModel on
+#   inference-profile/us.openai.gpt-6-sol (no identity-based policy)
+# because every AWS profile on this box rides the SHARED cecelia-prod science
+# account (175342148895, role CeceliaAmazonInternal, owner ide-team), whose
+# curated allowlist covers Anthropic models through sonnet-5/sonnet-4-6
+# (us-west-2 only) and NO OpenAI or Moonshot rows. So this profile is a
+# pre-wired rail: it starts working the moment ide-team allows the GPT-6
+# family, or a true personal account replaces the profile below. Watch the
+# flip with `byoa-probe` (Cecelia gate) and `astra-probe` (toolbox gate).
+#
+# CRIS ids measured 2026-09-23 (list-inference-profiles us-east-1, ACTIVE):
+# us./global. forms of openai.gpt-6-{sol,luna,astra} and moonshotai.kimi-k3.
+# Kimi is Converse-only — it does not ride codex's responses wire; use l3m.
+model = "us.openai.gpt-6-sol"
+model_provider = "amazon-bedrock-runtime"
+model_reasoning_effort = "max"
+
+[model_providers.amazon-bedrock-runtime.aws]
+# us-west-2, not us-east-1: the shared account's policy is region-conditioned
+# (verified 2026-09-23 — entitled models answer only from us-west-2). On a
+# true personal account, prefer us-east-1 while GPT-6/Opus-5.5 capacity
+# concentrates there; CRIS routes cross-region either way.
+region = "us-west-2"
+profile = "l3m-bedrock-process"

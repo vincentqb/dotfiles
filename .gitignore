@@ -50,6 +50,7 @@ default/codex/*
 !default/codex/astra.config.toml
 !default/codex/terra.config.toml
 !default/codex/luna.config.toml
+!default/codex/byoa.config.toml
 !default/codex/astra-runtime-probe.sh
 **/kiro/.cli_bash_history
 **/kiro/agents/
