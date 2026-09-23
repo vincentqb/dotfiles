@@ -1,0 +1,2 @@
+# Select the Amazon Bedrock provider: "mantle" or "runtime".
+# bedrock_provider = "mantle"

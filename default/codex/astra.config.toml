@@ -1,12 +1,48 @@
+# ⚠️ REGION TRAP — READ BEFORE USING THIS PROFILE ⚠️
+# This profile pins us-west-2 because that is the ONLY region BuilderHub lists
+# Astra in. us-west-2 does NOT serve gpt-5.6-sol. So if you launch with
+# `--profile astra` and then switch models with `/model`, the new model 404s with
+#     The model 'openai.gpt-5.6-sol' does not exist
+#     url: https://bedrock-mantle.us-west-2.api.aws/openai/v1/responses
+# That message reads like "Codex doesn't know this model". It is not: the id is
+# correct and the REGION is wrong. Codex has no per-model region map, so the
+# region stays whatever the profile set. (Observed 2026-09-20 11:06, 12 hits,
+# 5/5 retries then turn failure.)
+# Fix: exit and relaunch WITHOUT --profile (config.toml pins us-east-2, where sol
+# lives). If you need to stay in a us-west-2 session, only terra and luna are
+# available in all three regions -- sol is us-east-1/us-east-2 only.
+#
 # GPT-6 Astra profile for Codex on Amazon Bedrock.
 # Bedrock's verified external ID is openai.gpt-6-astra; bare aliases are invalid.
-# GA on Bedrock since 2026-09-08 (US CRIS + Global CRIS, 1M context), but as of
-# 2026-09-14 the shared builder path is closed: SCP p-kskhflg1 explicitly denies
-# bedrock-mantle:CreateInference for the Caminus accounts in ALL regions
-# (verified live in IAD/CMH/PDX; control gpt-5.6-sol passes). Run `astra-probe`
-# to recheck -- an OK on any verified-id row means the SCP opened.
-# us-west-2 because Astra runs on Mantle PDX while Toolbox pins us-east-2; this
-# is the region most likely to serve first (per #openai-codex-internal-interest).
+#
+# STATE 2026-09-19 (re-probed live, control gpt-5.6-sol passed every time):
+#   mantle  provider: us-east-1 / us-east-2 / us-west-2 -> 401-SCP-DENY
+#   runtime provider: us-west-2 -> 403-SCP-DENY;
+#                     global.openai.gpt-6-astra, us.openai.gpt-6-astra -> 404
+#   kiro-cli catalog: no gpt-6 entry
+# So the documented `bedrock_provider = "runtime"` switch (in the Amazon-specific
+# config -- `codex amzn directories`) does NOT bypass the SCP either. Both Bedrock
+# surfaces are shut for the shared Caminus accounts; this is not a region or an
+# id-shape problem.
+#
+# WHY, authoritatively: BuilderHub marks Astra "under evaluation for internal use
+# and not generally available", and the ASBX tracking ticket P508665146 says it is
+# a CAPACITY issue being worked with Bedrock, no ETA (galperij, 2026-09-09/09-10).
+# Subscribe to that ticket rather than polling Slack.
+#
+# 2026-09-22: OpenAI launched GPT-6 Sol and Luna publicly
+# (openai.com/index/introducing-gpt-6-sol-and-luna) and both are live on Bedrock
+# the same day for PERSONAL accounts (#openai-codex-internal-interest). Not on
+# Mantle, not in the kiro catalog, and the shared Caminus accounts are expected
+# to answer the same SCP-DENY as Astra until entitlement opens. `astra-probe`
+# now probes openai.gpt-6-sol and openai.gpt-6-luna alongside Astra.
+#
+# Run `astra-probe` to catch the flip: any OK on a verified-id, global-cris or
+# runtime row means shared-creds access opened.
+#
+# us-west-2 because Astra runs on Mantle PDX while Toolbox pins us-east-2, and
+# BuilderHub's availability table lists Astra ONLY in us-west-2.
+#
 # Working TODAY only via BYOA (personal AWS account, docs.hub.amazon.dev/codex
 # "Use a personal AWS account"):
 #   codex -c 'model_provider="amazon-bedrock-runtime"' \

@@ -1,0 +1,15 @@
+# GPT-5.6 Terra fallback profile for codex.
+# First fallback when gpt-5.6-sol (the config.toml default) is overloaded or
+# stalling: same generation, verified live 2026-09-19 on the shared Toolbox
+# profile in us-east-2, and per BuilderHub it is the only 5.6 variant available
+# in ALL THREE regions (us-east-1 / us-east-2 / us-west-2) -- sol is absent from
+# us-west-2. Roughly half sol's credit cost on an identical turn
+# (kiro-cli meter, trivial prompt: sol 8.64 vs terra 4.19).
+# Use with: codex --profile terra
+model = "openai.gpt-5.6-terra"
+model_provider = "amazon-bedrock"
+model_reasoning_effort = "max"
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-2"
+profile = "codex-DO-NOT-DELETE"

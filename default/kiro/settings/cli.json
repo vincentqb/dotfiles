@@ -7,7 +7,17 @@
         "effort": "max"
       }
     },
+    "claude-opus-4.7": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
     "claude-opus-5": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
+    "claude-sonnet-5": {
       "output_config": {
         "effort": "max"
       }
@@ -17,7 +27,22 @@
         "effort": "max"
       }
     },
+    "gpt-5.6-terra": {
+      "reasoning": {
+        "effort": "max"
+      }
+    },
+    "gpt-5.6-luna": {
+      "reasoning": {
+        "effort": "max"
+      }
+    },
     "claude-fable-5": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
+    "claude-fable-5.1": {
       "output_config": {
         "effort": "max"
       }

@@ -1,10 +1,16 @@
-function astra-probe --description 'Probe GPT-6 Astra model IDs and regions through Toolbox Codex'
-    # State as of 2026-09-14: Astra is GA on Bedrock (2026-09-08) but SCP
-    # p-kskhflg1 denies bedrock-mantle:CreateInference on the shared Caminus
-    # accounts in every region, so all verified-id rows read 401-SCP-DENY while
-    # the control passes. The probe exists to catch the flip: any OK on a
-    # verified-id or global-cris row means shared-creds access opened. Until
-    # then the only working path is BYOA (see astra.config.toml).
+function astra-probe --description 'Probe GPT-6 family model IDs and regions through Toolbox Codex'
+    # State as of 2026-09-23: Astra is GA on Bedrock (2026-09-08) but BOTH Bedrock
+    # surfaces are shut for the shared Caminus accounts -- Mantle answers
+    # 401-SCP-DENY in every region, and the documented `bedrock_provider = "runtime"`
+    # switch answers 403-SCP-DENY (us-west-2) / 404 (CRIS ids), while the control
+    # passes. BuilderHub calls Astra "under evaluation, not generally available";
+    # ticket P508665146 says capacity, no ETA. GPT-6 Sol and Luna launched publicly
+    # 2026-09-22 (openai.com/index/introducing-gpt-6-sol-and-luna) and are already
+    # live on Bedrock for PERSONAL accounts (#openai-codex-internal-interest,
+    # 2026-09-22), so the probe now covers them too. The probe exists to catch the
+    # flip: any OK on a verified-id, global-cris or runtime-provider row means
+    # shared-creds access opened. Until then the only working path is BYOA (see
+    # astra.config.toml).
     set --local codex "$HOME/.toolbox/bin/codex"
     set --local prompt 'Reply exactly OK. Do not call tools.'
     set --local dry_run false
@@ -23,6 +29,8 @@ function astra-probe --description 'Probe GPT-6 Astra model IDs and regions thro
         'verified-id|openai.gpt-6-astra|us-east-1' \
         'verified-id|openai.gpt-6-astra|us-east-2' \
         'verified-id|openai.gpt-6-astra|us-west-2' \
+        'verified-id|openai.gpt-6-sol|us-east-2' \
+        'verified-id|openai.gpt-6-luna|us-east-2' \
         'global-cris|global.openai.gpt-6-astra|us-east-1'
     set --local timeout_command
     if command --query timeout
@@ -62,7 +70,7 @@ function astra-probe --description 'Probe GPT-6 Astra model IDs and regions thro
 
         if string match --quiet --regex '"agent_message".*"text":"OK"' "$joined"
             set result OK
-            if string match --quiet '*gpt-6-astra*' "$model"
+            if string match --quiet '*gpt-6*' "$model"
                 set astra_available true
             end
         else if string match --quiet '*does not exist*' "$joined"
@@ -78,6 +86,23 @@ function astra-probe --description 'Probe GPT-6 Astra model IDs and regions thro
         end
 
         printf '%-16s %-30s %-11s %s\n' "$kind" "$model" "$region" "$result"
+    end
+
+    # The Mantle rows above all ride `model_provider = "amazon-bedrock"`. The other
+    # Bedrock surface is reachable only by flipping `bedrock_provider` in the
+    # Amazon-specific config, which has no -c or env override -- delegated to a
+    # helper that restores the file under a trap.
+    set --local runtime_probe "$HOME/.codex/astra-runtime-probe.sh"
+    if $dry_run
+        printf '%-16s %-30s %-11s %s\n' runtime-provider openai.gpt-6-astra us-west-2 DRY-RUN
+    else if test -x "$runtime_probe"
+        set --local runtime_result (bash "$runtime_probe" openai.gpt-6-astra us-west-2)
+        printf '%-16s %-30s %-11s %s\n' runtime-provider openai.gpt-6-astra us-west-2 "$runtime_result"
+        if test "$runtime_result" = OK
+            set astra_available true
+        end
+    else
+        printf '%-16s %-30s %-11s %s\n' runtime-provider openai.gpt-6-astra us-west-2 NO-HELPER
     end
 
     # Kiro ids drop the vendor prefix (gpt-5.6-sol, not openai.gpt-5.6-sol), so

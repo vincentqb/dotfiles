@@ -221,7 +221,8 @@
   "model": "claude-opus-5[1m]",
   "fallbackModel": [
     "global.anthropic.claude-opus-4-8[1m]",
-    "global.anthropic.claude-opus-4-7[1m]"
+    "global.anthropic.claude-opus-4-7[1m]",
+    "global.anthropic.claude-sonnet-5[1m]"
   ],
   "hooks": {
     "PreToolUse": [

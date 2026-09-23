@@ -1,0 +1,14 @@
+# GPT-5.6 Luna fallback profile for codex.
+# Cheapest 5.6 escape hatch -- use when both sol and terra are refusing or
+# throttling and the task is small. Verified live 2026-09-19 on the shared
+# Toolbox profile in us-east-2; available in all three regions per BuilderHub.
+# Cheapest of the three on an identical turn (kiro-cli meter, trivial prompt:
+# sol 8.64, terra 4.19, luna 2.16).
+# Use with: codex --profile luna
+model = "openai.gpt-5.6-luna"
+model_provider = "amazon-bedrock"
+model_reasoning_effort = "max"
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-2"
+profile = "codex-DO-NOT-DELETE"

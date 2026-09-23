@@ -63,8 +63,11 @@ MULTIPLIER = {
     "claude-opus-4.6": 2.2, "claude-opus-4.5": 2.2, "claude-sonnet-5": 1.3,
     "claude-sonnet-4.6": 1.3, "claude-sonnet-4.5": 1.3, "claude-sonnet-4": 1.3,
     "claude-fable-5.1": 6.0, "claude-fable-5": 4.4,
-    "claude-haiku-4.5": 0.4, "gpt-5.6-sol": 2.4,
-    "gpt-5.6-terra": 1.0, "gpt-5.6-luna": 0.1, "glm-5": 0.5,
+    # gpt-5.6 multipliers roughly doubled with the 1M-context rollout
+    # (kiro.dev/changelog/models/gpt-5-6-1m-context-window; >272K bills 2x on
+    # top of these). Live values 2026-09-23.
+    "claude-haiku-4.5": 0.4, "gpt-5.6-sol": 4.4,
+    "gpt-5.6-terra": 2.2, "gpt-5.6-luna": 1.1, "glm-5": 0.5,
     "deepseek-3.2": 0.25, "minimax-m2.5": 0.25, "minimax-m2.1": 0.15,
     "qwen3-coder-next": 0.05, "agi-nova-beta-1m": 0.01, "auto": 1.0,
 }
