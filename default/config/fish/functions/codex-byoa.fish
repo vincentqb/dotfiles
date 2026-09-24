@@ -9,6 +9,14 @@ function codex-byoa --description 'Codex on GPT-6 (sol/luna/astra) through the B
     # ipc-pcb-science) applies correctly — verified live: sol and astra both
     # answer end-to-end.
     #
+    # ⚠ /model CANNOT REACH ASTRA FROM A PLAIN CODEX SESSION (observed
+    # 2026-09-24): /model switches only the model id — provider, AWS account
+    # and region stay whatever the session started with. Inside a normal
+    # `codex` session that means Mantle + toolbox Caminus creds, where astra
+    # answers 403 SCP-DENY (bedrock-mantle:CreateInference). Astra requires
+    # STARTING the session through this wrapper; once inside a codex-byoa
+    # session, /model between us.openai.gpt-6-* ids is fine (same provider).
+    #
     #   codex-byoa                               # GPT-6 Sol
     #   codex-byoa -m us.openai.gpt-6-astra      # the one Mantle still denies
     #   codex-byoa -m us.openai.gpt-6-luna

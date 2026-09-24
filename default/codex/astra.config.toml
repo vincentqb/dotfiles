@@ -8,6 +8,11 @@
 # correct and the REGION is wrong. Codex has no per-model region map, so the
 # region stays whatever the profile set. (Observed 2026-09-20 11:06, 12 hits,
 # 5/5 retries then turn failure.)
+# The general rule (bitten twice now, 2026-09-20 and 2026-09-24): /model and
+# --model switch ONLY the model id — provider, AWS account and region all stay
+# whatever the session started with. Switching a plain codex session to
+# openai.gpt-6-astra therefore dies with 403 SCP-DENY on Mantle; astra
+# sessions must START on the byoa rail (`codex-byoa -m us.openai.gpt-6-astra`).
 # Fix: exit and relaunch WITHOUT --profile (config.toml pins us-east-2, where sol
 # lives). If you need to stay in a us-west-2 session, only terra and luna are
 # available in all three regions -- sol is us-east-1/us-east-2 only.
