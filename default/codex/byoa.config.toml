@@ -1,32 +1,36 @@
 # BYOA profile for codex: the GPT-6 family through the REGULAR Bedrock Runtime
 # (bedrock-runtime.<region>.amazonaws.com/openai/v1/responses), not Mantle.
-# Use with: codex --profile byoa            (default: GPT-6 Sol)
-#           codex --profile byoa -m us.openai.gpt-6-luna
-#           codex --profile byoa -m us.openai.gpt-6-astra
 #
-# STATE 2026-09-23, verified live end-to-end: this provider + profile + region
-# parses, signs, and reaches Bedrock — the request dies exactly at IAM with
-#   not authorized to perform: bedrock:InvokeModel on
-#   inference-profile/us.openai.gpt-6-sol (no identity-based policy)
-# because every AWS profile on this box rides the SHARED cecelia-prod science
-# account (175342148895, role CeceliaAmazonInternal, owner ide-team), whose
-# curated allowlist covers Anthropic models through sonnet-5/sonnet-4-6
-# (us-west-2 only) and NO OpenAI or Moonshot rows. So this profile is a
-# pre-wired rail: it starts working the moment ide-team allows the GPT-6
-# family, or a true personal account replaces the profile below. Watch the
-# flip with `byoa-probe` (Cecelia gate) and `astra-probe` (toolbox gate).
+# ⚠ USE THE `codex-byoa` FISH FUNCTION, not bare `--profile byoa`: this file's
+# `model_provider` line does NOT survive config layering (the Amazon config
+# layer's bedrock_provider wins), so a bare `codex --profile byoa` still
+# routes to Mantle and dies with a misleading 404 "The model
+# 'us.openai.gpt-6-sol' does not exist" from bedrock-mantle.us-east-2
+# (observed 2026-09-24). The wrapper adds
+#   -c 'model_provider="amazon-bedrock-runtime"'
+# which outranks every layer; the provider table below then applies.
+#   codex-byoa                               # GPT-6 Sol (default)
+#   codex-byoa -m us.openai.gpt-6-luna
+#   codex-byoa -m us.openai.gpt-6-astra
 #
-# CRIS ids measured 2026-09-23 (list-inference-profiles us-east-1, ACTIVE):
-# us./global. forms of openai.gpt-6-{sol,luna,astra} and moonshotai.kimi-k3.
-# Kimi is Converse-only — it does not ride codex's responses wire; use l3m.
+# WORKING since 2026-09-24, verified live end-to-end: aws profile
+# `ipc-pcb-science` (Conduit account IPC-PCB-Science, 471112940283, role
+# IibsAdminAccess-DO-NOT-DELETE, ada credential_process — `mwinit` if creds
+# error) invokes gpt-6 sol, luna AND astra plus kimi-k3 in us-east-1 and
+# us-west-2. This is the astra access astra-probe spent two weeks watching
+# for: the toolbox/Caminus path stays SCP-denied (ticket P508665146), the
+# Cecelia science account has no OpenAI rows, but this account clears every
+# gate. ⚠ Turns bill IPC-PCB-Science — not the builder subscription.
+#
+# Kimi K3 is Converse-only and cannot ride codex's Responses wire; drive it
+# through l3m (registry alias `kimi`) under this same aws profile.
+# Health-check the account entitlement with `byoa-probe`.
 model = "us.openai.gpt-6-sol"
 model_provider = "amazon-bedrock-runtime"
 model_reasoning_effort = "max"
 
 [model_providers.amazon-bedrock-runtime.aws]
-# us-west-2, not us-east-1: the shared account's policy is region-conditioned
-# (verified 2026-09-23 — entitled models answer only from us-west-2). On a
-# true personal account, prefer us-east-1 while GPT-6/Opus-5.5 capacity
-# concentrates there; CRIS routes cross-region either way.
-region = "us-west-2"
-profile = "l3m-bedrock-process"
+# us-east-1: GPT-6/Opus-5.5 capacity concentrates there at launch; both
+# probed regions work on this account, so this is preference not necessity.
+region = "us-east-1"
+profile = "ipc-pcb-science"

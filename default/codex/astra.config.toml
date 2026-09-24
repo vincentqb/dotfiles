@@ -43,10 +43,15 @@
 # us-west-2 because Astra runs on Mantle PDX while Toolbox pins us-east-2, and
 # BuilderHub's availability table lists Astra ONLY in us-west-2.
 #
-# Working TODAY only via BYOA (personal AWS account, docs.hub.amazon.dev/codex
-# "Use a personal AWS account"):
+# Working TODAY via BYOA — and since 2026-09-24 that is WIRED ON THIS BOX:
+# `codex --profile byoa` (see byoa.config.toml) rides aws profile
+# `ipc-pcb-science` (Conduit IPC-PCB-Science, 471112940283, admin role),
+# which invokes gpt-6 astra/sol/luna AND kimi-k3 — verified live, both
+# us-east-1 and us-west-2, via bedrock-runtime's openai/v1/responses route.
+# Bills the team science account. The generic recipe this instantiates
+# (docs.hub.amazon.dev/codex "Use a personal AWS account"):
 #   codex -c 'model_provider="amazon-bedrock-runtime"' \
-#         -c 'model="global.openai.gpt-6-astra"' \
+#         -c 'model="us.openai.gpt-6-astra"' \
 #         -c 'model_providers.amazon-bedrock-runtime.aws.profile="PERSONAL"' \
 #         -c 'model_providers.amazon-bedrock-runtime.aws.region="us-east-1"'
 # Run with: ~/.toolbox/bin/codex --profile astra
