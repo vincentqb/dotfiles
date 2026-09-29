@@ -341,12 +341,18 @@ class RowInvariants(unittest.TestCase):
                 self.assertEqual(cc.canon(name), "claude-opus-5")
 
     def test_cache_read_is_a_tenth_of_input_across_the_price_table(self):
-        """Kiro's mix factor is only defensible because this ratio holds."""
+        """Kiro's mix factor (KIRO_PRICE_RATIO cr=0.10) is only defensible
+        because this ratio holds. The exceptions are pinned, not skipped, so a
+        transcription that changes one of them fails here: Anthropic cut the
+        cache-read ratio to 1/20 with Opus 5.5 and 1/40 with Fable 5.1, which
+        makes 0.10 an overestimate for the Kiro credits spent on those two."""
+        exceptions = {"deepseek-v4-flash-free": 0.2, "claude-opus-5-5": 0.05,
+                      "claude-fable-5-1": 0.025}
         for name, (inp, _out, cr, _cw) in cc.LITELLM_SNAPSHOT.items():
-            if name.startswith("deepseek"):
-                continue          # the lone exception, at a fifth
+            if not inp:
+                continue          # a free tier has no ratio
             with self.subTest(model=name):
-                self.assertAlmostEqual(cr / inp, 0.1, places=9)
+                self.assertAlmostEqual(cr / inp, exceptions.get(name, 0.1), places=9)
 
     def test_long_context_pricing_is_dearer_than_base(self):
         for name, (_threshold, long_rates) in cc.CODEX_LONG_CONTEXT.items():
@@ -372,6 +378,72 @@ class RowInvariants(unittest.TestCase):
         rate = cc.litellm_rates("openai.gpt-5.6-sol", cc.litellm_table(False))
         expected = cc.token_cost_usd(rate, dict(zip(cc.TOKEN_KEYS, tok, strict=True)))
         self.assertAlmostEqual(rows[0]["cost"], expected, places=12)
+
+
+class PriceTable(unittest.TestCase):
+    """The embedded table must list every model this box's token-logged
+    harnesses have used, or their rows print `(!)` at $0. `--online` only
+    refreshes keys the table already has, so a new model is a table edit."""
+
+    # Model names exactly as the logs spell them: Claude Code bare, Codex with
+    # the Bedrock route prefix, opencode's Zen free tier by its own alias.
+    LOGGED = ("claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "claude-opus-4-8",
+              "claude-fable-5", "openai.gpt-5.6-sol", "global.openai.gpt-5.6-luna",
+              "us.openai.gpt-6-astra", "openai.gpt-5.5", "openai.gpt-5.4",
+              "deepseek-v4-flash-free", "big-pickle")
+
+    def test_every_logged_model_is_priced(self):
+        for name in self.LOGGED:
+            with self.subTest(model=name):
+                self.assertIsNotNone(cc.litellm_rates(name, cc.LITELLM_SNAPSHOT))
+
+    def test_a_sibling_version_does_not_inherit_its_familys_price(self):
+        """The longest-prefix rule exists for dated snapshots
+        (claude-haiku-4-5-20251001 -> claude-haiku-4-5). claude-opus-5-5 also
+        starts with claude-opus-5, and rode that rule to Opus 5's price for a
+        week -- 25% over on input and 2.5x over on cache reads."""
+        table = cc.LITELLM_SNAPSHOT
+        self.assertEqual(cc.litellm_rates("claude-haiku-4-5-20251001", table),
+                         table["claude-haiku-4-5"])
+        self.assertEqual(cc.litellm_rates("claude-opus-5-5", table), table["claude-opus-5-5"])
+        self.assertNotEqual(table["claude-opus-5-5"], table["claude-opus-5"])
+        self.assertEqual(cc.litellm_rates("claude-fable-5-1", table), table["claude-fable-5-1"])
+        self.assertNotEqual(table["claude-fable-5-1"], table["claude-fable-5"])
+
+    def test_a_free_tier_is_a_price_not_a_gap(self):
+        """UNPRICED means no table lists the model. A $0 entry (opencode's Zen
+        free tier) is a known price, so its row must not be flagged, while a
+        model absent from the table still is -- the test cost==0 alone could
+        not tell the two apart."""
+        tok = [80_000, 12_000, 1_000_000, 0]
+        rows = cc.token_rows({"opencode": ({"2026-06-11\x00big-pickle": tok,
+                                            "2026-06-11\x00mystery-model-9": tok}, {})},
+                             False)
+        by_model = {row["model"]: row for row in rows}
+        self.assertEqual(by_model["big-pickle"]["cost"], 0.0)
+        self.assertNotEqual(by_model["big-pickle"]["provenance"]["cost"], cc.UNPRICED)
+        self.assertEqual(by_model["mystery-model-9"]["provenance"]["cost"], cc.UNPRICED)
+
+    def test_every_openai_model_has_a_long_context_tier(self):
+        """OpenAI bills two-stage; a GPT model in the base table with no tier
+        entry silently prices its >272K turns at base."""
+        gpt = {name for name in cc.LITELLM_SNAPSHOT if name.startswith("gpt-")}
+        self.assertEqual(gpt, set(cc.CODEX_LONG_CONTEXT))
+        for name, (threshold, _rates) in cc.CODEX_LONG_CONTEXT.items():
+            with self.subTest(model=name):
+                self.assertEqual(threshold, 272_000)
+
+    def test_long_context_doubles_input_across_the_gpt_family(self):
+        """The published tier is 2x on input, cache-read and cache-write, 1.5x
+        on output, for every model that has one (gpt-5.5/5.4 carry no
+        cache-write price at either tier)."""
+        for name, (_threshold, long_rates) in cc.CODEX_LONG_CONTEXT.items():
+            base = cc.LITELLM_SNAPSHOT[name]
+            with self.subTest(model=name):
+                self.assertAlmostEqual(long_rates[0], base[0] * 2, places=9)
+                self.assertAlmostEqual(long_rates[1], base[1] * 1.5, places=9)
+                self.assertAlmostEqual(long_rates[2], base[2] * 2, places=9)
+                self.assertAlmostEqual(long_rates[3], base[3] * 2, places=9)
 
 
 class Subtotals(unittest.TestCase):

@@ -156,11 +156,11 @@ METERED = "metered"       # a scalar the harness computed; no breakdown exists
 
 # Buckets a harness's log cannot report, so a zero there is UNOBSERVABLE rather
 # than measured. Codex's token_count events carry only input / cached_input /
-# output / reasoning_output / total -- no cache-creation field -- while
-# gpt-5.6-sol IS billed for cache writes ($6.25/Mtok, $12.50 long-context). Its
-# cache-write share is therefore a floor and its cost a slight underestimate.
-# Every other harness reports the field (claude cache_creation_input_tokens,
-# opencode cache.write, l3m a_cw/c_cw).
+# output / reasoning_output / total -- no cache-creation field -- while the
+# GPT-5.6/6 family IS billed for cache writes (sol $5.00/Mtok, $10.00
+# long-context). Its cache-write share is therefore a floor and its cost a
+# slight underestimate. Every other harness reports the field (claude
+# cache_creation_input_tokens, opencode cache.write, l3m a_cw/c_cw).
 UNOBSERVABLE_BUCKETS = {"codex": ("cacheCreationTokens",)}
 
 
@@ -177,25 +177,42 @@ def provenance(consumed, cost, mix):
         raise ValueError("provenance cost must name a price source")
     return labels
 
-# LiteLLM's public price list, for the models this box has actually used --
-# USD per 1M tokens (input, output, cache-read, cache-write), transcribed from
-# model_prices_and_context_window.json (fetched 2026-08-19). `--online`
-# refreshes these from the network and caches the result; models absent from
-# both price to $0 and are flagged `(!)` on their row rather than silently
-# undercounted. Keys are canonical (see canon()); lookup is longest-prefix, so
-# dated snapshots like claude-haiku-4-5-20251001 resolve to their family.
+# Published list prices for the models this box has actually used -- USD per 1M
+# tokens (input, output, cache-read, cache-write). Transcribed from LiteLLM's
+# model_prices_and_context_window.json (2026-08-19; the 2026-09-29 additions
+# cross-checked against models.dev, which agrees on every row). `--online`
+# refreshes the keys already here from the network and caches the result; it
+# does NOT add models, so a model absent from this table prices to $0 and is
+# flagged `(!)` on its row rather than silently undercounted -- fixing that is
+# an edit here. A $0 entry is different: it is a known price (a free tier), not
+# a gap, and is not flagged. Keys are canonical (see canon()); lookup is
+# longest-prefix, so dated snapshots like claude-haiku-4-5-20251001 resolve to
+# their family -- which is also why a sibling version (claude-opus-5-5) needs
+# its own row, or it inherits claude-opus-5's price.
 LITELLM_SNAPSHOT = {
+    "claude-opus-5-5":        (4.0, 20.0, 0.2, 5.0),     # cache-read 1/20, not 1/10
     "claude-opus-5":          (5.0, 25.0, 0.5, 6.25),
     "claude-opus-4-8":        (5.0, 25.0, 0.5, 6.25),
     "claude-opus-4-7":        (5.0, 25.0, 0.5, 6.25),
     "claude-opus-4-6":        (5.0, 25.0, 0.5, 6.25),
+    "claude-fable-5-1":       (10.0, 50.0, 0.25, 12.5),  # cache-read 1/40
     "claude-fable-5":         (10.0, 50.0, 1.0, 12.5),
+    "claude-sonnet-5":        (2.0, 10.0, 0.2, 2.5),
     "claude-sonnet-4-6":      (3.0, 15.0, 0.3, 3.75),
     "claude-haiku-4-5":       (1.0, 5.0, 0.1, 1.25),
-    "gpt-5.6-sol":            (5.0, 30.0, 0.5, 6.25),
+    "gpt-6-astra":            (10.0, 50.0, 1.0, 12.5),
+    "gpt-5.6-sol":            (4.0, 20.0, 0.4, 5.0),
+    "gpt-5.6-terra":          (2.0, 12.0, 0.2, 2.5),
+    "gpt-5.6-luna":           (0.2, 1.2, 0.02, 0.25),
     "gpt-5.5":                (5.0, 30.0, 0.5, 0.0),
     "gpt-5.4":                (2.5, 15.0, 0.25, 0.0),
+    # opencode's Zen tier. LiteLLM lists neither; models.dev (opencode's own
+    # price source) has both at $0 and opencode's per-message `cost` field
+    # agrees. deepseek-v4-flash-free carries the paid deepseek-v4-flash list
+    # rate (unchanged here); big-pickle is a stealth model with no list price to
+    # borrow, so $0 is the only figure there is.
     "deepseek-v4-flash-free": (0.14, 0.28, 0.028, 0.0),
+    "big-pickle":             (0.0, 0.0, 0.0, 0.0),
 }
 LITELLM_URL = ("https://raw.githubusercontent.com/BerriAI/litellm/main/"
                "model_prices_and_context_window.json")
@@ -782,18 +799,22 @@ CODEX_USAGE_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens",
 CODEX_BURST_MS = 1000
 
 # OpenAI's two-stage pricing: a turn whose logged input exceeds the threshold
-# is billed entirely at the long-context rates (USD/1M, same tiers). Rates and
-# the 272K boundary from models.dev / LiteLLM `*_above_272k_tokens` entries;
-# `--online` does not refresh these (they change even more rarely than the
-# base rates). Known deliberate divergence from ccusage: its pricing entry for
-# the provider-prefixed key `openai.gpt-5.5` carries no tier data, so ccusage
-# silently applies its generic 200K default to that model and overprices turns
-# in the 200K-272K band (~$15 here); this table uses the published 272K
+# is billed entirely at the long-context rates (USD/1M, same tiers): 2x on
+# input, cache-read and cache-write, 1.5x on output. Rates and the 272K boundary
+# from LiteLLM's `*_above_272k_tokens` fields, cross-checked against models.dev
+# `tiers`; `--online` does not refresh these (they change even more rarely than
+# the base rates). Known deliberate divergence from ccusage: its pricing entry
+# for the provider-prefixed key `openai.gpt-5.5` carries no tier data, so
+# ccusage silently applies its generic 200K default to that model and overprices
+# turns in the 200K-272K band (~$15 here); this table uses the published 272K
 # boundary for the whole family instead.
 CODEX_LONG_CONTEXT = {
-    "gpt-5.6-sol": (272_000, (10.0, 45.0, 1.0, 12.5)),
-    "gpt-5.5":     (272_000, (10.0, 45.0, 1.0, 0.0)),
-    "gpt-5.4":     (272_000, (5.0, 22.5, 0.5, 0.0)),
+    "gpt-6-astra":   (272_000, (20.0, 75.0, 2.0, 25.0)),
+    "gpt-5.6-sol":   (272_000, (8.0, 30.0, 0.8, 10.0)),
+    "gpt-5.6-terra": (272_000, (4.0, 18.0, 0.4, 5.0)),
+    "gpt-5.6-luna":  (272_000, (0.4, 1.8, 0.04, 0.5)),
+    "gpt-5.5":       (272_000, (10.0, 45.0, 1.0, 0.0)),
+    "gpt-5.4":       (272_000, (5.0, 22.5, 0.5, 0.0)),
 }
 
 
@@ -1062,21 +1083,24 @@ def token_rows(harness_sums, online):
             day, model = key.split("\x00")
             tokens = dict(zip(TOKEN_KEYS, tok, strict=True))
             rate = litellm_rates(model, table)
-            cost = token_cost_usd(rate, tokens) if rate else 0.0
+            cost = token_cost_usd(rate, tokens) if rate is not None else 0.0
 
             long_context = codex_long_rates(model)
             long_tok = long_sums.get(key)
-            if rate and long_context and long_tok:
+            if rate is not None and long_context and long_tok:
                 # Two-stage pricing: the long-context portion was charged at base
                 # rates above; swap it to the long-context rates.
                 portion = dict(zip(TOKEN_KEYS, long_tok, strict=True))
                 cost += (token_cost_usd(long_context[1], portion)
                          - token_cost_usd(rate, portion))
 
-            # A token model that priced to $0 means no table has an entry for it.
+            # UNPRICED means no table lists the model, judged on the lookup and
+            # not on cost == 0: a free tier's $0 is a price, not a gap. A row
+            # with no tokens at all costs $0 under any table and is left alone.
             # Named in provenance rather than glued onto the source string as a
             # "!" suffix, so render tests a label instead of parsing one.
-            priced_by = UNPRICED if (cost == 0.0 and any(tokens.values())) else "litellm"
+            priced_by = (UNPRICED if rate is None and any(tokens.values())
+                         else "litellm")
 
             # Consumed is in Mtok so it shares a scale with the $/Mtok rate;
             # the rate is effective (cost / tokens) so Consumed x Rate == Cost.

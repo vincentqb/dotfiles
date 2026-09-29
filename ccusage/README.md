@@ -59,7 +59,7 @@ different models under Claude Code all land within 1.8 points of each other.
 
 Codex's cache-write is unobservable rather than zero — its log carries no
 cache-creation field across any of its 10,257 usage events, while `gpt-5.6-sol`
-*is* billed for cache writes at $6.25/Mtok. So its cost here is a slight
+*is* billed for cache writes at $5.00/Mtok. So its cost here is a slight
 underestimate. Each such row is labelled with a `partial` mix provenance.
 
 ## Kiro is the only harness that assumes a mix
