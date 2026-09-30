@@ -66,6 +66,7 @@ brew "slirp4netns"
 brew "biber"        # biblatex bibliographies
 brew "pandoc"
 brew "texlive"
+brew "librsvg"
 
 # Shell scripting
 brew "shellcheck"
