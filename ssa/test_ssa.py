@@ -60,13 +60,22 @@ import os, signal, sys, time
 
 argv = " ".join(sys.argv[1:])
 if " -G " in f" {argv} ":
+    if os.environ.get("STUB_CONFIG_PID"):
+        open(os.environ["STUB_CONFIG_PID"], "w").write(str(os.getpid()))
+    if os.environ.get("STUB_DELAY_CONFIG"):
+        time.sleep(float(os.environ["STUB_DELAY_CONFIG"]))
+    if os.environ.get("STUB_CONFIG_ERROR"):
+        print("Bad configuration option: broken", file=sys.stderr)
+        sys.exit(255)
     print("hostname testhost")
     print("port 22")
     print("user tester")
     print(f"serveraliveinterval {os.environ.get('STUB_ALIVE', '60')}")
+    print(f"connecttimeout {os.environ.get('STUB_CONNECT_TIMEOUT', 'none')}")
     if os.environ.get("STUB_ADVERTISE"):
         print("remotecommand none")
         print("sessiontype default")
+        print("forkafterauthentication yes")
     sys.exit(0)
 
 count = os.environ["STUB_COUNT"]
@@ -76,8 +85,8 @@ tty = "tty" if os.isatty(0) else "notty"
 with open(os.environ["STUB_LOG"], "a") as log:
     log.write(f"{n}\t{argv}\t{tty}\n")
 
-# A control-socket call is not a session, so it does not consume a plan step:
-# ssa makes one before every wait, and counting them would shift every plan.
+# Legacy control-socket calls do not consume a plan step. A regression that
+# reintroduces them must be observable independently of the session plan.
 if " -O " in f" {argv} ":
     if os.environ.get("STUB_DELAY_CTL"):
         time.sleep(float(os.environ["STUB_DELAY_CTL"]))
@@ -86,13 +95,31 @@ if " -O " in f" {argv} ":
 if os.environ.get("STUB_DELAY_PROBE") and "ConnectTimeout=" in argv:
     time.sleep(float(os.environ["STUB_DELAY_PROBE"]))
 
+if "ControlMaster=yes" in argv:
+    if os.environ.get("STUB_DELAY_SESSION_START"):
+        time.sleep(float(os.environ["STUB_DELAY_SESSION_START"]))
+    if not os.environ.get("STUB_NO_SOCKET"):
+        control_path = sys.argv[sys.argv.index("-S") + 1]
+        open(control_path, "w").close()
+    if os.environ.get("STUB_CLOSE_STDERR"):
+        os.close(2)
+
 # A ProxyCommand descendant outliving ssh with fd 2 still open, so the parent's
 # stderr pipe never reaches EOF. Nothing signals it: a grandchild is not ssa's.
 if os.environ.get("STUB_ORPHAN"):
-    if os.fork() == 0:
+    child = os.fork()
+    if child == 0:
         os.setsid()
+        if os.environ.get("STUB_NOISY_ORPHAN"):
+            end = time.monotonic() + float(os.environ["STUB_ORPHAN"])
+            while time.monotonic() < end:
+                os.write(2, b"x" * 512)
+                time.sleep(0.001)
+            os._exit(0)
         time.sleep(float(os.environ["STUB_ORPHAN"]))
         os._exit(0)
+    with open(os.environ["STUB_COUNT"] + ".orphans", "a") as children:
+        children.write(str(child) + "\n")
 
 if os.environ.get("STUB_HOLD"):
     # Record a TERM we were able to *handle*: a stopped process has TERM left
@@ -102,7 +129,10 @@ if os.environ.get("STUB_HOLD"):
         open(os.environ["STUB_HOLD"] + ".termed", "w").write("termed")
         os._exit(143)
 
-    signal.signal(signal.SIGTERM, _termed)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN if os.environ.get("STUB_IGNORE_TERM") else _termed)
+    if os.environ.get("STUB_RAW"):
+        import tty
+        tty.setraw(0)
     open(os.environ["STUB_HOLD"], "w").write(str(os.getpid()))
     time.sleep(60)
     sys.exit(0)
@@ -171,6 +201,7 @@ class Harness(unittest.TestCase):
         (self.tmp / ".ssh").mkdir()
         self.log = self.tmp / "log"
         self.count = self.tmp / "count"
+        self.addCleanup(self._stop_orphans)
         self.env = {
             **os.environ,
             "PATH": f"{bin_}:{os.environ['PATH']}",
@@ -200,6 +231,15 @@ class Harness(unittest.TestCase):
 
     def probes(self) -> list[str]:
         return [call for call in self.calls() if "ConnectTimeout=" in call]
+
+    def _stop_orphans(self) -> None:
+        children = Path(str(self.count) + ".orphans")
+        if children.exists():
+            for child in children.read_text().splitlines():
+                try:
+                    os.kill(int(child), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
 
 class Classifier(unittest.TestCase):
@@ -336,14 +376,15 @@ class Interface(unittest.TestCase):
         self.assertEqual("dev", ssa.parse(["dev.example.com"]).label)
 
     def test_the_session_cannot_prompt(self) -> None:
-        argv = ssa.Session(ssa.parse(["h"])).argv()
-        self.assertEqual(["ssh", "-o", "BatchMode=yes", "h"], argv)
+        argv = ssa.Session(ssa.parse(["h"])).argv("/tmp/private/master")
+        self.assertEqual("ssh", argv[0])
+        self.assertIn("BatchMode=yes", argv)
+        self.assertEqual("h", argv[-1])
 
     def test_tmux_forces_a_terminal(self) -> None:
-        self.assertIn("-t", ssa.Session(ssa.parse(["--tmux", "h"])).argv())
+        self.assertIn("-t", ssa.Session(ssa.parse(["--tmux", "h"])).argv("/tmp/private/master"))
 
-    def test_the_probe_adds_only_options_that_bound_the_attempt(self) -> None:
-        # Read the argv the probe would use, without connecting.
+    def test_a_readiness_probe_requires_a_fresh_connection(self) -> None:
         ssh = ssa.Ssh("h")
         with mock.patch.object(ssh, "_bounded", return_value=(0, "")) as bounded:
             ssh.probe()
@@ -354,11 +395,27 @@ class Interface(unittest.TestCase):
             "BatchMode=yes",
             f"ConnectTimeout={ssa.PROBE_CONNECT}",
             "ControlMaster=no",
+            "ControlPersist=no",
+            "ControlPath=none",
             "ClearAllForwardings=yes",
+            "PermitLocalCommand=no",
         }
         for value in [a for i, a in enumerate(argv) if i and argv[i - 1] == "-o"]:
             self.assertIn(value, allowed)
-        self.assertNotIn("ControlPath", " ".join(argv))
+        self.assertIn("ControlPath=none", argv)
+        self.assertEqual(ssh.connect_wall, bounded.call_args.kwargs["timeout"])
+
+    def test_a_heartbeat_cannot_fall_back_to_a_fresh_connection(self) -> None:
+        argv = ssa.Ssh("h").probe_argv("/tmp/private/master")
+        self.assertEqual("/tmp/private/master", argv[argv.index("-S") + 1])
+        self.assertIn("ProxyCommand=false", argv)
+        self.assertNotIn("ControlPath=none", argv)
+
+    def test_the_session_owns_a_foreground_master(self) -> None:
+        argv = ssa.Session(ssa.parse(["h"])).argv("/tmp/private/master")
+        self.assertIn("ControlMaster=yes", argv)
+        self.assertIn("ControlPersist=no", argv)
+        self.assertEqual("/tmp/private/master", argv[argv.index("-S") + 1])
 
     def test_an_older_client_is_not_sent_options_it_rejects(self) -> None:
         self.assertEqual((), ssa.probe_resets("hostname h\nport 22\n"))
@@ -460,7 +517,7 @@ class Behaviour(Harness):
     """Drive the real executable; the network is a stub."""
 
     def test_a_clean_exit_is_zero_and_does_not_reconnect(self) -> None:
-        done = self.run_ssa("host", STUB_PLAN="0:")
+        done = self.run_ssa("host", STUB_PLAN="0:;0:;3:")
         self.assertEqual(0, done.returncode)
         self.assertEqual(1, len(self.calls()))
 
@@ -475,7 +532,7 @@ class Behaviour(Harness):
 
     def test_a_changed_host_key_stops_naming_the_ambiguity(self) -> None:
         done = self.run_ssa(
-            "host", STUB_PLAN="255:@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED @@@"
+            "host", STUB_PLAN="255:@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED @@@;0:;0:"
         )
         self.assertEqual(255, done.returncode)
         self.assertEqual(1, len(self.calls()))
@@ -522,21 +579,64 @@ class Behaviour(Harness):
         self.assertEqual(0, done.returncode)
         self.assertIn("cert expired", done.stderr)
 
-    def test_a_probe_reaches_a_live_control_master(self) -> None:
+    def test_a_reconnect_gets_another_private_master(self) -> None:
         done = self.run_ssa(
             "host",
             STUB_PLAN="255:Connection to host closed by remote host.;0:;0:",
-            STUB_MUX_LIVE="1",
         )
         self.assertEqual(0, done.returncode)
-        self.assertNotIn("ControlPath=none", " ".join(self.calls()))
-
-    def test_the_stale_master_check_precedes_the_first_probe(self) -> None:
-        self.run_ssa("host", STUB_PLAN="255:Connection closed by remote host.;0:;0:")
         calls = self.calls()
-        control = next(i for i, call in enumerate(calls) if " -O " in f" {call} ")
-        probe = next(i for i, call in enumerate(calls) if "ConnectTimeout=" in call)
-        self.assertLess(control, probe)
+        sessions = [call.split() for call in calls if "ControlMaster=yes" in call]
+        paths = [args[args.index("-S") + 1] for args in sessions]
+        self.assertEqual(2, len(paths))
+        self.assertEqual(2, len(set(paths)), "reconnect reused the old master")
+        self.assertTrue(all(not Path(path).parent.exists() for path in paths))
+        self.assertIn("ControlPath=none", " ".join(self.probes()))
+        self.assertFalse(any(" -O " in f" {call} " for call in calls),
+                         "ssa must not terminate a user's shared master")
+
+    def test_config_errors_stop_before_connecting(self) -> None:
+        done = self.run_ssa("host", STUB_PLAN="0:", STUB_CONFIG_ERROR="1")
+        self.assertEqual(255, done.returncode)
+        self.assertEqual([], self.calls())
+        self.assertIn("cannot read ssh configuration", done.stderr)
+
+    def test_a_hung_config_lookup_is_bounded(self) -> None:
+        ssh = ssa.Ssh("host")
+        with (
+            mock.patch.dict(os.environ, {**self.env, "STUB_DELAY_CONFIG": "60"}),
+            mock.patch.object(ssa, "PROBE_WALL", 0.2),
+            self.assertRaisesRegex(ssa.Refused, "configuration lookup timed out"),
+        ):
+            ssh.config()
+        self.assertIsNone(ssh.current)
+        self.assertEqual([], self.calls())
+
+    def test_term_during_config_lookup_stops_the_child(self) -> None:
+        hold = self.tmp / "config-pid"
+        proc = subprocess.Popen(
+            [sys.executable, str(SSA), "host"], stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env={**self.env, "STUB_CONFIG_PID": str(hold), "STUB_DELAY_CONFIG": "60"},
+        )
+        self.addCleanup(_reap, proc)
+        child = _await_pid(hold)
+        proc.terminate()
+        self.assertEqual(143, proc.wait(timeout=5))
+        self.assertFalse(_alive(child))
+
+    def test_configured_slow_handshakes_are_allowed_in_readiness_probes(self) -> None:
+        done = self.run_ssa(
+            "host", STUB_PLAN="255:Connection closed.;0:;0:", STUB_CONNECT_TIMEOUT="90"
+        )
+        self.assertEqual(0, done.returncode)
+        self.assertIn("ConnectTimeout=90", self.probes()[0])
+        self.assertGreater(ssa.Ssh("host", connect_timeout=90).connect_wall, 90)
+
+    def test_backgrounding_from_config_is_overridden_when_supported(self) -> None:
+        done = self.run_ssa("host", STUB_PLAN="0:", STUB_ADVERTISE="1")
+        self.assertEqual(0, done.returncode)
+        self.assertIn("ForkAfterAuthentication=no", self.calls()[0])
 
     def test_a_portal_refines_a_connection_failure(self) -> None:
         """A portal only refines a probe that *failed*, hence two refusals."""
@@ -549,18 +649,18 @@ class Behaviour(Harness):
         self.assertIn("captive portal", done.stderr)
 
     def test_a_probe_that_will_not_return_is_cut_off(self) -> None:
-        """PROBE_WALL, not ConnectTimeout, is what bounds a wedged probe."""
+        """A process deadline also bounds hangs before the SSH handshake."""
         start = time.monotonic()
         done = subprocess.run(
             [sys.executable, "-c", _bounded_probe_driver(), str(SSA)],
             capture_output=True,
             text=True,
-            timeout=90,
+            timeout=15,
             check=False,
             env={**self.env, "STUB_DELAY_PROBE": "60", "STUB_PLAN": "255:Connection closed.;0:"},
         )
         self.assertEqual("cut-off", done.stdout.strip(), done.stderr)
-        self.assertLess(time.monotonic() - start, 80)
+        self.assertLess(time.monotonic() - start, 12)
 
     def test_a_descendant_holding_stderr_does_not_delay_the_diagnosis(self) -> None:
         """The wrapper must not wait on a grandchild that outlives ssh.
@@ -587,6 +687,18 @@ class Behaviour(Harness):
             self.assertEqual(0, proc.wait(timeout=40))
         self.assertLess(time.monotonic() - start, 40)
         self.assertIn("back after", out.read_text())
+
+    def test_a_noisy_descendant_cannot_hide_the_session_exit(self) -> None:
+        out = self.tmp / "noisy"
+        with out.open("wb") as sink:
+            proc = subprocess.Popen(
+                [sys.executable, str(SSA), "host"],
+                stdin=subprocess.DEVNULL, stdout=sink, stderr=sink,
+                env={**self.env, "STUB_PLAN": "0:", "STUB_ORPHAN": "8",
+                     "STUB_NOISY_ORPHAN": "1"},
+            )
+            self.addCleanup(_reap, proc)
+            self.assertEqual(0, proc.wait(timeout=4))
 
     def test_term_stops_the_session_and_exits_143(self) -> None:
         proc, child = self._held_session()
@@ -629,7 +741,7 @@ class Behaviour(Harness):
 
 
 class Watch(Harness):
-    """T14: a dead link is noticed by ssa itself, while the session is up.
+    """A dead link is noticed by ssa itself, while the session is up.
 
     These drive Session and Supervisor in-process so the cadence constants can
     be patched down; the ssh, the probes and the kill are all real processes.
@@ -639,7 +751,10 @@ class Watch(Harness):
 
     REFUSED = "255:ssh: connect to host h port 22: Connection refused"
 
-    def _run(self, plan: str, wall=None, every: float = 0.2, hold: str = "8.0"):
+    def _run(
+        self, plan: str, wall=None, every: float = 0.2, hold: str = "8.0",
+        setup_wall: float = 5.0, **extra: str,
+    ):
         options = ssa.parse(["host"])
         watch = ssa.Watchdog(ssh=ssa.Ssh("host"), **({"wall": wall} if wall else {}))
         session = ssa.Session(options, watch=watch)
@@ -648,8 +763,14 @@ class Watch(Harness):
             "STUB_PLAN": plan,
             "STUB_HOLD_SESSION": str(self.tmp / "hold"),
             "STUB_HOLD_FOR": hold,
+            **extra,
         }
-        with mock.patch.dict(os.environ, env), mock.patch.object(ssa, "WATCH_EVERY", every):
+        with (
+            mock.patch.dict(os.environ, env),
+            mock.patch.object(ssa, "WATCH_EVERY", every),
+            mock.patch.object(ssa.Ssh, "connect_wall", new_callable=mock.PropertyMock,
+                              return_value=setup_wall),
+        ):
             status, _ = session.run()
         return session, status
 
@@ -662,12 +783,48 @@ class Watch(Harness):
             "the session was killed rather than asked to stop",
         )
 
-    def test_an_auth_refusal_never_drops_a_live_session(self) -> None:
-        """A cert expiring mid-session is daily, and proves the path is up."""
-        session, status = self._run("255:Permission denied (publickey).", hold="2.0")
+    def test_expired_credentials_do_not_drop_the_existing_transport(self) -> None:
+        """Only a fresh connection would use the expired credentials."""
+        session, status = self._run("0:", hold="1.0", STUB_MUX_LIVE="1")
         self.assertIsNone(session.why)
         self.assertEqual(0, status)
         self.assertGreaterEqual(len(self.probes()), 2, "the probes never ran")
+        self.assertTrue(all("ProxyCommand=false" in argv for argv in self.probes()))
+
+    def test_connection_reset_counts_as_a_failed_heartbeat(self) -> None:
+        session, _ = self._run("255:Connection reset by peer")
+        self.assertIsNotNone(session.why)
+
+    def test_broken_pipe_counts_as_a_failed_heartbeat(self) -> None:
+        session, _ = self._run("255:Broken pipe")
+        self.assertIsNotNone(session.why)
+
+    def test_a_silent_failure_counts_as_a_failed_heartbeat(self) -> None:
+        session, _ = self._run("255:")
+        self.assertIsNotNone(session.why)
+
+    def test_a_proxy_auth_error_is_not_evidence_of_a_working_transport(self) -> None:
+        session, _ = self._run("255:ExpiredToken")
+        self.assertIsNotNone(session.why)
+
+    def test_closed_stderr_does_not_disable_the_watchdog(self) -> None:
+        session, _ = self._run(self.REFUSED, STUB_CLOSE_STDERR="1")
+        self.assertIsNotNone(session.why)
+        self.assertGreaterEqual(len(self.probes()), 2)
+
+    def test_a_hung_connection_setup_is_stopped(self) -> None:
+        session, _ = self._run("0:", setup_wall=0.4, STUB_NO_SOCKET="1")
+        self.assertIsNotNone(session.why)
+        self.assertEqual("connection setup timed out", session.why.reason)
+        self.assertEqual([], self.probes())
+
+    def test_a_slow_connection_setup_is_not_a_failed_heartbeat(self) -> None:
+        session, status = self._run(
+            "0:", hold="0.8", every=0.1, setup_wall=3.0, STUB_DELAY_SESSION_START="0.6"
+        )
+        self.assertIsNone(session.why)
+        self.assertEqual(0, status)
+        self.assertGreaterEqual(len(self.probes()), 1)
 
     def test_one_wedged_probe_is_not_a_dead_link(self) -> None:
         """The far end paging can wedge one probe; the second one is the link."""
@@ -690,7 +847,7 @@ class Watch(Harness):
 
     def test_a_watchdog_kill_reconnects_without_a_grace_window(self) -> None:
         """End to end: kill, report, wait, reconnect -- and the kill's status is
-        never mistaken for the remote command's (T4)."""
+        never mistaken for the remote command's."""
         stream = Cadence.Stream()
         options = ssa.parse(["host"])
         supervisor = ssa.Supervisor(
@@ -713,6 +870,46 @@ class Watch(Harness):
         self.assertIn("waiting for host", text)
         self.assertIn("back after", text)
 
+    def test_a_watchdog_kill_does_not_replay_a_supplied_command(self) -> None:
+        stream = Cadence.Stream()
+        supervisor = ssa.Supervisor(
+            options=ssa.parse(["host", "make", "deploy"]), ssh=ssa.Ssh("host"),
+            report=ssa.Reporter(stream=stream), delays=[0.05] * 50,
+        )
+        with (
+            mock.patch.dict(os.environ, {
+                **self.env, "STUB_PLAN": self.REFUSED,
+                "STUB_HOLD_SESSION": str(self.tmp / "hold"), "STUB_HOLD_FOR": "8",
+            }),
+            mock.patch.object(ssa, "WATCH_EVERY", 0.2),
+        ):
+            self.assertEqual(255, supervisor.run())
+        self.assertEqual(1, sum("ControlMaster=yes" in call for call in self.calls()))
+        self.assertNotIn("ControlPath=none", " ".join(self.calls()))
+        self.assertIn("may have run", "\n".join(stream.lines))
+
+    def test_resume_expires_an_inflight_heartbeat(self) -> None:
+        now, wall = [0.0], [0.0]
+        path = self.tmp / "master"
+        path.touch()
+        watch = ssa.Watchdog(
+            ssh=ssa.Ssh("host"), control_path=str(path),
+            clock=lambda: now[0], wall=lambda: wall[0],
+        )
+        self.addCleanup(watch.stop)
+        with mock.patch.dict(os.environ, {**self.env, "STUB_PLAN": "0:", "STUB_DELAY_PROBE": "60"}):
+            watch.tick()
+            now[0] = wall[0] = ssa.WATCH_EVERY
+            watch.tick()
+            old = watch.proc
+            self.assertIsNotNone(old)
+            wall[0] += ssa.RESUME_JUMP + 1
+            watch.tick()
+            self.assertIsNotNone(old.poll(), "the pre-suspend heartbeat stayed blocked")
+            self.assertEqual(1, watch.fails)
+            watch.tick()
+            self.assertIsNotNone(watch.proc, "resume did not start a fresh heartbeat")
+
 
 def _bounded_probe_driver() -> str:
     """Watch a wait whose probes never answer, and report that it kept going.
@@ -724,23 +921,30 @@ def _bounded_probe_driver() -> str:
     return textwrap.dedent(
         """
         import os, subprocess, sys, time
-        ssa = sys.argv[1]
+        ssa_path = sys.argv[1]
+        code = (
+            "import os, sys\\n"
+            "sys.path.insert(0, os.path.dirname(sys.argv[1]))\\n"
+            "from test_ssa import ssa\\n"
+            "ssa.Ssh.connect_wall = property(lambda _: 0.3)\\n"
+            "sys.exit(ssa.main(['host']))\\n"
+        )
         proc = subprocess.Popen(
-            [sys.executable, ssa, "host"],
+            [sys.executable, "-c", code, ssa_path],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL, env=os.environ.copy(),
         )
         log = os.environ["STUB_LOG"]
-        deadline = time.time() + 60
+        deadline = time.time() + 5
         seen = 0
         while time.time() < deadline:
             if os.path.exists(log):
                 seen = sum("ConnectTimeout=" in l for l in open(log))
             if seen >= 2:
                 break
-            time.sleep(0.5)
+            time.sleep(0.05)
         proc.terminate()
-        proc.wait(timeout=30)
+        proc.wait(timeout=5)
         print("cut-off" if seen >= 2 else f"wedged after {seen} probe(s)")
         """
     )
@@ -866,6 +1070,45 @@ class Terminal(Harness):
                 os.kill(pid, signal.SIGKILL)
                 os.waitpid(pid, 0)
             except (ProcessLookupError, ChildProcessError):
+                pass
+            os.close(fd)
+
+    def test_the_terminal_is_restored_when_ssh_requires_sigkill(self) -> None:
+        hold = self.tmp / "raw-pid"
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.environ.update({
+                **self.env, "STUB_PLAN": "0:", "STUB_HOLD": str(hold),
+                "STUB_RAW": "1", "STUB_IGNORE_TERM": "1",
+            })
+            os.execv(sys.executable, [sys.executable, str(SSA), "host"])
+        child = None
+        try:
+            before = termios.tcgetattr(fd)
+            child = _await_pid(hold)
+            self.assertNotEqual(before[3], termios.tcgetattr(fd)[3], "stub did not enter raw mode")
+            os.kill(pid, signal.SIGTERM)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                done, status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    self.assertEqual(143, os.waitstatus_to_exitcode(status))
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail("the wrapper did not stop after escalating to SIGKILL")
+            self.assertEqual(before, termios.tcgetattr(fd))
+            self.assertFalse(_alive(child))
+        finally:
+            for target in (child, pid):
+                if target is not None:
+                    try:
+                        os.kill(target, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            try:
+                os.waitpid(pid, 0)
+            except ChildProcessError:
                 pass
             os.close(fd)
 

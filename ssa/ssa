@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """ssh that waits out a broken network and reconnects.
 
-It never blocks on an SSH prompt: it reports what it is waiting for and retries
-on the next probe. README.md states the properties and names the check for each;
-PLAN.md keeps the arguments for the shape. Comments here cover only what is
-invisible at the call site.
+It disables SSH authentication prompts, reports failures, and retries interactive
+connections. README.md describes the behavior and limits; PLAN.md records the
+recovery design.
 
 Everything above `Ssh` is pure -- stderr to a decision and a sentence, and the
 rendering of a status line -- so it is checked by calling it. Everything below
-talks to ssh, and is checked by driving the real binary against a stub.
+talks to ssh, with process tests and opt-in tests against a local OpenSSH server.
 """
 
 from __future__ import annotations
@@ -33,14 +32,13 @@ PROG = "ssa"
 CERT = "~/.ssh/id_rsa-cert.pub"
 
 GRACE = 3.0  # keypress window before a reconnect, so `~.` can stop it
-PROBE_CONNECT = 7  # a probe's ConnectTimeout: bounds a fresh handshake
+PROBE_CONNECT = 30  # fallback when ssh_config has no ConnectTimeout
+CONNECT_WALL = 45.0  # includes DNS, ProxyCommand startup and authentication
 MAX_DELAY = 60.0  # longest gap between probes
 DRAIN = 1.0  # grace for ssh's stderr to reach us after ssh itself has exited
 
-# ConnectTimeout does not reach a connection handed to a live control master, and
-# `-O check` has no bound at all, so without a wall clock a "probe" can sit
-# inside a wedged master for that master's whole keepalive. Must exceed
-# PROBE_CONNECT, or it fires first and takes the diagnosis with it.
+# ConnectTimeout does not bound a multiplexed channel or a hung ProxyCommand.
+# An established connection's heartbeat gets its own, shorter deadline.
 PROBE_WALL = 15.0
 
 # How much of stderr describes how *this* session ended. Two lines is the deepest
@@ -54,19 +52,15 @@ TAIL_LINES = 3
 # sentence at the MAX_DELAY cap).
 NOTE_EVERY = 600.0
 
-# The in-session watchdog (T14). WATCH_EVERY exceeds PROBE_WALL so at most one
-# probe is ever in flight, and the arithmetic it fixes is the detection bound:
-# a link death is declared within 2 x WATCH_EVERY + PROBE_WALL, 55 seconds --
-# against ssh's own keepalive, which here ranges from 45 seconds to 5 minutes
-# per host, is owned by a master that keeps whatever it started with, and
-# counts only awake time across a suspend. WATCH_FAILS is 2 because one wedged
-# probe can be the far end paging, not the link; the second one is the link.
+# Two failed heartbeats on the session's own transport trigger recovery. At the
+# default cadence this takes about 55 seconds, plus scheduling and shutdown.
+# One slow heartbeat is tolerated; an idle remote application is not a failure.
 WATCH_EVERY = 20.0
 WATCH_FAILS = 2
 
-# A wall clock that outran the monotonic one is a suspend: monotonic clocks
-# stop while the machine sleeps, which is exactly why ssh's keepalive schedule
-# survives a night's death unnoticed. Big enough that NTP steps do not qualify.
+# A wall clock that outran the monotonic one suggests a suspend on systems whose
+# monotonic clock stops during sleep. A large clock adjustment can also trigger
+# this check; either way, request fresh evidence that the transport still works.
 RESUME_JUMP = 30.0
 
 # Every line is `ssa: <state>: <reason>`, and the longest state clause is
@@ -83,7 +77,7 @@ class Class(enum.Enum):
     """What ssa does about a failure, as opposed to what it prints."""
 
     FATAL = "fatal"  # retrying cannot help
-    AUTH = "auth"  # credentials refused; the host is reachable
+    AUTH = "auth"  # credentials refused, possibly locally by a proxy
     CONNECT = "connect"  # no session existed, so retrying is safe
     DROPPED = "dropped"  # nothing matched, so a live session died
 
@@ -126,14 +120,15 @@ RULES: tuple[Rule, ...] = (
 NO_DIAGNOSTIC = "no diagnostic, so ~. or a silent drop"
 WEDGED = "probe timed out, no answer"
 
-# What a probe may add, and nothing else: each bounds the attempt or shapes the
-# session, and none changes whether the host is reachable (README, T1).
+# Shared by readiness probes and heartbeats. Their transport options differ:
+# readiness requires a fresh connection, a heartbeat must use the owned master.
 PROBE_OPTS = (
     "-T",
     "-o", "BatchMode=yes",
-    "-o", f"ConnectTimeout={PROBE_CONNECT}",
     "-o", "ControlMaster=no",
+    "-o", "ControlPersist=no",
     "-o", "ClearAllForwardings=yes",
+    "-o", "PermitLocalCommand=no",
 )  # fmt: skip
 
 USAGE = """\
@@ -263,9 +258,9 @@ def parse(argv: Sequence[str]) -> Options:
     """One left-to-right pass: only tokens before the hostname are ours.
 
     Hand-rolled rather than argparse for one reason -- `--tmux` must not consume
-    the token after it, since `ssa --tmux gpu2` names a host, not a session. An
-    ssh flag is refused rather than filtered, because every one has an
-    ssh_config spelling that the probe reads too (README, T1).
+    the token after it, since `ssa --tmux gpu2` names a host, not a session.
+    SSH flags are refused; host connection settings belong in ssh_config, which
+    both the session and readiness probes read.
     """
     tmux: str | None = None
     for index, token in enumerate(argv):
@@ -291,7 +286,7 @@ def parse(argv: Sequence[str]) -> Options:
 
 def keepalive_refusal(host: str) -> str:
     return (
-        f"{host} has no ServerAliveInterval, so ssh will never notice a dead link.\n"
+        f"{host} has no ServerAliveInterval; configure ssh's own dead-link detector.\n"
         "    Add to ~/.ssh/config:\n"
         f"        Host {host}\n"
         "            ServerAliveInterval 15\n"
@@ -384,65 +379,89 @@ def _kill_group(proc: subprocess.Popen) -> None:
 
 @dataclass
 class Ssh:
-    """Every call that reaches the network.
-
-    A probe is a real ssh, so aliases, ports, ProxyJump and multiplexing all hold
-    -- they live in ssh_config, which is why refusing flags costs it nothing. It
-    may bound the attempt and may not change how the connection is made; in
-    particular it keeps the session's ControlPath, because reaching a live master
-    is how the session will reconnect (README, T1).
-    """
+    """Connection settings shared by fresh attempts and transport heartbeats."""
 
     host: str
     resets: tuple[str, ...] = ()
+    foreground: tuple[str, ...] = ()
+    connect_timeout: int = PROBE_CONNECT
     current: subprocess.Popen | None = field(default=None, init=False, repr=False)
 
-    def config(self) -> str:
-        done = subprocess.run(["ssh", "-G", self.host], capture_output=True, text=True, check=False)
-        return done.stdout
+    @property
+    def connect_wall(self) -> float:
+        # A configured slow handshake (notably SSM) must also work in the
+        # readiness probe. Leave time after it for authentication and `true`.
+        return max(CONNECT_WALL, self.connect_timeout + PROBE_WALL)
 
-    def probe_argv(self) -> list[str]:
-        return ["ssh", *PROBE_OPTS, *self.resets, self.host, "true"]
+    def config(self) -> str:
+        status, output = self._bounded(["ssh", "-G", self.host], capture_stdout=True)
+        if status == 124:
+            raise Refused("ssh configuration lookup timed out")
+        if status != 0:
+            raise Refused(f"cannot read ssh configuration: {cap(tail(output))}")
+        self.resets = probe_resets(output)
+        if re.search(r"^forkafterauthentication ", output, re.MULTILINE):
+            self.foreground = ("-o", "ForkAfterAuthentication=no")
+        timeout = re.search(r"^connecttimeout (\d+)", output, re.MULTILINE)
+        if timeout and int(timeout.group(1)) > 0:
+            self.connect_timeout = int(timeout.group(1))
+        return output
+
+    def probe_argv(self, control_path: str | None = None) -> list[str]:
+        if control_path is None:
+            transport = ["-o", "ControlPath=none"]
+        else:
+            # ControlMaster=no alone is NOT mux-only: OpenSSH falls back to a
+            # new connection on a missing socket or rejected channel. A failed
+            # fallback must never authenticate or certify a different transport.
+            # ProxyCommand on the command line also takes precedence over a
+            # configured ProxyJump. See OpenSSH's readconf.c and mux.c.
+            transport = ["-S", control_path, "-o", "ProxyCommand=false"]
+        return [
+            "ssh", *PROBE_OPTS, "-o", f"ConnectTimeout={self.connect_timeout}",
+            *transport, *self.resets, *self.foreground, self.host, "true",
+        ]
 
     def probe(self) -> tuple[int, str]:
-        """Would the session connect? Bounded, and unable to prompt."""
-        return self._bounded(self.probe_argv())
-
-    def drop_stale_master(self) -> None:
-        """A master that died with the link leaves a socket that fails the next
-        connect instantly, so the probe reaches a live master or none."""
-        alive, _ = self._bounded(["ssh", "-O", "check", self.host])
-        if alive != 0:
-            self._bounded(["ssh", "-O", "exit", self.host])
+        """Try a fresh connection, as the next supervised session will do."""
+        return self._bounded(self.probe_argv(), timeout=self.connect_wall)
 
     def stop(self) -> None:
         """^C should not wait out a probe's bound."""
         if self.current is not None and self.current.poll() is None:
             _kill_group(self.current)
 
-    def _bounded(self, argv: list[str]) -> tuple[int, str]:
+    def _bounded(
+        self, argv: list[str], *, timeout: float | None = None, capture_stdout: bool = False
+    ) -> tuple[int, str]:
         """Run argv under a wall clock, and wait on the *process*.
 
         stderr goes to a file, not a pipe: a ProxyCommand child inherits it and
         killing does not reach that child, so waiting for EOF would wait for the
         grandchild. A file has no EOF to hold hostage.
         """
+        if timeout is None:
+            timeout = PROBE_WALL
         with tempfile.TemporaryFile() as errors:
             proc = subprocess.Popen(
                 argv,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
+                stdout=errors if capture_stdout else subprocess.DEVNULL,
                 stderr=errors,
                 start_new_session=True,
             )
             self.current = proc
             try:
-                status = proc.wait(timeout=PROBE_WALL)
+                status = proc.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
                 _kill_group(proc)
                 proc.wait()
                 status = 124
             finally:
+                # Also clean up when a signal interrupts the wait.
+                if proc.poll() is None:
+                    _kill_group(proc)
+                proc.wait()
                 self.current = None
             errors.seek(0)
             return status, errors.read().decode("utf-8", "replace")
@@ -450,33 +469,21 @@ class Ssh:
 
 @dataclass
 class Watchdog:
-    """ssa's own answer to "did the link die?", run while the session is up.
+    """Run `true` over the exact transport carrying the interactive session.
 
-    ssh's ServerAliveInterval x CountMax is the in-session detector, and three
-    things defeat it: a multiplexed session does no keepalive of its own (the
-    *master* enforces whatever values it started with, for its whole
-    ControlPersist life), the monotonic clock it is scheduled on stops during a
-    suspend (so a night's link death is noticed interval x countmax of *awake*
-    time after the lid opens), and the product is per-host config -- 45 seconds
-    to 5 minutes across the hosts this is used with. The original tool,
-    `autossh -M <port>`, detected end to end with its own monitor loop; `-M 0`
-    crept into the alias, and the rewrites inherited the regression (README,
-    T14). This restores the monitor using the probe ssa already has: through a
-    live master it rides the session's own transport, so it is the same
-    end-to-end test without autossh's forwarded port pair.
-
-    Only CONNECT-class and wedged probes count toward dropping the session: an
-    AUTH failure proves the path is up -- a certificate expiring mid-session is
-    a daily event a live session survives -- so it resets the count instead.
-    The probe never blocks the caller: it is started here and collected on a
-    later tick, because a 15-second wait inside the session loop would stall
-    the stderr drain that T13 exists to protect.
+    A local `ssh -O check` only establishes that a master process answers; a new
+    connection only establishes that a new connection works. Neither establishes
+    that this connection can pass traffic. The private socket binds our heartbeat
+    to this attempt, even on hosts with multiplexing disabled in ssh_config.
     """
 
     ssh: Ssh
+    control_path: str = ""
     clock: Callable[[], float] = time.monotonic
     wall: Callable[[], float] = time.time
     due: float | None = field(default=None, init=False)
+    started: float | None = field(default=None, init=False)
+    connected: bool = field(default=False, init=False)
     seen: tuple[float, float] | None = field(default=None, init=False)
     proc: subprocess.Popen | None = field(default=None, init=False, repr=False)
     errors: object = field(default=None, init=False, repr=False)
@@ -486,16 +493,29 @@ class Watchdog:
     def tick(self) -> Diagnosis | None:
         """Advance the monitor; a Diagnosis means the link is dead."""
         now = self.clock()
-        if self.due is None:
-            # The session just connected, which is itself a proven link.
+        wall = self.wall()
+        if self.started is None:
+            self.started = now
             self.due = now + WATCH_EVERY
         if self.seen is not None:
-            slept = (self.wall() - self.seen[1]) - (now - self.seen[0])
+            slept = (wall - self.seen[1]) - (now - self.seen[0])
             if slept > RESUME_JUMP:
-                self.due = now  # the link had a whole sleep to die; ask now
-        self.seen = (now, self.wall())
+                self.due = now
+                self.deadline = now  # an in-flight heartbeat is stale too
+                self.started -= slept
+        self.seen = (now, wall)
+        if not self.connected:
+            # Popen is not proof of authentication. The owned master starts
+            # listening after authentication; don't count a slow SSM startup as
+            # two failed heartbeats, and don't wait forever if it never starts.
+            if os.path.exists(self.control_path):
+                self.connected = True
+            elif now - self.started >= self.ssh.connect_wall:
+                return Diagnosis.of(Class.CONNECT, "connection setup timed out")
+            else:
+                return None
         if self.proc is None:
-            if now >= self.due:
+            if self.due is not None and now >= self.due:
                 self._start(now)
             return None
         status = self.proc.poll()
@@ -512,7 +532,7 @@ class Watchdog:
         # and closed by _collect on a later tick, or by stop.
         self.errors = tempfile.TemporaryFile()  # noqa: SIM115
         self.proc = subprocess.Popen(
-            self.ssh.probe_argv(),
+            self.ssh.probe_argv(self.control_path),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=self.errors,
@@ -533,16 +553,17 @@ class Watchdog:
         why = diagnose(stderr)
         if status == 124:
             why = Diagnosis.of(why.cls, WEDGED)
-        if status == 124 or why.cls is Class.CONNECT:
-            self.fails += 1
-            if self.fails >= WATCH_FAILS:
-                return why
-        else:
-            self.fails = 0
+        # Every nonzero result failed to complete the heartbeat. In particular,
+        # "Connection reset", "Broken pipe", and an empty stderr count too.
+        # No fresh authentication happens on this transport, so expiring local
+        # credentials cannot by themselves kill an established session.
+        self.fails += 1
+        if self.fails >= WATCH_FAILS:
+            return why
         return None
 
     def stop(self) -> None:
-        """Leave no probe behind (T8), whoever is stopping the session."""
+        """Stop and reap the heartbeat, whoever is stopping the session."""
         if self.proc is not None and self.proc.poll() is None:
             _kill_group(self.proc)
             self.proc.wait()
@@ -561,30 +582,61 @@ class Session:
     proc: subprocess.Popen | None = field(default=None, init=False, repr=False)
     why: Diagnosis | None = field(default=None, init=False)
 
-    def argv(self) -> list[str]:
-        argv = ["ssh", "-o", "BatchMode=yes"]
+    def argv(self, control_path: str) -> list[str]:
+        argv = [
+            "ssh", "-o", "BatchMode=yes", "-o", "ControlMaster=yes",
+            "-o", "ControlPersist=no", "-S", control_path,
+        ]
+        if self.watch is not None:
+            argv.extend(self.watch.ssh.foreground)
         if self.options.tmux is not None:
             argv.append("-t")
         return [*argv, self.options.host, *self.options.remote]
 
     def run(self) -> tuple[int, str]:
+        # /tmp keeps the Unix socket below sun_path's length limit on macOS too.
+        # A new 0700 directory per attempt also keeps unrelated SSH sessions out
+        # of recovery: no check/exit against the user's shared control socket.
+        with tempfile.TemporaryDirectory(prefix="ssa-", dir="/tmp") as directory:
+            control_path = os.path.join(directory, "master")
+            if self.watch is not None:
+                self.watch.control_path = control_path
+            saved = termios.tcgetattr(sys.stdin.fileno()) if sys.stdin.isatty() else None
+            try:
+                return self._run(control_path)
+            finally:
+                # SIGKILL cannot let ssh restore raw mode. Keep the caller's
+                # terminal usable even when the graceful shutdown times out.
+                if saved is not None:
+                    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, saved)
+
+    def _run(self, control_path: str) -> tuple[int, str]:
         """Stream stderr through, and keep its tail to classify the failure.
 
         The drain is bounded by ssh's exit plus DRAIN, because a ProxyCommand
         grandchild inherits the pipe and reading to EOF would wait for it.
         select rather than a reader thread: a thread blocked in readline() holds
         the pipe's lock, and closing the pipe then waits for that lock -- the
-        same bound reintroduced as a deadlock (README, T13).
+        same wait reintroduced as a deadlock.
         """
         chunks: deque[str] = deque(maxlen=64)
-        proc = subprocess.Popen(self.argv(), stderr=subprocess.PIPE, bufsize=0)
+        proc = subprocess.Popen(self.argv(control_path), stderr=subprocess.PIPE, bufsize=0)
         self.proc = proc
         assert proc.stderr is not None
         fd = proc.stderr.fileno()
         status: int | None = None
         deadline = 0.0
+        reading = True
         try:
             while True:
+                # Poll on every iteration, including when stderr is continuously
+                # readable. A noisy descendant must not postpone the drain bound.
+                if status is None:
+                    status = proc.poll()
+                    if status is not None:
+                        deadline = time.monotonic() + DRAIN
+                if status is not None and (not reading or time.monotonic() >= deadline):
+                    break
                 if (
                     self.watch is not None
                     and status is None
@@ -595,28 +647,27 @@ class Session:
                     # session ourselves so the wait loop can take over.
                     self.why = why
                     self.stop()
-                if select.select([fd], [], [], 0.1)[0]:
+                    continue
+                if select.select([fd] if reading else [], [], [], 0.1)[0]:
                     try:
                         chunk = os.read(fd, 65536)
                     except OSError:
-                        break
+                        chunk = b""
                     if not chunk:
-                        break  # EOF: nothing holds the write end open
+                        # stderr can close long before ssh exits. Keep watching
+                        # the process without busy-spinning on the EOF fd.
+                        reading = False
+                        continue
                     sys.stderr.buffer.write(chunk)
                     sys.stderr.buffer.flush()
                     chunks.append(chunk.decode("utf-8", "replace"))
-                elif status is None:
-                    status = proc.poll()
-                    if status is not None:
-                        deadline = time.monotonic() + DRAIN
-                elif time.monotonic() > deadline:
-                    break
         finally:
             if self.watch is not None:
                 self.watch.stop()
             proc.stderr.close()
-            if status is None:
-                status = proc.wait()
+            if proc.poll() is None:
+                self.stop()
+            status = proc.wait()
             self.proc = None
         return status, "".join(chunks)
 
@@ -637,6 +688,7 @@ class Session:
             proc.wait(timeout=DRAIN)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait()
 
 
 @dataclass
@@ -712,7 +764,6 @@ class Supervisor:
         """Probe until the session would connect, reporting what we wait for."""
         start = self.clock()
         self.report.waiting(self.options.label, why)
-        self.ssh.drop_stale_master()
         for delay in self.delays if self.delays is not None else _backoff():
             status, stderr = self.ssh.probe()
             if status == 0:
@@ -787,22 +838,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_AMBIGUOUS
 
     ssh = Ssh(options.host)
-    config = ssh.config()
-    # Nothing reconnects if nothing notices the link died, and ssh's default
-    # ServerAliveInterval is 0: it would block until the kernel gives up, with
-    # nothing to supervise. Refused rather than injected, because it belongs in
-    # ssh_config where plain ssh benefits too (README, T7).
-    interval = re.search(r"^serveraliveinterval (\d+)", config, re.MULTILINE)
-    if interval and interval.group(1) == "0":
-        report.say(keepalive_refusal(options.host))
-        return EXIT_AMBIGUOUS
-    ssh.resets = probe_resets(config)
-
     supervisor = Supervisor(options=options, ssh=ssh, report=report)
     signal.signal(signal.SIGINT, lambda *_: supervisor.stop(EXIT_INT))
     signal.signal(signal.SIGTERM, lambda *_: supervisor.stop(EXIT_TERM))
     try:
+        config = ssh.config()
+        interval = re.search(r"^serveraliveinterval (\d+)", config, re.MULTILINE)
+        if interval and interval.group(1) == "0":
+            report.say(keepalive_refusal(options.host))
+            return EXIT_AMBIGUOUS
         return supervisor.run()
+    except Refused as refused:
+        report.say(str(refused))
+        return EXIT_AMBIGUOUS
     except SystemExit as exit_:
         return int(exit_.code or 0)
     except KeyboardInterrupt:

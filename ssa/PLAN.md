@@ -1,160 +1,94 @@
-# `ssa` design record
+# ssa recovery design
 
-## Goal
+## Investigation, 2026-10-02
 
-Wrap OpenSSH so an interactive shell or tmux attachment reconnects after credential
-expiry, VPN loss, captive portals, timeouts, network changes, and remote reboots.
-Preserve OpenSSH's terminal behaviour and configuration instead of replacing either
-— and take a host, not a copy of ssh's command line: every connection setting
-belongs in `ssh_config`, where the probe and the session both read it.
+The previous implementation's 65 tests passed, but the tests did not model the
+identity of an SSH transport. Several claims in the README were stronger than
+the implementation:
 
-## The gate
+1. On a host without multiplexing, the watchdog opened a separate SSH connection.
+   Success established that another connection worked, while the supervised
+   connection could remain frozen.
+2. `ControlMaster=no` did not require using the configured socket. OpenSSH could
+   silently fall back to a new connection.
+3. `ssh -O check` checked the local master, not traffic to the remote server.
+   A frozen remote connection could have a locally responsive master.
+4. Only timeout and CONNECT-class results counted as failed heartbeats. Resets,
+   broken pipes, empty diagnostics, and proxy authentication failures could
+   repeat indefinitely without recovery.
+5. EOF on stderr ended the monitor loop and entered an unbounded process wait.
+   A still-running SSH process no longer received heartbeats. Continuously
+   readable stderr could instead prevent noticing process exit.
+6. Configuration lookup and initial connection setup were not fully supervised.
+   The readiness timeout could also be shorter than a configured SSM handshake.
 
-T1–T14 are stated in `README.md`; that table is the index and is not repeated here.
-This file holds the rules that keep them true.
+Local process reproductions confirmed the classification and stderr failures
+before the changes. OpenSSH's manual and source confirmed the multiplexing
+fallback behavior.
 
-> **Every property names the check that discharges it, and every check that
-> discharges one says which. A property with no check is a claim.**
+## Connection ownership
 
-> **Every property has a mutant in `mutants.sh`.** Break the property, and the
-> check must go red. A check that survives its mutant is decoration, and the
-> mutation run is the only thing that tells you which kind you have.
+Every session attempt gets a private temporary control socket. Force
+`ControlMaster=yes` and `ControlPersist=no`; keep SSH in the foreground, including
+overriding `ForkAfterAuthentication` on clients that advertise it.
 
-The second rule is newer and earned its place immediately: T8's `SIGCONT`-before-
-`SIGTERM` claim had a check that passed with `SIGCONT` removed, because the kill
-fallback ended the child either way. The check now asserts that the child *handled*
-the signal — a file the stub writes from its own `SIGTERM` handler — which is the
-part that only happens if something resumed it first.
+This costs connection sharing with other invocations. It provides a transport
+the wrapper can identify and terminate without disrupting unrelated sessions.
+An existing shared master is never declared stale or killed by `ssa`.
 
-Prefer a check that reads **data or argv** over one that samples behaviour, because
-that is the class a plausible-looking edit cannot slip past. `RULES` is read out of
-the module and driven end to end; `PROBE_OPTS` is read as the probe's real argv.
+The private socket starts listening after authentication. Until then, enforce a
+setup deadline instead of treating process creation as a successful connection.
 
-T12 and T13 are the exception that has to sample behaviour: a bound is a claim about
-the clock, so the only way to check it is to point `ssa` at something that will not
-come back and watch what it does next. They assert that the loop kept running rather
-than an exact duration, so a loaded machine does not read as a regression.
+## Heartbeats and readiness
 
-## Why Python, when bash worked
+A heartbeat executes `true` on the owned socket. Pair `ControlMaster=no` with
+`ProxyCommand=false`: if multiplexing fails, fallback cannot open a different
+transport. A command-line ProxyCommand takes precedence over configured ProxyJump
+in OpenSSH, including the installed 7.4 client.
 
-Bash was the right first answer and stopped being the right one at T13. The full
-argument is in `README.md` § Why Python. The short version: streaming stderr live
-while keeping its tail needed a fifo, a `tee`, a bounded drain and a `tail` in bash,
-and all four existed because a `ProxyCommand` grandchild can hold a pipe open. In
-Python that is a `select` loop and a `deque`. The rewrite is *larger* (667 lines
-against 397) and buys a pure classifier, an injected clock, and a suite that no
-longer `sed`-rewrites constants into a copy of the script to reach a path.
+No authentication happens on a healthy existing transport, so heartbeat failure
+does not need an exemption for expired credentials. Every nonzero result counts;
+two consecutive failures trigger recovery, and success resets the count.
 
-`uv run --script` was measured for the PEP-723 shape and is not used: this needs no
-third-party dependency, so `#!/usr/bin/env python3` is one less moving part.
+After disconnection, readiness deliberately uses a fresh transport. This matches
+the next session's new connection. Respect the configured handshake timeout,
+with an outer process deadline covering DNS, proxy startup, and authentication.
 
-## Kept deliberately short
+Reset `RemoteCommand` and `SessionType` in probes only when the installed client
+advertises them. Suppress probe forwarding, TTY allocation, local commands, and
+prompts. Keep the user session's remote command and forwarding configuration.
 
-Not defects, and not worth the code they would take here:
+## Process and terminal lifecycle
 
-- `stop` signals the `ssh` it started and any in-flight probe, not a `ProxyCommand`
-  grandchild. Reaching one means a process group, and putting the session in a new
-  session is exactly what T11 depends on *not* doing. T13 covers the part that
-  costs something — such a child cannot delay us.
-- The classifier is substring matching against a table, so `ssh -v` output remains
-  something it reads by luck rather than by grammar. `TAIL_LINES` keeps luck from
-  compounding; a real parser would mean the debug-output dependency this avoids.
-- Refusing ssh's flags means a setting with no `ssh_config` spelling cannot be
-  passed at all. There is no such setting among the ones this is used with, and the
-  refusal names the flag, so the failure is a sentence rather than a silent
-  difference between the probe and the session.
-- A suspended remote tmux client cannot be rescued from this side. The fix is in
-  `../tmux3/tmux.conf`, which unbinds `suspend-client`.
+Poll the SSH process and advance the watchdog independently of stderr readiness.
+EOF disables further reads, not supervision. After process exit, bound the
+remaining drain even when another process continues writing stderr.
 
-## Superseded
+Use files for probe diagnostics so inherited pipes cannot prolong collection.
+Run probes/configuration checks in their own process groups for timeout cleanup.
+The actual session keeps the caller's terminal and foreground process group.
 
-Kept because each was a real belief that a check now contradicts. Deleting them
-invites the same edit twice.
+Resume a stopped SSH child before TERM. Reap it after a KILL fallback and restore
+the terminal settings saved before that attempt. Do not claim this terminates
+arbitrary detached proxy descendants.
 
-- **"A probe must be a filtered copy of the caller's argv."** 42 lines of
-  hand-rolled getopt, each decision able to fail in either direction, both silent —
-  stricter and `ssa` waits out an outage that is not happening, laxer and it
-  reconnects into an instant failure. ssh's flags are refused now, and the probe's
-  argv is fixed. Now T1.
-- **"Every timing knob wants an env var, and a wait wants a bound."** Nine knobs, of
-  which one was ever passed. `--max-wait` gave up on a wait only a person can judge.
-  Constants now. What must terminate is each *call*, which is T12.
-- **"`--max-wait` is checked often enough."** It was read *between* calls, and then a
-  call was made that had no obligation to return: `-O check` has no bound of its own,
-  and `ConnectTimeout` does not apply to a connection handed to a live master. Now
-  T12.
-- **"ssh exiting means its stderr has reached us."** A `ProxyCommand` descendant
-  inherits fd 2, so the write end outlives `ssh` and a reader never sees EOF. Killing
-  does not help — it reaches the process you started, not that child. Bounded drain
-  for the session, a file rather than a pipe for the probe. Now T13.
-- **"A reader thread is the obvious way to stream and keep stderr."** It is, and it
-  reintroduces the same bound one level down: a thread blocked in `readline()` holds
-  the pipe's lock, and closing the pipe waits for that lock, so a grandchild's
-  45-second sleep became a 45-second deadlock. `select` owns the loop instead. Now
-  T13, and the reason its check times `ssa` through a *file* — capturing through a
-  pipe times the harness's own drain, which read as a 46-second failure against a
-  wrapper that had already finished.
-- **"`argparse` can express this CLI."** `--tmux` with an optional argument consumes
-  the next token, so `ssa --tmux gpu2` parsed as *session* `gpu2` and no host. The
-  option takes its value with `=` only, and the pass is hand-rolled. Now checked by
-  a mutant that stops `--tmux` from matching.
-- **"The whole of stderr is the right thing to search."** It is shared: the remote
-  command writes to it, a host with `StrictHostKeyChecking` off warns on every
-  connect, and `ssh -v` reports a refusal per address before connecting through
-  another. So a drop was classified from a line left by an attempt that recovered.
-  Only the last `TAIL_LINES` lines. Now T10.
-- **"A 403 from the SSM proxy is a handshake refusal."** It is the generic line `ssh`
-  prints underneath the proxy's own, so `refused mid-handshake` was a network story
-  for `ada credentials update`. Now T10.
-- **"`probe_resets` is too small to need a check."** Nothing exercised it, so nothing
-  would have caught a `RemoteCommand` reset that stopped being emitted — and a probe
-  whose `true` is suppressed never terminates, which is T2 itself.
-- **"A probe should bypass multiplexing, so a stale socket cannot fake a healthy
-  host."** Half right, and the wrong half was load-bearing: `ControlPath=none` made
-  the probe stricter than the session, so on a proxied host it demanded credentials
-  the session did not need. Staleness belongs to `drop_stale_master`, which runs
-  before the probe loop. Now T1.
-- **"Three `case` statements over the same stderr are fine, they are small."** Each
-  carried its own copy of the pattern list, so a class and its sentence could
-  disagree. One table. Now T10.
-- **"A duration is minutes and seconds."** An overnight wait read `655m00s`. Now T9.
-- **"The reason is a string; compare it to see whether it changed."** A reason worded
-  with a duration is a different string on every probe, so the comparison reported a
-  change every time and the cadence throttled nothing: five lines in twelve seconds
-  where T9 predicts two. `Diagnosis.key` is what "changed" means now.
-- **"A width check on a real run's output is enough."** It saw nothing while the
-  give-up line reached 97 columns. Every shape is now rendered at its worst case from
-  the budget arithmetic, which is a property of the grammar rather than of a fixture.
-- **"If `ssh-keygen` says nothing, `date` will fail and we return no note."**
-  `date -d ''` succeeds and returns midnight today, so an unreadable certificate was
-  reported as `cert expired 19h55m ago` — a false reason indistinguishable from the
-  true one. A missing certificate returns nothing.
-- **"A probe may as well carry the user's `-q` and `-E`."** Both silence or redirect
-  the stream the diagnosis is read from.
-- **"Any key stops the reconnect."** A dying full-screen program leaves escape bytes
-  in the input queue; a mouse report was aborting the reconnect. The key is named.
-  Now T11.
-- **"An unrecognised reason may be capped at 64 characters."** That made the status
-  line wrap, which is the failure the separate print cadence exists to avoid. The cap
-  is derived from the line grammar and checked against it.
-- **"A cert note explains any rejected credential."** `Too many authentication
-  failures` is not a cert expiry, and saying it was sent you to `mwinit` for nothing.
-  The note is attached to one row, not to a class. Now T10.
-- **"`ssh`'s `ServerAliveInterval` is the only in-session detector a session
-  needs."** The alias this replaces began as `autossh -M <port>` — a live
-  monitor loop, polled every 5 seconds — and was quietly degraded to `-M 0`
-  before the first rewrite, which then cited the degraded alias as evidence the
-  monitor was redundant. Three things defeat the keepalive, all real here: a
-  multiplexed session's keepalive belongs to the *master*, which keeps whatever
-  values it started with; the monotonic clock it is scheduled on stops during a
-  suspend, so an overnight death is noticed interval × countmax of *awake* time
-  after the lid opens; and the product is per-host config, 45 seconds to five
-  minutes across this machine's hosts. "The screen is just frozen" was all
-  three. The watchdog probes on its own clock and drops the session itself; an
-  `AUTH` probe failure resets the count rather than adding to it, because a
-  refusal proves the path is up and a certificate expires mid-session daily.
-  Now T14.
-- **"A stopped child still reaps on `SIGTERM`."** It does not: `TERM` stays pending
-  while the process is stopped, so the wrapper's kill fallback ended it and `ssh`
-  never restored the terminal. `SIGCONT` precedes `SIGTERM`. Now T8 — and the first
-  property whose check was found by mutation rather than by a failure.
+Detect a wall/monotonic clock gap after suspend, schedule an immediate heartbeat,
+and expire any heartbeat that was already in flight.
+
+## Verification and limits
+
+Process stubs cover failure classification and lifecycle edges. Opt-in real SSH
+tests additionally exercise multiplexing, blocked transport, failed fallback,
+expired proxy credentials, and a complete reconnect. Accelerated watchdog timers
+keep those tests short while native SSH keepalives remain slow.
+
+Mutation checks use temporary copies, validate their replacement anchors, and
+check the selected tests on the original source first. A broken mutation harness
+must not be mistaken for a detected regression.
+
+Connection health is not application health. An extra SSH channel may work while
+the shell or tmux client is stopped. Conversely, a restricted server may reject
+that channel while its original session works. These limits, connection-sharing
+costs, and timing qualifications belong in the README.
+
+Source references and comparisons with autossh and mosh are in the README.
