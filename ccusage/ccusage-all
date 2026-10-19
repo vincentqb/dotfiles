@@ -1,5 +1,10 @@
-#!/usr/bin/env python3.15t
-"""One usage table across every coding harness: Kiro, l3m, Claude Code, Codex, ...
+#!/bin/sh
+''''exec uv run --script --python 3.15t "$0" "$@" # '''
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+__doc__ = """One usage table across every coding harness: Kiro, l3m, Claude Code, Codex, ...
 
 Each harness records something different, and no one source reads them all:
 
@@ -104,9 +109,14 @@ Usage:
   ccusage-all --since 2026-08-01 --until 2026-08-14
   ccusage-all --online                          # refresh LiteLLM prices first
 
-Any Python 3.10+ gives the same table. The shebang asks for the free-threaded
-build because the per-file parsing below spreads across cores only there: a
-cold build of 26 GB of logs takes ~9 s on it against ~70 s with the GIL.
+Any Python 3.10+ gives the same table (`python3 ccusage-all`). Run directly,
+the first two lines hand this file to `uv run --script --python 3.15t` -- a
+/bin/sh stand-in for the usual `#!/usr/bin/env -S uv run --script`, since
+coreutils `env` gained -S only in 8.30 and some boxes still ship 8.22 (and
+`__doc__` is assigned because that stand-in is now the first string). uv
+fetches the free-threaded build on first use; it is the one where the per-file
+parsing below spreads across cores: a cold build of 26 GB of logs takes ~9 s on
+it against ~70 s with the GIL.
 """
 
 import argparse

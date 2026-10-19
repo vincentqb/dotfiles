@@ -170,12 +170,15 @@ counters can no longer tell us.
 ## Install
 
 ```fish
-uv python install 3.15t      # the free-threaded interpreter the shebang names
 ln -sf ~/dotfiles/ccusage/ccusage-all ~/.local/bin/ccusage-all
 ```
 
-Any Python 3.10+ produces the same table (`python3 ccusage-all`), only slower on
-a cold cache; no other dependencies.
+Needs [uv](https://docs.astral.sh/uv/) and nothing else: run directly, the
+script hands itself to `uv run --script --python 3.15t`, which fetches the
+free-threaded interpreter on first use. The usual `#!/usr/bin/env -S uv run
+--script` shebang is not used because coreutils `env` only parses `-S` from
+8.30 on. Any Python 3.10+ produces the same table (`python3 ccusage-all`), only
+slower on a cold cache.
 
 ## Caveats
 

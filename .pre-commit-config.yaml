@@ -11,12 +11,11 @@ repos:
     # ccusage-all reports dollar figures, and its derived columns (Std, Eff) can
     # be wrong while still rendering plausibly -- two such bugs shipped and
     # survived several readings of the table before this hook existed. Runs only
-    # when that directory changes, on the script's own free-threaded interpreter
-    # where installed (the one check that the GIL stays off needs it), else on
-    # python3.
+    # when that directory changes, on the free-threaded interpreter the script
+    # itself runs on, which the one check that the GIL stays off needs.
     - id: ccusage-tests
       name: ccusage-all invariants
-      entry: sh -c 'exec "$(command -v python3.15t || command -v python3)" -m unittest discover -s ccusage'
+      entry: uv run --no-project --python 3.15t python -m unittest discover -s ccusage
       language: system
       pass_filenames: false
       files: ^ccusage/
@@ -25,13 +24,16 @@ repos:
     # of them runs during a machine setup, where $HOME or a `which` result
     # containing a space fails once, late, on someone else's laptop. `system`
     # rather than the upstream hook because shellcheck is already in the
-    # Brewfile, and a Docker pull is a poor dependency for a commit.
+    # Brewfile, and a Docker pull is a poor dependency for a commit. ccusage-all
+    # is Python whose /bin/sh first line only hands it to uv, so it is no shell
+    # script despite what its shebang tells pre-commit.
     - id: shellcheck
       name: shellcheck
       entry: shellcheck
       language: system
       types: [shell]
       exclude_types: [fish]
+      exclude: ^ccusage/ccusage-all$
 
     # ssa is a recovery tool, so its failures happen when the network is already
     # broken and nobody is watching. The suite is offline and needs no
