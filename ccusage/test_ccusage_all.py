@@ -351,9 +351,10 @@ class RowInvariants(unittest.TestCase):
         because this ratio holds. The exceptions are pinned, not skipped, so a
         transcription that changes one of them fails here: Anthropic cut the
         cache-read ratio to 1/20 with Opus 5.5 and 1/40 with Fable 5.1, which
-        makes 0.10 an overestimate for the Kiro credits spent on those two."""
+        makes 0.10 an overestimate for the Kiro credits spent on those two.
+        OpenAI's GPT-6.1 Sol is 1/20 as well; Kiro has not used it."""
         exceptions = {"deepseek-v4-flash-free": 0.2, "claude-opus-5-5": 0.05,
-                      "claude-fable-5-1": 0.025}
+                      "claude-fable-5-1": 0.025, "gpt-6.1-sol": 0.05}
         for name, (inp, _out, cr, _cw) in cc.LITELLM_SNAPSHOT.items():
             if not inp:
                 continue          # a free tier has no ratio
@@ -395,8 +396,8 @@ class PriceTable(unittest.TestCase):
     # the Bedrock route prefix, opencode's Zen free tier by its own alias.
     LOGGED = ("claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "claude-opus-4-8",
               "claude-fable-5", "openai.gpt-5.6-sol", "global.openai.gpt-5.6-luna",
-              "us.openai.gpt-6-astra", "openai.gpt-5.5", "openai.gpt-5.4",
-              "deepseek-v4-flash-free", "big-pickle")
+              "us.openai.gpt-6-astra", "us.openai.gpt-6.1-sol", "global.openai.gpt-6.1-sol",
+              "openai.gpt-5.5", "openai.gpt-5.4", "deepseek-v4-flash-free", "big-pickle")
 
     def test_every_logged_model_is_priced(self):
         for name in self.LOGGED:
