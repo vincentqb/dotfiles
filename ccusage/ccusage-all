@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.15t
 """One usage table across every coding harness: Kiro, l3m, Claude Code, Codex, ...
 
 Each harness records something different, and no one source reads them all:
@@ -8,9 +8,9 @@ Each harness records something different, and no one source reads them all:
     -- gigabytes -- on each run and priced unknown models at a silent $0). The
     parsers transcribe ccusage's own rules from its Rust adapters and were
     validated token-for-token against its output; the differences are that
-    results are cached incrementally (only logs that changed since the last run
-    are re-parsed) and that pricing falls back to an embedded snapshot instead
-    of $0 when LiteLLM lacks a model.
+    results are cached incrementally (a run reads only the bytes appended to
+    the logs since the last one) and that pricing falls back to an embedded
+    snapshot instead of $0 when LiteLLM lacks a model.
 
   * l3m (~/CodebaseQUENNV/.../l3m) hardcodes published Bedrock/Anthropic list
     prices as a dated, Lean-proof-pinned snapshot (cents/1M, split
@@ -103,12 +103,17 @@ Usage:
   ccusage-all                                   # unified daily table
   ccusage-all --since 2026-08-01 --until 2026-08-14
   ccusage-all --online                          # refresh LiteLLM prices first
+
+Any Python 3.10+ gives the same table. The shebang asks for the free-threaded
+build because the per-file parsing below spreads across cores only there: a
+cold build of 26 GB of logs takes ~9 s on it against ~70 s with the GIL.
 """
 
 import argparse
 import collections
 import concurrent.futures
 import datetime
+import functools
 import hashlib
 import json
 import os
@@ -127,10 +132,11 @@ L3M_STATE_REFS = "refs/agents/state/"
 L3M_SIDECAR = "last_state.json"
 
 # Native token-log reading. Each harness's parse results are cached under
-# CACHE_DIR keyed by (size, mtime) stat signatures, so a run re-parses only the
-# logs that changed since the last one -- there is no cold-scan penalty after
-# the first build, and a hit is always current (any appended line moves the
-# file's signature). Cached day buckets are in this box's local timezone.
+# CACHE_DIR keyed by (size, mtime) stat signatures, so a run touches only the
+# logs that changed since the last one -- and reads only what was appended to
+# those (see resume_offset) -- so there is no cold-scan penalty after the first
+# build, and a hit is always current (any appended line moves the file's
+# signature). Cached day buckets are in this box's local timezone.
 CACHE_DIR = (pathlib.Path(os.environ.get("XDG_CACHE_HOME", "~/.cache")).expanduser()
              / "ccusage-all")
 CACHE_VERSION = 1
@@ -296,19 +302,28 @@ def canon(model):
     return key
 
 
-def kiro_turns(session_dir):
-    """Yield (timestamp, execution_id, credits, model) per completed Kiro turn.
+def kiro_parse_file(path, prev=None):
+    """One session log's cache record: {models: executionId -> model,
+    summaries: [[timestamp, executionId, credits], ...]} plus its checkpoint.
 
     Credits arrive on a `usage_summary` record, but the model that spent them is
     only named on the `assistant` records sharing its `executionId` -- so collect
-    both in one pass and join at the end."""
-    messages = session_dir / "messages.jsonl"
-    if not messages.is_file():
-        return
-    models, summaries = {}, []
-    with messages.open() as handle:
-        for line in handle:
-            if "usage_summary" not in line and "reasoningModelId" not in line:
+    both here and join at read time (kiro_rows). `prev` is this file's last
+    record; when the file has only grown since, parsing resumes where it stopped
+    with both collections carried over, so a turn whose model was named before
+    the checkpoint and whose credits arrived after it still joins."""
+    start = resume_offset(path, prev)
+    models = dict(prev["models"]) if start else {}
+    summaries = list(prev["summaries"]) if start else []
+    # No OSError guard, as before: an unreadable session log stops the run
+    # rather than quietly lowering the Kiro total.
+    with open(path, "rb") as fh:
+        fh.seek(start)
+        offset, line = start, b"\n"
+        for line in fh:
+            if line.endswith(b"\n"):
+                offset += len(line)
+            if b"usage_summary" not in line and b"reasoningModelId" not in line:
                 continue
             try:
                 record = json.loads(line)
@@ -316,6 +331,8 @@ def kiro_turns(session_dir):
                 continue
             payload = record.get("payload") or {}
             execution_id = payload.get("executionId") or record.get("id")
+            if not execution_id:
+                continue  # nothing to join on; kiro_rows drops such turns anyway
 
             if payload.get("type") == "assistant" and payload.get("reasoningModelId"):
                 # Namespaced "qdev::claude-opus-5"; keep the bare model name.
@@ -331,10 +348,9 @@ def kiro_turns(session_dir):
                 if str(summary.get("unit", "")).lower().startswith("credit")
             )
             if credits > 0:
-                summaries.append((record.get("timestamp"), execution_id, credits))
-
-    for timestamp, execution_id, credits in summaries:
-        yield timestamp, execution_id, credits, models.get(execution_id)
+                summaries.append([record.get("timestamp"), execution_id, credits])
+        mark = settled(fh, offset, line)
+    return {"models": models, "summaries": summaries, **mark}
 
 
 def kiro_rows(credit_rate, assumed_mix=None):
@@ -353,7 +369,22 @@ def kiro_rows(credit_rate, assumed_mix=None):
     validate_rows can check the two agree."""
     days = collections.defaultdict(lambda: collections.defaultdict(float))
     seen = set()
+    cached = (cache_read("kiro") or {}).get("files", {})
+    sessions = {}
     for session_dir in sorted(KIRO_SESSIONS.glob("*/sess_*")):
+        messages = session_dir / "messages.jsonl"
+        try:
+            st = messages.stat()
+        except OSError:
+            continue
+        sessions[str(messages)] = (session_dir, [st.st_size, st.st_mtime_ns])
+    stale = [(key, cached.get(key)) for key, (_, sig) in sessions.items()
+             if (cached.get(key) or {}).get("sig") != sig]
+    parsed = dict(zip([key for key, _ in stale], parallel(kiro_parse_file, stale)))
+    out = {}
+    for key, (session_dir, sig) in sessions.items():
+        record = out[key] = ({"sig": sig, **parsed[key]} if key in parsed
+                             else cached[key])
         try:
             meta = json.loads((session_dir / "session.json").read_text())
         except (OSError, json.JSONDecodeError):
@@ -362,12 +393,14 @@ def kiro_rows(credit_rate, assumed_mix=None):
         # a session that switched models; the per-turn join wins where it
         # succeeded, and this is only the fallback.
         session_model = meta.get("modelId") or "kiro-unknown"
-        for timestamp, execution_id, credits, model in kiro_turns(session_dir):
+        for timestamp, execution_id, credits in record["summaries"]:
             day = (timestamp or "")[:10]
             if not day or not execution_id or execution_id in seen:
                 continue
             seen.add(execution_id)
-            days[day][model or session_model] += credits
+            days[day][record["models"].get(execution_id) or session_model] += credits
+    if out != cached:
+        cache_write("kiro", {"files": out})
     rows = []
     for day, models in days.items():
         for model, credits in models.items():
@@ -631,6 +664,79 @@ def stat_walk(root, suffix=".jsonl"):
     return files
 
 
+# The logs are append-only, so a file that changed since its cache record was
+# written has, almost always, only grown. Each parser below is a fold over
+# lines, so its record carries the fold state at the byte it stopped at and the
+# next parse starts there -- a dozen live agent sessions then cost a run the
+# few KB they appended, not a re-read of every live file. `tail` is a hash of
+# the bytes just before `offset`; the resume is taken only while those bytes
+# are still in place, so a file rewritten under the same name is parsed from
+# scratch. A run that lands mid-write checkpoints at the start of the unfinished
+# line (see settled), so the next run reads that line whole.
+TAIL_BYTES = 4096
+
+
+def checkpoint(fh, offset):
+    """{offset, tail}: fingerprint of the first `offset` bytes of open file `fh`."""
+    fh.seek(max(0, offset - TAIL_BYTES))
+    tail = hashlib.sha256(fh.read(min(offset, TAIL_BYTES))).hexdigest()
+    return {"offset": offset, "tail": tail}
+
+
+def settled(fh, offset, last_line):
+    """The checkpoint a parse that read up to `last_line` may store: at
+    `offset`, the end of the last newline-terminated line. An unterminated last
+    line is a record still being written, and the parsers skip one that does not
+    parse yet -- it changed no state, so the next run can start at it. One that
+    does parse (complete, its newline not yet written) was counted like any
+    other; then no checkpoint, and the next run re-reads the file whole."""
+    if not last_line.endswith(b"\n"):
+        try:
+            json.loads(last_line)
+        except ValueError:
+            pass
+        else:
+            return {}
+    return checkpoint(fh, offset)
+
+
+def resume_offset(path, prev):
+    """Byte offset from which `path` extends what cache record `prev` saw, else
+    0 (no record, no checkpoint, or the bytes before it have changed)."""
+    offset = (prev or {}).get("offset") or 0
+    if offset:
+        try:
+            with open(path, "rb") as fh:
+                if checkpoint(fh, offset) == {"offset": offset, "tail": prev.get("tail")}:
+                    return offset
+        except OSError:
+            pass
+    return 0
+
+
+# Threads per parallel() call, at the measured knee. On a free-threaded build
+# a cold scan of 26 GB of logs took 33 s on 1 thread, 12 s on 4, 8.5 s on 8,
+# then 13 s on 16 and 28 s on 64 (192 cores): datetime's aware conversions
+# (astimezone, timestamp), which every Claude and Codex record goes through,
+# contend across threads there, so past ~8 the threads slow each other down
+# rather than help. The bound past that is the largest single log anyway.
+WORKERS = min(8, os.cpu_count() or 1)
+
+
+def parallel(fn, jobs):
+    """[fn(*job) for job in jobs], in order, on up to WORKERS threads.
+
+    Threads rather than processes: on a free-threaded build they decode JSON on
+    separate cores with nothing to pickle, and a GIL build still gets the same
+    answer. Leaf work only -- fn must not call parallel() itself, so the thread
+    count stays bounded by the scanners in main times WORKERS."""
+    jobs = list(jobs)
+    if len(jobs) < 2:
+        return [fn(*job) for job in jobs]
+    with concurrent.futures.ThreadPoolExecutor(min(len(jobs), WORKERS)) as pool:
+        return list(pool.map(lambda job: fn(*job), jobs))
+
+
 # --- Claude Code -------------------------------------------------------------
 #
 # ~/.claude/projects/<project>/**/*.jsonl, one JSON record per line; assistant
@@ -646,12 +752,28 @@ def stat_walk(root, suffix=".jsonl"):
 # files), so a project dir is a self-contained dedup scope -- which is what
 # makes per-dir caching sound.
 
-def claude_file_entries(path):
-    """Within-file-deduped [mid, req, side, day, model, in, out, cr, cw] rows."""
+def claude_file_entries(path, prev=None):
+    """Within-file-deduped [mid, req, side, day, model, in, out, cr, cw] rows,
+    and the checkpoint a later parse resumes from. `prev` is this file's last
+    cache record; when the file has only grown since, parsing restarts at the
+    byte it reached, with the dedup state rebuilt from the rows it produced (a
+    streamed message is rewritten in place, so a later line may still replace
+    an entry that predates the checkpoint)."""
     keyed, anonymous = {}, []
+    start = resume_offset(path, prev)
+    for entry in prev["entries"] if start else ():
+        if entry[0] is None:
+            anonymous.append(entry)
+        else:
+            keyed[(entry[0], entry[1])] = entry
+    mark = {}
     try:
         with open(path, "rb") as fh:
+            fh.seek(start)
+            offset, line = start, b"\n"
             for line in fh:
+                if line.endswith(b"\n"):
+                    offset += len(line)
                 if b'"type":"assistant"' not in line or b'"usage"' not in line:
                     continue
                 try:
@@ -681,9 +803,10 @@ def claude_file_entries(path):
                 key = (entry[0], entry[1])
                 if key not in keyed or claude_replaces(entry, keyed[key]):
                     keyed[key] = entry
+            mark = settled(fh, offset, line)
     except OSError:
-        return []
-    return list(keyed.values()) + anonymous
+        return [], {}
+    return list(keyed.values()) + anonymous, mark
 
 
 def claude_replaces(candidate, existing):
@@ -731,22 +854,24 @@ def claude_sums():
 
     Two cache layers: per-dir day/model sums (tiny, always loaded) validated by
     a stat signature of the dir's files, and per-dir entry lists (bigger,
-    loaded only when a dir changed) so an appended session file re-parses just
-    itself, not its whole dir."""
+    loaded only when a dir changed) so an appended session file costs a read of
+    what was appended, not a re-parse of its whole dir."""
     dirs = collections.defaultdict(dict)     # dirkey -> {relpath: (sz, mt, full)}
     for root in CLAUDE_PROJECTS:
         for rel, stat3 in stat_walk(root).items():
             top = rel.split(os.sep, 1)[0] if os.sep in rel else "."
             dirs[str(root / top)][rel] = stat3
     cached = (cache_read("claude-sums") or {}).get("dirs", {})
+    sigs = {dirkey: hashlib.sha256(repr(sorted(
+                (rel, sz, mt) for rel, (sz, mt, _) in files.items())).encode()).hexdigest()
+            for dirkey, files in dirs.items()}
+    stale = {dirkey: files for dirkey, files in dirs.items()
+             if (cached.get(dirkey) or {}).get("sig") != sigs[dirkey]}
+    rebuilt = dict(zip(stale, claude_rebuild(stale)))
     out, totals = {}, collections.defaultdict(lambda: [0, 0, 0, 0])
-    for dirkey, files in dirs.items():
-        sig = hashlib.sha256(repr(sorted(
-            (rel, sz, mt) for rel, (sz, mt, _) in files.items())).encode()).hexdigest()
-        entry = cached.get(dirkey)
-        if not entry or entry["sig"] != sig:
-            entry = {"sig": sig, "sums": claude_rebuild_dir(dirkey, files)}
-        out[dirkey] = entry
+    for dirkey in dirs:
+        entry = out[dirkey] = ({"sig": sigs[dirkey], "sums": rebuilt[dirkey]}
+                               if dirkey in rebuilt else cached[dirkey])
         for key, tok in entry["sums"].items():
             bucket = totals[key]
             for i in range(4):
@@ -754,9 +879,9 @@ def claude_sums():
     if out != cached:
         cache_write("claude-sums", {"dirs": out})
         keep = {claude_entries_name(dirkey) + ".json" for dirkey in out}
-        for stale in CACHE_DIR.glob("claude-entries-*.json"):
-            if stale.name not in keep:
-                stale.unlink(missing_ok=True)
+        for stale_file in CACHE_DIR.glob("claude-entries-*.json"):
+            if stale_file.name not in keep:
+                stale_file.unlink(missing_ok=True)
     return totals
 
 
@@ -764,19 +889,36 @@ def claude_entries_name(dirkey):
     return "claude-entries-" + hashlib.sha256(dirkey.encode()).hexdigest()[:16]
 
 
-def claude_rebuild_dir(dirkey, files):
-    """Re-derive one project dir's sums, re-parsing only its changed files."""
-    name = claude_entries_name(dirkey)
-    old = (cache_read(name) or {}).get("files", {})
-    new = {}
-    for rel, (size, mtime, full) in files.items():
-        prev = old.get(rel)
-        if prev and prev["sig"] == [size, mtime]:
-            new[rel] = prev
-        else:
-            new[rel] = {"sig": [size, mtime], "entries": claude_file_entries(full)}
-    cache_write(name, {"files": new})
-    return claude_dir_sums(new)
+def claude_rebuild(stale):
+    """Re-derive the sums of the project dirs in `stale` ({dirkey: files}), in
+    order, re-parsing only their changed files -- and of those, only the bytes
+    appended since their cache record. Three flat parallel phases (load each
+    dir's entry cache, parse every changed file, store and sum each dir) rather
+    than a pool per dir, so a cold build parses all its files at once."""
+    names = [claude_entries_name(dirkey) for dirkey in stale]
+    olds = parallel(lambda name: (cache_read(name) or {}).get("files", {}),
+                    [(name,) for name in names])
+    news, jobs = [], []
+    for files, old in zip(stale.values(), olds):
+        new = {}
+        for rel, (size, mtime, full) in files.items():
+            prev = old.get(rel)
+            if prev and prev["sig"] == [size, mtime]:
+                new[rel] = prev
+            else:
+                new[rel] = None       # filled below; keeps the walk's key order
+                jobs.append((new, rel, [size, mtime], full, prev))
+        news.append(new)
+    parsed = parallel(claude_file_entries, [(full, prev) for *_, full, prev in jobs])
+    for (new, rel, sig, _, _), (entries, mark) in zip(jobs, parsed):
+        new[rel] = {"sig": sig, "entries": entries, **mark}
+    return parallel(claude_store_dir, zip(names, news))
+
+
+def claude_store_dir(name, files):
+    """Write one project dir's entry cache; return its sums."""
+    cache_write(name, {"files": files})
+    return claude_dir_sums(files)
 
 
 # --- Codex -------------------------------------------------------------------
@@ -818,15 +960,28 @@ CODEX_LONG_CONTEXT = {
 }
 
 
-def codex_parse_file(path):
-    """(meta, events) for one rollout file, cumulative-advance filtered.
+def codex_parse_file(path, prev=None):
+    """One rollout file's cache record -- {meta, events, model, prev_totals} plus
+    its checkpoint -- cumulative-advance filtered. `prev` is the file's last
+    record; when the file has only grown since, parsing resumes where it stopped
+    with the fold state (current model, last cumulative totals) carried over, so
+    the first appended turn is still a delta against the turn before it.
 
     meta: {sid, parent, forked_at}; event: [ts, ms, day, model, [5 usage]]."""
-    meta, events = {}, []
-    model, prev_totals = None, None
+    start = resume_offset(path, prev)
+    if start:
+        meta, events = prev["meta"], list(prev["events"])
+        model, prev_totals = prev["model"], prev["prev_totals"]
+    else:
+        meta, events, model, prev_totals = {}, [], None, None
+    mark = {}
     try:
         with open(path, "rb") as fh:
+            fh.seek(start)
+            offset, line = start, b"\n"
             for line in fh:
+                if line.endswith(b"\n"):
+                    offset += len(line)
                 if b'"session_meta"' in line and not meta:
                     try:
                         rec = json.loads(line)
@@ -860,8 +1015,8 @@ def codex_parse_file(path):
                 advanced = total is None or total != prev_totals
                 last = info.get("last_token_usage") if advanced else None
                 if last is None and total is not None:
-                    prev = prev_totals or {}
-                    last = {k: max(0, (total.get(k) or 0) - (prev.get(k) or 0))
+                    prev_usage = prev_totals or {}
+                    last = {k: max(0, (total.get(k) or 0) - (prev_usage.get(k) or 0))
                             for k in CODEX_USAGE_KEYS}
                 if total is not None:
                     prev_totals = total
@@ -876,16 +1031,24 @@ def codex_parse_file(path):
                 except (ValueError, AttributeError):
                     continue
                 events.append([ts, ts_millis(ts), day, model or "gpt-5", usage])
+            mark = settled(fh, offset, line)
     except OSError:
         pass
-    return meta, events
+    return {"meta": meta, "events": events, "model": model, "prev_totals": prev_totals,
+            **mark}
 
 
 def codex_sums():
     """({day\\x00model: [4 tokens]}, long-context portion of the same),
     incrementally cached per rollout file. The long dict holds the subset of
     the first that came from turns over the model's long-context threshold,
-    for the two-stage pricing in token_rows."""
+    for the two-stage pricing in token_rows.
+
+    Two cache layers: the sums themselves, keyed by the stat signatures they
+    were computed from (tiny, always loaded -- an unchanged tree returns here),
+    and the per-file events behind them (large, loaded only when a rollout file
+    changed, since the fork-replay and cross-file dedup below need every file's
+    events to recompute)."""
     current, seen_rel = {}, set()
     for root in (CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"):
         for rel, (size, mtime, full) in stat_walk(root).items():
@@ -893,15 +1056,17 @@ def codex_sums():
                 continue  # archived copy of a live session file
             seen_rel.add(rel)
             current[full] = [size, mtime]
+    stored = cache_read("codex-sums") or {}
+    if (stored.get("files") == current and "thresholds" in stored
+            and all(codex_threshold(model) == threshold
+                    for model, threshold in stored["thresholds"].items())):
+        return stored["sums"], stored["long"]
     cached = (cache_read("codex") or {}).get("files", {})
-    out = {}
-    for full, sig in current.items():
-        prev = cached.get(full)
-        if prev and prev["sig"] == sig:
-            out[full] = prev
-        else:
-            meta, events = codex_parse_file(full)
-            out[full] = {"sig": sig, "meta": meta, "events": events}
+    stale = [(full, cached.get(full)) for full, sig in current.items()
+             if (cached.get(full) or {}).get("sig") != sig]
+    parsed = dict(zip([full for full, _ in stale], parallel(codex_parse_file, stale)))
+    out = {full: {"sig": sig, **parsed[full]} if full in parsed else cached[full]
+           for full, sig in current.items()}
     if out != cached:
         cache_write("codex", {"files": out})
 
@@ -963,16 +1128,31 @@ def codex_sums():
             bucket[0] += inp - cached_in
             bucket[1] += output
             bucket[2] += cached_in
+    # The split above is the one place the code, not just the logs, shapes the
+    # sums, so the stored copy records each model's threshold and is reused
+    # only while canon() and CODEX_LONG_CONTEXT still resolve them the same way.
+    thresholds = {model: codex_threshold(model)
+                  for model in {event[3] for event in deduped.values()}}
+    cache_write("codex-sums", {"files": current, "thresholds": thresholds,
+                               "sums": sums, "long": long_sums})
     return sums, long_sums
 
 
+@functools.lru_cache(maxsize=None)
 def codex_long_rates(model):
-    """(threshold, USD/1M rate tuple) for a model's long-context tier, or None."""
+    """(threshold, USD/1M rate tuple) for a model's long-context tier, or None.
+    Memoized: codex_sums asks once per event, and there are a few models."""
     key = canon(model)
     for name, entry in CODEX_LONG_CONTEXT.items():
         if key.startswith(name):
             return entry
     return None
+
+
+def codex_threshold(model):
+    """The input size above which a model's turn is long-context, or None."""
+    long_context = codex_long_rates(model)
+    return long_context[0] if long_context else None
 
 
 # --- opencode ----------------------------------------------------------------
@@ -1262,10 +1442,9 @@ def main():
     # No flag bypasses this, so KIRO_DEFAULT_MIX is provably what priced every
     # Kiro row. Edit that constant to change it.
     credit_rate, assumed_mix = KIRO_DEFAULT_RATE, dict(KIRO_DEFAULT_MIX)
-    # Threads, not processes: the waits that matter (git subprocesses, sqlite,
-    # cold-cache disk I/O) sit outside the GIL, and after the first build the
-    # caches leave almost no JSON parsing to serialize. A process pool could not
-    # be spawned from a file without a .py suffix anyway.
+    # One thread per scanner; each fans its own files out through parallel().
+    # Only a free-threaded build runs their JSON work on separate cores -- a GIL
+    # build overlaps just the I/O and the git/sqlite waits.
     with concurrent.futures.ThreadPoolExecutor() as pool:
         futures = {
             "claude": pool.submit(claude_sums),

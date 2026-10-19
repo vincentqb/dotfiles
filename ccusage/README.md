@@ -123,10 +123,16 @@ SQLite db). The parsing rules — streaming/sidechain dedup for Claude,
 cumulative-advance filtering and fork-replay skipping for Codex — are
 transcribed from ccusage's Rust adapters and were validated token-for-token
 against its output. Results are cached incrementally under
-`~/.cache/ccusage-all/`, keyed by file stat signatures, so a run re-parses only
-the session files that changed since the last one: typical runs take well under
-a second and are always current, with no cold-scan penalty after the first
-build (~15s over 3.5GB of logs). One known deliberate divergence from ccusage:
+`~/.cache/ccusage-all/`, keyed by file stat signatures, and a log that grew
+since the last run is read from where that run stopped, so a run reads only
+what was appended. With a dozen agent sessions writing, a run takes 0.3-1.5s
+here, most of it re-deduplicating the one large project dir (228k entries) they
+write into. A cold build (an empty cache) of 26GB of logs takes ~9s on the
+free-threaded interpreter and ~70s on a GIL build, since only the former parses
+files on several cores at once. The date filter applies after the scan, not
+before: Claude's dedup, Codex's fork replay and Kiro's first-seen turn all need
+logs from outside the window to get the window right. One known deliberate
+divergence from ccusage:
 it applies a 200K long-context boundary to `openai.gpt-5.5` because its pricing
 entry for that key lacks tier data; this tool uses the published 272K boundary
 for the whole GPT family.
@@ -164,10 +170,12 @@ counters can no longer tell us.
 ## Install
 
 ```fish
+uv python install 3.15t      # the free-threaded interpreter the shebang names
 ln -sf ~/dotfiles/ccusage/ccusage-all ~/.local/bin/ccusage-all
 ```
 
-Needs Python 3.9+; no other dependencies.
+Any Python 3.10+ produces the same table (`python3 ccusage-all`), only slower on
+a cold cache; no other dependencies.
 
 ## Caveats
 

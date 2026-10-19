@@ -10,10 +10,16 @@ it, and every test about the function passed.
 
 import importlib.util
 import io
+import json
 import sys
+import sysconfig
+import tempfile
+import threading
+import time
 import unittest
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).with_name("ccusage-all")
 
@@ -460,6 +466,358 @@ class Subtotals(unittest.TestCase):
     def test_zero_consumed_does_not_divide_by_zero(self):
         row = token_row(harness="h", cost=0.0, mtok=0.0)
         self.assertEqual(cc.harness_subtotals([row])["h"]["rate"], 0.0)
+
+
+# --- synthetic logs, written the way the harnesses write them ------------------
+
+def jsonl(records):
+    """Compact JSON lines. Compact matters: the Claude parser's substring gate
+    looks for `"type":"assistant"` with no space after the colon."""
+    return b"".join(json.dumps(r, separators=(",", ":")).encode() + b"\n"
+                    for r in records)
+
+
+def kiro_log(turns, day=1):
+    """Per turn [(n, model, credits)]: the assistant record naming the model,
+    an unrelated record, then the usage_summary carrying the credits -- so a
+    cut can fall between a turn's model and its credits."""
+    records = []
+    for n, model, credits in turns:
+        eid, ts = f"exec-{n}", f"2026-10-{day + n % 2:02d}T10:00:00Z"
+        records += [
+            {"id": f"a{n}", "timestamp": ts, "payload": {
+                "type": "assistant", "executionId": eid,
+                "reasoningModelId": f"qdev::{model}", "content": "x" * 40}},
+            {"id": f"f{n}", "timestamp": ts, "payload": {"type": "user", "content": "y" * 40}},
+            {"id": f"s{n}", "timestamp": ts, "payload": {
+                "type": "usage_summary", "executionId": eid,
+                "promptTurnSummaries": [{"usage": credits, "unit": "credit"}]}},
+        ]
+    return jsonl(records)
+
+
+def claude_log(messages):
+    """Assistant records [(message id, request id, (in, out, cr, cw), sidechain)],
+    each after an unrelated record."""
+    records = []
+    for n, (mid, req, tok, side) in enumerate(messages):
+        records.append({"type": "user", "timestamp": "2026-10-01T09:00:00Z",
+                        "message": {"content": "q" * 30}})
+        records.append({
+            "type": "assistant", "timestamp": f"2026-10-{1 + n % 2:02d}T10:00:00Z",
+            "requestId": req, "isSidechain": side,
+            "message": {"id": mid, "model": "claude-opus-5", "usage": {
+                "input_tokens": tok[0], "output_tokens": tok[1],
+                "cache_read_input_tokens": tok[2], "cache_creation_input_tokens": tok[3]}}})
+    return jsonl(records)
+
+
+# A message streamed as three rewrites (the first two partial), an anonymous
+# entry, a smaller rewrite that must not win, and a sidechain replay.
+CLAUDE_STREAM = [
+    ("m1", "r1", (1, 1, 0, 0), False), ("m2", "r2", (2, 2, 20, 1), False),
+    ("m1", "r1", (1, 9, 50, 2), False), (None, "r4", (1, 1, 1, 1), False),
+    ("m1", "r1", (1, 2, 0, 0), False), ("m5", "r5", (3, 3, 3, 3), True),
+    ("m1", "r1", (1, 9, 60, 2), False), ("m5", "r6", (3, 3, 9, 3), True),
+]
+
+
+def codex_usage(inp, cached, out):
+    return {"input_tokens": inp, "cached_input_tokens": cached, "output_tokens": out,
+            "reasoning_output_tokens": 0, "total_tokens": inp + out}
+
+
+def codex_log(sid, turns, parent=None, meta_ts="2026-10-01T10:00:00Z"):
+    """A rollout file. `turns` is [(timestamp, (input, cached, output))], a
+    `None` turn being a model switch. Cumulative totals advance with each turn;
+    one repeated event (totals unchanged) must be ignored, and one event carries
+    totals only, so its usage is the delta against the turn before it."""
+    payload = {"id": sid, "timestamp": meta_ts}
+    if parent:
+        payload["forked_from_id"] = parent
+    records = [{"type": "session_meta", "timestamp": meta_ts, "payload": payload},
+               {"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}}]
+    total = [0, 0, 0]
+    for index, turn in enumerate(turns):
+        if turn is None:
+            records.append({"type": "turn_context", "payload": {"model": "gpt-5.6-luna"}})
+            continue
+        ts, (inp, cached, out) = turn
+        total = [total[0] + inp, total[1] + cached, total[2] + out]
+        info = {"total_token_usage": codex_usage(*total)}
+        if index % 3 != 2:
+            info["last_token_usage"] = codex_usage(inp, cached, out)
+        event = {"type": "event_msg", "timestamp": ts,
+                 "payload": {"type": "token_count", "info": info}}
+        records.append(event)
+        if index == 1:
+            records.append(event)
+    return jsonl(records)
+
+
+def codex_turns(start_minute, count, scale=1):
+    return [(f"2026-10-01T10:{start_minute + i:02d}:00Z",
+             ((300_000 if i == 2 else 1_000 * (i + 1)) * scale, 500 * i, 50 + i))
+            for i in range(count)]
+
+
+def claude_record(path, prev=None):
+    """claude_file_entries shaped as the cache record it is stored in."""
+    entries, mark = cc.claude_file_entries(path, prev)
+    return {"entries": entries, **mark}
+
+
+class Resume(unittest.TestCase):
+    """A grown log is read from the byte the last run stopped at.
+
+    The cache now carries each parser's fold state across runs, so a field
+    missing from that state is wrong only for a turn that straddles two runs --
+    a bug no single-run test can see. Equivalence is therefore checked against
+    the one thing it must equal: a cold parse of the final file, however its
+    growth was cut, mid-line included."""
+
+    PARSERS = {
+        "kiro": (lambda: cc.kiro_parse_file,
+                 kiro_log([(n, "claude-opus-5" if n % 2 else "gpt-5.6-sol", 1.25 * n)
+                           for n in range(1, 6)])),
+        "claude": (lambda: claude_record, claude_log(CLAUDE_STREAM)),
+        "codex": (lambda: cc.codex_parse_file,
+                  codex_log("s1", codex_turns(0, 3) + [None] + codex_turns(5, 3))),
+    }
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name) / "log.jsonl"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def parse(self, parser, data, prev=None):
+        """Write `data`, parse it with `prev` carried the way the cache carries
+        it -- through a JSON round trip."""
+        self.path.write_bytes(data)
+        if prev is not None:
+            prev = json.loads(json.dumps(prev))
+        return parser(str(self.path), prev)
+
+    def cuts(self, data):
+        """Every kind of place a run can land: on a line's newline (the record
+        complete but unterminated), just after it, one byte into the next line,
+        and mid-line."""
+        ends = [i for i, byte in enumerate(data) if byte == 0x0A]
+        points = {0, len(data)}
+        for start, end in zip([-1, *ends], ends):
+            points |= {end, end + 1, end + 2, (start + end) // 2}
+        return sorted(p for p in points if 0 <= p <= len(data))
+
+    def test_any_single_cut_resumes_to_the_cold_result(self):
+        for name, (get, data) in self.PARSERS.items():
+            parser = get()
+            cold = self.parse(parser, data)
+            for cut in self.cuts(data):
+                with self.subTest(parser=name, cut=cut):
+                    first = self.parse(parser, data[:cut])
+                    self.assertEqual(self.parse(parser, data, first), cold)
+
+    def test_many_small_appends_resume_to_the_cold_result(self):
+        for name, (get, data) in self.PARSERS.items():
+            parser = get()
+            cold = self.parse(parser, data)
+            for step in (5, 17, 101):
+                with self.subTest(parser=name, step=step):
+                    record = None
+                    for end in [*range(step, len(data), step), len(data)]:
+                        record = self.parse(parser, data[:end], record)
+                    self.assertEqual(record, cold)
+
+    def test_the_resume_actually_skips_the_parsed_prefix(self):
+        """Wiring: every test above would also pass if resume_offset always
+        answered 0 and each run re-parsed from the start -- the slow path this
+        exists to remove."""
+        for name, (get, data) in self.PARSERS.items():
+            with self.subTest(parser=name):
+                parser = get()
+                first = self.parse(parser, data[:len(data) // 2])
+                self.path.write_bytes(data)
+                self.assertGreater(cc.resume_offset(str(self.path), first), 0)
+                self.assertEqual(cc.resume_offset(str(self.path), first), first["offset"])
+
+    def test_a_rewritten_log_is_parsed_from_scratch(self):
+        for name, (get, data) in self.PARSERS.items():
+            parser = get()
+            first = self.parse(parser, data[:len(data) // 2])
+            # Same length as before and then grown, but different bytes.
+            other = data[:len(data) // 2].replace(b"10:00", b"11:00") + data[len(data) // 2:]
+            with self.subTest(parser=name, change="rewritten"):
+                self.assertEqual(self.parse(parser, other, first), self.parse(parser, other))
+            with self.subTest(parser=name, change="truncated"):
+                short = data[:len(data) // 4]
+                self.assertEqual(self.parse(parser, short, first), self.parse(parser, short))
+
+    def test_a_record_caught_mid_write_resumes_from_its_start(self):
+        """Checkpointing past the unfinished line would skip the rest of it next
+        run; dropping the checkpoint instead would re-read a live log whole every
+        time a run happened to land mid-write."""
+        for name, (get, data) in self.PARSERS.items():
+            with self.subTest(parser=name):
+                last_start = data.rfind(b"\n", 0, len(data) - 1) + 1
+                self.assertEqual(self.parse(get(), data[:-3])["offset"], last_start)
+
+    def test_a_complete_record_missing_its_newline_still_counts(self):
+        """The one unterminated line that parses: counted, as a cold read of the
+        same bytes counts it, but never checkpointed past."""
+        def content(record):
+            return {k: v for k, v in record.items() if k not in ("offset", "tail")}
+        for name, (get, data) in self.PARSERS.items():
+            with self.subTest(parser=name):
+                record = self.parse(get(), data[:-1])
+                self.assertNotIn("offset", record)
+                self.assertEqual(content(record), content(self.parse(get(), data)))
+
+
+class IncrementalScanners(unittest.TestCase):
+    """The scanners themselves: a run on a cache built from shorter logs must
+    equal a run on a fresh cache, across the cross-file rules (Kiro's
+    first-seen executionId, Claude's per-dir dedup, Codex fork replay)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_scanner(self, scanner, files, cut):
+        """Write each file cut at `cut` of its length (mid-line), scan, write
+        them whole, scan again on the same cache. Returns (warm, cold, offsets)
+        where cold is the whole files scanned on a fresh cache and offsets the
+        resume points the warm scan used."""
+        for path, data in files.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data[:int(len(data) * cut)])
+        offsets = []
+        real = cc.resume_offset
+
+        def spy(path, prev):
+            offsets.append(real(path, prev))
+            return offsets[-1]
+
+        with mock.patch.object(cc, "CACHE_DIR", self.root / "cache-warm"):
+            scanner()
+            for path, data in files.items():
+                path.write_bytes(data)
+            with mock.patch.object(cc, "resume_offset", spy):
+                warm = scanner()
+        with mock.patch.object(cc, "CACHE_DIR", self.root / "cache-cold"):
+            cold = scanner()
+        return warm, cold, offsets
+
+    def check(self, scanner, files, normalize):
+        for cut in (0.3, 0.55, 0.8):
+            with self.subTest(cut=cut):
+                for sub in ("cache-warm", "cache-cold"):
+                    for stale in (self.root / sub).glob("*"):
+                        stale.unlink()
+                warm, cold, offsets = self.run_scanner(scanner, files, cut)
+                self.assertEqual(normalize(warm), normalize(cold))
+                self.assertTrue(any(offsets), "the warm scan never resumed")
+
+    def test_kiro(self):
+        sessions = self.root / "kiro"
+        first = sessions / "ws1" / "sess_a"
+        second = sessions / "ws2" / "sess_b"
+        files = {
+            first / "messages.jsonl": kiro_log([(n, "claude-opus-5", 1.5) for n in range(1, 7)]),
+            # exec-3 again, on another day: counted once, where first seen.
+            second / "messages.jsonl": kiro_log([(n, "gpt-5.6-sol", 0.75) for n in range(3, 9)],
+                                                day=5),
+        }
+        second.mkdir(parents=True)
+        (second / "session.json").write_text('{"modelId": "claude-sonnet-5"}')
+        with mock.patch.object(cc, "KIRO_SESSIONS", sessions):
+            self.check(lambda: cc.kiro_rows(1.0, dict(cc.KIRO_DEFAULT_MIX)), files,
+                       lambda rows: sorted((r["day"], r["model"], r["consumed"]) for r in rows))
+
+    def test_claude(self):
+        project = self.root / "claude" / "projects" / "-p1"
+        resumed = CLAUDE_STREAM[:5] + [("m7", "r7", (5, 5, 5, 5), False)]
+        files = {
+            project / "s1.jsonl": claude_log(CLAUDE_STREAM),
+            project / "s2.jsonl": claude_log(resumed),            # a resume's copy
+            project / "s1" / "subagents" / "agent-x.jsonl": claude_log(
+                [("m5", "r9", (3, 3, 30, 3), True), ("m8", "r8", (1, 2, 3, 4), True)]),
+            self.root / "claude" / "projects" / "-p2" / "s3.jsonl": claude_log(CLAUDE_STREAM[2:]),
+        }
+        with mock.patch.object(cc, "CLAUDE_PROJECTS", [self.root / "claude" / "projects"]):
+            self.check(cc.claude_sums, files, dict)
+
+    def test_codex(self):
+        sessions = self.root / "codex" / "sessions" / "2026" / "10" / "01"
+        parent_turns = codex_turns(0, 4)
+        child_turns = ([(f"2026-10-01T11:00:0{i}Z", usage) for i, (_, usage) in
+                        enumerate(parent_turns[:2])] + codex_turns(20, 4, scale=2))
+        files = {
+            sessions / "rollout-a.jsonl": codex_log("p", parent_turns + codex_turns(30, 3)),
+            sessions / "rollout-b.jsonl": codex_log("c", child_turns, parent="p",
+                                                    meta_ts="2026-10-01T10:01:30Z"),
+        }
+        with mock.patch.object(cc, "CODEX_HOME", self.root / "codex"):
+            self.check(cc.codex_sums, files,
+                       lambda result: tuple(dict(part) for part in result))
+
+    def test_codex_sums_are_not_reused_across_a_threshold_change(self):
+        """The one input to the stored Codex sums that is code, not log: which
+        turns count as long-context. Changing a threshold with no log touched
+        must still move the long-context split."""
+        sessions = self.root / "codex" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / "rollout-a.jsonl").write_bytes(codex_log("p", codex_turns(0, 4)))
+        table = dict(cc.CODEX_LONG_CONTEXT)
+        table["gpt-5.6-sol"] = (1_500, table["gpt-5.6-sol"][1])
+        try:
+            with mock.patch.object(cc, "CODEX_HOME", self.root / "codex"), \
+                 mock.patch.object(cc, "CACHE_DIR", self.root / "cache"):
+                _, before = cc.codex_sums()
+                cc.codex_long_rates.cache_clear()
+                with mock.patch.object(cc, "CODEX_LONG_CONTEXT", table):
+                    _, after = cc.codex_sums()
+                    with mock.patch.object(cc, "CACHE_DIR", self.root / "fresh"):
+                        _, fresh = cc.codex_sums()
+        finally:
+            cc.codex_long_rates.cache_clear()
+        self.assertNotEqual(dict(after), dict(before))
+        self.assertEqual(dict(after), dict(fresh))
+
+
+class Parallel(unittest.TestCase):
+    def test_results_come_back_in_job_order(self):
+        def slow_square(n):
+            time.sleep(0.002 * (n % 4))
+            return n * n
+        self.assertEqual(cc.parallel(slow_square, [(n,) for n in range(40)]),
+                         [n * n for n in range(40)])
+
+    def test_a_failing_job_raises_in_the_caller(self):
+        """Not swallowed into a missing result: a scanner that loses one file's
+        parse would otherwise report a silently smaller total."""
+        def boom(n):
+            if n == 3:
+                raise ValueError("job 3")
+            return n
+        with self.assertRaisesRegex(ValueError, "job 3"):
+            cc.parallel(boom, [(n,) for n in range(8)])
+
+    def test_a_single_job_runs_inline(self):
+        self.assertEqual(cc.parallel(lambda: threading.get_ident(), [()]),
+                         [threading.get_ident()])
+
+    def test_the_gil_stays_off_on_a_free_threaded_build(self):
+        """parallel() only parallelizes JSON work on a free-threaded build, and
+        one stdlib extension without free-threading support would silently turn
+        the GIL back on for the whole process."""
+        if not sysconfig.get_config_var("Py_GIL_DISABLED"):
+            self.skipTest("not a free-threaded build")
+        self.assertFalse(sys._is_gil_enabled())
 
 
 if __name__ == "__main__":

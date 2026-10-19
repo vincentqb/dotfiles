@@ -11,10 +11,12 @@ repos:
     # ccusage-all reports dollar figures, and its derived columns (Std, Eff) can
     # be wrong while still rendering plausibly -- two such bugs shipped and
     # survived several readings of the table before this hook existed. Runs only
-    # when that directory changes.
+    # when that directory changes, on the script's own free-threaded interpreter
+    # where installed (the one check that the GIL stays off needs it), else on
+    # python3.
     - id: ccusage-tests
       name: ccusage-all invariants
-      entry: python3 -m unittest discover -s ccusage
+      entry: sh -c 'exec "$(command -v python3.15t || command -v python3)" -m unittest discover -s ccusage'
       language: system
       pass_filenames: false
       files: ^ccusage/

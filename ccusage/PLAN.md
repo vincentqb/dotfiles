@@ -66,6 +66,13 @@ model — what's a good way to unify our estimate? use authoritative sources?"
   design doc (`budget-and-attention.md`), unimplemented.
 - Claude Code work/idle split: **752 h** union agent-work over a 70-day span,
   **3.42×** average session concurrency.
+- A run had slowed to **~10 s** (2026-10-19) because Kiro had no cache and every
+  grown log was re-read from byte 0 (~1.3 GB of live Claude sessions at a time).
+  Logs now resume at a checkpoint: **0.3–1.5 s** steady, most of it re-summing
+  the one 228k-entry project dir live sessions write into; rows byte-identical
+  to the old code on a frozen 26 GB snapshot. Filtering by date *before* the
+  scan would not be equivalent — cross-file dedup and fork replay need
+  out-of-window files.
 - `value_per_session` is not computable: `user_time_saved` is a counterfactual, not
   an instrumentation gap. The computable half is a **break-even bar** (~574 h saved
   at $200/hr and a 15-min switch threshold), and it swings 100–898 h on the
