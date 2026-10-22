@@ -45,13 +45,21 @@
       "command" : "software-builder-insights-prod-mcp",
       "args" : [ ]
     },
-    "creds-agent" : {
-      "command" : "aim",
-      "args" : [ "mcp", "start-server", "local-creds-agent-mcp" ]
-    },
     "enterprise-asana-mcp" : {
       "command" : "enterprise-asana-mcp",
       "args" : [ ]
+    },
+    "creds-agent" : {
+      "command" : "aim",
+      "args" : [ "mcp", "start-server", "local-creds-agent-mcp" ],
+      "env" : {
+        "AIM_CREDS_AGENT_URL_KIRO" : "${AIM_CREDS_AGENT_URL}",
+        "AIM_CREDS_AGENT_INJECTION" : "c1e45a7c-dd1d-4655-b3f8-fdb1c2c9b26d"
+      }
+    },
+    "zulipchat" : {
+      "command" : "uvx",
+      "args" : [ "zulipchat-mcp", "--zulip-config-file", "~/.zuliprc" ]
     }
   }
 }

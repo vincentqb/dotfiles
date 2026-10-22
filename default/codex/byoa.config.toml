@@ -34,3 +34,24 @@ model_reasoning_effort = "max"
 # probed regions work on this account, so this is preference not necessity.
 region = "us-east-1"
 profile = "ipc-pcb-science"
+
+[projects."/local/home/quennv/dotfiles"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/lean-zmx"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/cggpu"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/recipes"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/leantex"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/cv"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/dot.py"]
+trust_level = "trusted"
