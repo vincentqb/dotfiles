@@ -61,6 +61,13 @@ aim mcp start-server flywheel-mcp
 aim agents install AIChampionKit
 aim mcp install enterprise-asana-mcp
 
+# Zulip (zulipchat-mcp from PyPI, run through uvx). Needs ~/.zuliprc: Zulip
+# Settings > Personal > Account & privacy > API key > download zuliprc. Kiro reads
+# it from default/kiro/settings/mcp.json; Codex and Claude keep theirs outside the
+# repo, so they are registered here.
+codex mcp add zulipchat -- uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
+claude mcp add --scope user zulipchat -- uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
+
 # toolbox registry add s3://buildertoolbox-registry-grasp-tools-us-west-2/tools.json
 # toolbox install grasp-mcp
 # grasp-mcp config initialize
