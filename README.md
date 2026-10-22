@@ -13,6 +13,9 @@ Run install scripts corresponding the environment
 ```
 Install dotfiles
 ```
- PASSWD=github_application_password dot.py link default
+dot.py link default
+ GITHUB=github_token OVERLEAF=overleaf_token dot.py link netrc
+ ZULIP=zulip_api_key dot.py link zulip
 ```
-The space prefix tells shell to forget command from history.
+The space prefix tells shell to forget command from history. Templates render
+to `*.rendered` files, which are gitignored and get linked into `~`.
