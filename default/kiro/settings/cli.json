@@ -37,12 +37,22 @@
         "effort": "max"
       }
     },
-    "claude-fable-5": {
+    "claude-fable-5.1": {
       "output_config": {
         "effort": "max"
       }
     },
-    "claude-fable-5.1": {
+    "claude-opus-5.5": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
+    "claude-sonnet-5.5": {
+      "output_config": {
+        "effort": "max"
+      }
+    },
+    "claude-haiku-5.5": {
       "output_config": {
         "effort": "max"
       }
