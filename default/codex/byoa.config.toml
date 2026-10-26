@@ -9,7 +9,8 @@
 # (observed 2026-09-24). The wrapper adds
 #   -c 'model_provider="amazon-bedrock-runtime"'
 # which outranks every layer; the provider table below then applies.
-#   codex-byoa                               # GPT-6 Sol (default)
+#   codex-byoa                               # GPT-6.1 Sol (default)
+#   codex-byoa -m us.openai.gpt-6.1-terra
 #   codex-byoa -m us.openai.gpt-6-luna
 #   codex-byoa -m us.openai.gpt-6-astra
 #
@@ -22,10 +23,19 @@
 # Cecelia science account has no OpenAI rows, but this account clears every
 # gate. ⚠ Turns bill IPC-PCB-Science — not the builder subscription.
 #
+# 2026-10-26: GPT-6.1 Sol (DevDay, 2026-09-29) and GPT-6.1 Terra (launched
+# today) both answer on this rail, us-east-1 and us-west-2, as `global.` and
+# `us.` profiles; the default moved to 6.1 Sol. BUT the builder-subscription
+# path caught up: plain `codex` on Mantle serves openai.gpt-6.1-sol,
+# gpt-6.1-terra, gpt-6-sol and gpt-6-luna since 2026-09-30 -- in us-east-1
+# ONLY -- so this rail now buys exactly two things: Astra (still SCP-denied on
+# Mantle) and Kimi K3 (Converse-only, via l3m). For Sol/Terra/Luna prefer plain
+# `codex`, which the subscription absorbs.
+#
 # Kimi K3 is Converse-only and cannot ride codex's Responses wire; drive it
 # through l3m (registry alias `kimi`) under this same aws profile.
 # Health-check the account entitlement with `byoa-probe`.
-model = "us.openai.gpt-6-sol"
+model = "global.openai.gpt-6.1-sol"
 model_provider = "amazon-bedrock-runtime"
 model_reasoning_effort = "max"
 
@@ -33,7 +43,16 @@ model_reasoning_effort = "max"
 # us-east-1: GPT-6/Opus-5.5 capacity concentrates there at launch; both
 # probed regions work on this account, so this is preference not necessity.
 region = "us-east-1"
-profile = "ipc-pcb-science"
+
+# The account switch. Until codex 0.164 this was `profile = "ipc-pcb-science"`;
+# the 2026-10 toolbox builds rewrote config.toml to vend credentials through
+# aws.credential_export and refuse a layered config carrying BOTH ("provider
+# aws.credential_export cannot be combined with aws.profile"), so the BYOA
+# account now rides the wrapper's own --aws-profile flag instead. Same ada
+# credential_process behind it; `mwinit` on auth errors.
+[model_providers.amazon-bedrock-runtime.aws.credential_export]
+command = "/home/quennv/.toolbox/bin/codex"
+args = ["amzn", "credential-process", "--aws-profile", "ipc-pcb-science"]
 
 [projects."/local/home/quennv/dotfiles"]
 trust_level = "trusted"

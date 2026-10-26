@@ -351,10 +351,12 @@ class RowInvariants(unittest.TestCase):
         because this ratio holds. The exceptions are pinned, not skipped, so a
         transcription that changes one of them fails here: Anthropic cut the
         cache-read ratio to 1/20 with Opus 5.5 and 1/40 with Fable 5.1, which
-        makes 0.10 an overestimate for the Kiro credits spent on those two.
-        OpenAI's GPT-6.1 Sol is 1/20 as well; Kiro has not used it."""
+        makes 0.10 an overestimate for the Kiro credits spent on those two;
+        Sonnet 5.5 is 1/20 too (Haiku 5.5 stays 1/10). OpenAI's GPT-6.1 Sol
+        and Terra are 1/20 as well; Kiro serves neither."""
         exceptions = {"deepseek-v4-flash-free": 0.2, "claude-opus-5-5": 0.05,
-                      "claude-fable-5-1": 0.025, "gpt-6.1-sol": 0.05}
+                      "claude-sonnet-5-5": 0.05, "claude-fable-5-1": 0.025,
+                      "gpt-6.1-sol": 0.05, "gpt-6.1-terra": 0.05}
         for name, (inp, _out, cr, _cw) in cc.LITELLM_SNAPSHOT.items():
             if not inp:
                 continue          # a free tier has no ratio
@@ -395,8 +397,11 @@ class PriceTable(unittest.TestCase):
     # Model names exactly as the logs spell them: Claude Code bare, Codex with
     # the Bedrock route prefix, opencode's Zen free tier by its own alias.
     LOGGED = ("claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "claude-opus-4-8",
-              "claude-fable-5", "openai.gpt-5.6-sol", "global.openai.gpt-5.6-luna",
+              "claude-fable-5", "global.anthropic.claude-sonnet-5-5",
+              "claude-haiku-5-5",
+              "openai.gpt-5.6-sol", "global.openai.gpt-5.6-luna",
               "us.openai.gpt-6-astra", "us.openai.gpt-6.1-sol", "global.openai.gpt-6.1-sol",
+              "openai.gpt-6.1-terra", "openai.gpt-6-luna",
               "openai.gpt-5.5", "openai.gpt-5.4", "deepseek-v4-flash-free", "big-pickle")
 
     def test_every_logged_model_is_priced(self):

@@ -1,15 +1,20 @@
-# GPT-5.6 Terra fallback profile for codex.
-# First fallback when gpt-5.6-sol (the config.toml default) is overloaded or
-# stalling: same generation, verified live 2026-09-19 on the shared Toolbox
-# profile in us-east-2, and per BuilderHub it is the only 5.6 variant available
-# in ALL THREE regions (us-east-1 / us-east-2 / us-west-2) -- sol is absent from
-# us-west-2. Roughly half sol's credit cost on an identical turn
-# (kiro-cli meter, trivial prompt: sol 8.64 vs terra 4.19).
+# GPT-6.1 Terra fallback profile for codex.
+# First fallback when gpt-6.1-sol (the config.toml default) is overloaded or
+# stalling: same generation, half Sol's list price ($1/$5 vs $2/$10 per Mtok,
+# both 1/20 cache-read), launched 2026-10-26 (OpenAI upgraded Terra straight
+# from 5.6 to 6.1; there is no 6.1 Luna) and answered on Mantle through the
+# shared Toolbox profile the same day -- in us-east-1 ONLY, like every GPT-6
+# id: us-east-2 and us-west-2 return 404 "does not exist". Until 2026-10-26
+# this profile carried openai.gpt-5.6-terra in us-east-2 (roughly half sol's
+# credit cost on an identical turn, kiro-cli meter: sol 8.64 vs terra 4.19).
 # Use with: codex --profile terra
-model = "openai.gpt-5.6-terra"
+model = "openai.gpt-6.1-terra"
 model_provider = "amazon-bedrock"
 model_reasoning_effort = "max"
 
 [model_providers.amazon-bedrock.aws]
-region = "us-east-2"
-profile = "codex-DO-NOT-DELETE"
+# No `profile =` line: since the 2026-10 toolbox builds config.toml vends the
+# Caminus credentials through aws.credential_export (`codex amzn
+# credential-process`), and codex 0.164 refuses a layered config that carries
+# BOTH credential_export and profile ("cannot be combined").
+region = "us-east-1"

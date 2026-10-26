@@ -1,6 +1,6 @@
 # ⚠️ REGION TRAP — READ BEFORE USING THIS PROFILE ⚠️
 # This profile pins us-west-2 because that is the ONLY region BuilderHub lists
-# Astra in. us-west-2 does NOT serve gpt-5.6-sol. So if you launch with
+# Astra in. us-west-2 does NOT serve the Sol family. So if you launch with
 # `--profile astra` and then switch models with `/model`, the new model 404s with
 #     The model 'openai.gpt-5.6-sol' does not exist
 #     url: https://bedrock-mantle.us-west-2.api.aws/openai/v1/responses
@@ -13,12 +13,29 @@
 # whatever the session started with. Switching a plain codex session to
 # openai.gpt-6-astra therefore dies with 403 SCP-DENY on Mantle; astra
 # sessions must START on the byoa rail (`codex-byoa -m us.openai.gpt-6-astra`).
-# Fix: exit and relaunch WITHOUT --profile (config.toml pins us-east-2, where sol
-# lives). If you need to stay in a us-west-2 session, only terra and luna are
-# available in all three regions -- sol is us-east-1/us-east-2 only.
+# Fix: exit and relaunch WITHOUT --profile (config.toml pins us-east-1, the
+# only region Mantle serves the GPT-6 family in; 5.6 sol/terra/luna live there
+# too). The trap got WIDER on 2026-09-30: every GPT-6/6.1 id 404s from
+# us-east-2 and us-west-2 on Mantle, and #openai-codex-internal-interest fills
+# with "The model 'openai.gpt-6.1-sol' does not exist" from people whose
+# config.toml still pins us-east-2 (the old Toolbox default). us-east-1 is the
+# answer to all of them.
 #
 # GPT-6 Astra profile for Codex on Amazon Bedrock.
 # Bedrock's verified external ID is openai.gpt-6-astra; bare aliases are invalid.
+#
+# STATE 2026-10-26 (astra-probe, control openai.gpt-5.6-sol OK in us-east-1):
+#   Mantle us-east-1: openai.gpt-6.1-sol OK, gpt-6.1-terra OK (launch day),
+#                     gpt-6-sol OK, gpt-6-luna OK, gpt-6-astra 403-SCP-DENY
+#   Mantle us-east-2 / us-west-2: every GPT-6/6.1 id 404; Astra 403-SCP-DENY
+#   kiro-cli catalog: still no gpt-6 entry (Kiro team, 2026-10-25: "Bedrock is
+#                     not providing capacity for internal use for these models
+#                     right now", no date; use Sonnet 5.5 / Kimi K3 meanwhile,
+#                     or escalate through leadership for team-specific capacity)
+# So the shared-creds gate opened for the whole GPT-6 family EXCEPT Astra, and
+# OpenAI has shelved GPT-6.1 Astra after its own safety review (press,
+# 2026-10-20) -- Astra 6 is not getting a successor soon. The BYOA rail
+# (byoa.config.toml) is the only Astra path and is otherwise redundant.
 #
 # STATE 2026-09-19 (re-probed live, control gpt-5.6-sol passed every time):
 #   mantle  provider: us-east-1 / us-east-2 / us-west-2 -> 401-SCP-DENY
@@ -28,7 +45,8 @@
 # So the documented `bedrock_provider = "runtime"` switch (in the Amazon-specific
 # config -- `codex amzn directories`) does NOT bypass the SCP either. Both Bedrock
 # surfaces are shut for the shared Caminus accounts; this is not a region or an
-# id-shape problem.
+# id-shape problem. (astra-probe labels the Mantle deny 403-SCP-DENY now -- the
+# HTTP status Mantle actually returns -- where this note said 401.)
 #
 # WHY, authoritatively: BuilderHub marks Astra "under evaluation for internal use
 # and not generally available", and the ASBX tracking ticket P508665146 says it is
@@ -65,8 +83,11 @@ model_provider = "amazon-bedrock"
 model_reasoning_effort = "max"
 
 [model_providers.amazon-bedrock.aws]
+# No `profile =` line: since the 2026-10 toolbox builds config.toml vends the
+# Caminus credentials through aws.credential_export (`codex amzn
+# credential-process`), and codex 0.164 refuses a layered config that carries
+# BOTH credential_export and profile ("cannot be combined").
 region = "us-west-2"
-profile = "codex-DO-NOT-DELETE"
 
 [projects."/local/home/quennv/dotfiles"]
 trust_level = "trusted"

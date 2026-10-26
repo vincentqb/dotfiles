@@ -59,21 +59,33 @@ DB = pathlib.Path("~/.local/share/kiro-cli/data.sqlite3").expanduser()
 LIST_MODELS = ("kiro-cli", "chat", "--list-models", "--format", "json")
 
 MULTIPLIER = {
+    # Live values 2026-10-26 (24-entry catalog). The 5.5 Claude family arrived
+    # at 2.0x / 1.3x / 0.06x -- Opus 5.5 is cheaper per credit than Opus 5
+    # (2.2x) and a third of Fable 5.1 (6.0x). Kiro still carries no GPT-6 /
+    # GPT-6.1 entry: the Kiro team says Bedrock is not providing internal
+    # capacity for them (#kiro-cli-internal-software-builders, 2026-10-25).
+    "claude-opus-5.5": 2.0, "claude-sonnet-5.5": 1.3, "claude-haiku-5.5": 0.06,
     "claude-opus-5": 2.2, "claude-opus-4.8": 2.2, "claude-opus-4.7": 2.2,
-    "claude-opus-4.6": 2.2, "claude-opus-4.5": 2.2, "claude-sonnet-5": 1.3,
-    "claude-sonnet-4.6": 1.3, "claude-sonnet-4.5": 1.3, "claude-sonnet-4": 1.3,
-    "claude-fable-5.1": 6.0, "claude-fable-5": 4.4,
+    "claude-opus-4.5": 2.2, "claude-sonnet-5": 1.3,
+    "claude-sonnet-4.6": 1.3, "claude-sonnet-4.5": 1.3,
+    "claude-fable-5.1": 6.0,
     # gpt-5.6 multipliers roughly doubled with the 1M-context rollout
     # (kiro.dev/changelog/models/gpt-5-6-1m-context-window; >272K bills 2x on
-    # top of these). Live values 2026-09-23.
+    # top of these). Luna was then repriced 1.1x -> 0.6x and the family's
+    # window trimmed 1_000_000 -> 922_000 (live 2026-10-26).
     "claude-haiku-4.5": 0.4, "gpt-5.6-sol": 4.4,
-    "gpt-5.6-terra": 2.2, "gpt-5.6-luna": 1.1, "glm-5": 0.5,
+    "gpt-5.6-terra": 2.2, "gpt-5.6-luna": 0.6, "grok-4.7": 1.9, "kimi-k3": 2.4,
+    "glm-5": 0.5,
     "deepseek-3.2": 0.25, "minimax-m2.5": 0.25, "minimax-m2.1": 0.15,
     "qwen3-coder-next": 0.05, "agi-nova-beta-1m": 0.01, "auto": 1.0,
+    # Retired from the catalog (fable-5 on 2026-09-25, the 4.x rows earlier)
+    # but kept so the turns they billed still calibrate.
+    "claude-fable-5": 4.4, "claude-opus-4.6": 2.2, "claude-sonnet-4": 1.3,
 }
 
 CONTEXT_WINDOW = {
-    "gpt-5.6-sol": 1_000_000, "gpt-5.6-terra": 1_000_000, "gpt-5.6-luna": 1_000_000,
+    "gpt-5.6-sol": 922_000, "gpt-5.6-terra": 922_000, "gpt-5.6-luna": 922_000,
+    "grok-4.7": 500_000,
     "deepseek-3.2": 164_000, "minimax-m2.5": 196_000, "minimax-m2.1": 196_000,
     "glm-5": 200_000, "claude-haiku-4.5": 200_000, "claude-opus-4.5": 200_000,
     "claude-sonnet-4.5": 200_000, "claude-sonnet-4": 200_000,

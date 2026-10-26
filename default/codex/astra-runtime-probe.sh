@@ -40,7 +40,7 @@ if [ $rc -eq 124 ]; then
 fi
 
 case "$out" in
-    *'"agent_message"'*'"text":"OK"'*)  echo OK ;;
+    *'"agent_message"'*'"text":"OK'*)   echo OK ;;
     *'does not exist'*)                 echo 404-NOT-VISIBLE ;;
     *'not available for this account'*) echo 401-NOT-ENTITLED ;;
     *'explicit deny'*|*'denied by SCP'*) echo 403-SCP-DENY ;;

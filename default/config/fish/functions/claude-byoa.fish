@@ -9,8 +9,17 @@ function claude-byoa --description 'Claude Code over the BYOA Bedrock rail (Opus
     # ada-vended via credential_process (needs a valid midway session; on auth
     # errors run `mwinit` and retry). This account is FULLY ENTITLED: verified
     # live 2026-09-24, opus-5-5 / gpt-6 sol+luna+astra / kimi-k3 all answer,
-    # in both us-east-1 and us-west-2. ⚠ Every turn bills the team science
-    # account — this is not the flat-rate builder subscription.
+    # in both us-east-1 and us-west-2; 2026-10-26 added sonnet-5-5 and
+    # haiku-5-5 (plus gpt-6.1 sol/terra, grok-4.7, glm-5.3 on the raw
+    # Converse probe). ⚠ Every turn bills the team science account — this is
+    # not the flat-rate builder subscription.
+    #
+    # When is this rail still worth its bill? Toolbox Claude Code's default
+    # account serves opus-5-5, sonnet-5-5 and haiku-5-5 itself (each verified
+    # 2026-10-26 to be the model that actually answered, via --output-format
+    # json modelUsage). It does NOT serve fable-5-1: with enforceAvailableModels
+    # on, `--model claude-fable-5-1[1m]` silently answers as opus-5-5[1m]. So
+    # this rail buys Fable 5.1 -- and nothing else on the Claude side.
     #
     # History: until 2026-09-24 this rail rode the shared cecelia-prod account,
     # whose curated, us-west-2-only allowlist blocked the whole 2026-09 wave
@@ -18,8 +27,8 @@ function claude-byoa --description 'Claude Code over the BYOA Bedrock rail (Opus
     # the IPC rail instead.
     #
     #   claude-byoa                          # claude-opus-5-5[1m], verified live
-    #   claude-byoa claude-sonnet-5          # any row from settings-byoa.json
-    #   claude-byoa 'claude-fable-5-1[1m]'   # fable survives kiro's Sep 25 removal here
+    #   claude-byoa 'claude-sonnet-5-5[1m]'  # any row from settings-byoa.json
+    #   claude-byoa 'claude-fable-5-1[1m]'   # the one model the default account lacks
     set --local model 'claude-opus-5-5[1m]'
     if set --query argv[1]; and not string match --quiet -- '-*' "$argv[1]"
         set model $argv[1]

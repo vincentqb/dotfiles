@@ -1,13 +1,15 @@
-function codex-byoa --description 'Codex on GPT-6 (sol/luna/astra) through the BYOA Bedrock rail (IPC-PCB-Science)'
+function codex-byoa --description 'Codex on the GPT-6 family (6.1 Sol default, Terra, Luna, Astra) through the BYOA Bedrock rail (IPC-PCB-Science)'
     # Why a wrapper and not just `codex --profile byoa`: the profile file's
     # `model_provider = "amazon-bedrock-runtime"` does NOT survive config
     # layering — bare `--profile byoa` still routed to Mantle and died with the
     # misleading 404 "The model 'us.openai.gpt-6-sol' does not exist" from
     # bedrock-mantle.us-east-2 (observed 2026-09-24; same trap class as the
     # astra.config.toml region trap). A `-c` override outranks every layer, and
-    # with it the profile's provider table (region us-east-1, aws profile
-    # ipc-pcb-science) applies correctly — verified live: sol and astra both
-    # answer end-to-end.
+    # with it the profile's provider table (region us-east-1, and since codex
+    # 0.164 a credential_export of `codex amzn credential-process --aws-profile
+    # ipc-pcb-science` in place of the `profile =` line the new toolbox config
+    # refuses to combine with) applies correctly — verified live: sol and
+    # astra both answer end-to-end.
     #
     # ⚠ /model CANNOT REACH ASTRA FROM A PLAIN CODEX SESSION (observed
     # 2026-09-24): /model switches only the model id — provider, AWS account
@@ -15,9 +17,15 @@ function codex-byoa --description 'Codex on GPT-6 (sol/luna/astra) through the B
     # `codex` session that means Mantle + toolbox Caminus creds, where astra
     # answers 403 SCP-DENY (bedrock-mantle:CreateInference). Astra requires
     # STARTING the session through this wrapper; once inside a codex-byoa
-    # session, /model between us.openai.gpt-6-* ids is fine (same provider).
+    # session, /model between us.openai.gpt-6* ids is fine (same provider).
     #
-    #   codex-byoa                               # GPT-6 Sol
+    # Since 2026-09-30 plain `codex` (Mantle, builder subscription) serves
+    # GPT-6.1 Sol/Terra and GPT-6 Sol/Luna itself, in us-east-1 — so this rail
+    # is only NEEDED for Astra now; everything else here costs the team money
+    # that the subscription would absorb.
+    #
+    #   codex-byoa                               # GPT-6.1 Sol (byoa.config.toml default)
+    #   codex-byoa -m us.openai.gpt-6.1-terra    # verified 2026-10-26, launch day
     #   codex-byoa -m us.openai.gpt-6-astra      # the one Mantle still denies
     #   codex-byoa -m us.openai.gpt-6-luna
     # ⚠ Turns bill IPC-PCB-Science (471112940283), not the builder subscription.

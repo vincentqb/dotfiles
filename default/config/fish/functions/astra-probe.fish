@@ -1,16 +1,24 @@
-function astra-probe --description 'Probe GPT-6 family model IDs and regions through Toolbox Codex'
-    # State as of 2026-09-23: Astra is GA on Bedrock (2026-09-08) but BOTH Bedrock
-    # surfaces are shut for the shared Caminus accounts -- Mantle answers
-    # 401-SCP-DENY in every region, and the documented `bedrock_provider = "runtime"`
-    # switch answers 403-SCP-DENY (us-west-2) / 404 (CRIS ids), while the control
-    # passes. BuilderHub calls Astra "under evaluation, not generally available";
-    # ticket P508665146 says capacity, no ETA. GPT-6 Sol and Luna launched publicly
-    # 2026-09-22 (openai.com/index/introducing-gpt-6-sol-and-luna) and are already
-    # live on Bedrock for PERSONAL accounts (#openai-codex-internal-interest,
-    # 2026-09-22), so the probe now covers them too. The probe exists to catch the
-    # flip: any OK on a verified-id, global-cris or runtime-provider row means
-    # shared-creds access opened. Until then the only working path is BYOA (see
-    # astra.config.toml).
+function astra-probe --description 'Probe the GPT-6 family (Astra, Sol, Luna, 6.1 Sol, 6.1 Terra) through Toolbox Codex on Mantle'
+    # State as of 2026-10-26: the shared-creds gate OPENED for everything but
+    # Astra. Toolbox Codex (>= 0.159.1.602, #openai-codex-internal-interest
+    # 2026-09-30) serves GPT-6.1 Sol on Mantle, and this probe found GPT-6 Sol,
+    # GPT-6 Luna and GPT-6.1 Terra (launched the same day) answering too -- in
+    # us-east-1 ONLY. us-east-2 and us-west-2 return 404 "does not exist" for the
+    # whole GPT-6 family, which reads like a bad id and is a region fault (the
+    # astra.config.toml trap, now hitting every 6.x id). Astra alone stays
+    # 403-SCP-DENY in all three regions (P508665146); OpenAI has shelved GPT-6.1
+    # Astra after its own safety review (press, 2026-10-20), so Astra is not
+    # the model to wait for. The kiro catalog still has no gpt-6 row: the Kiro
+    # team says Bedrock is not providing internal capacity for these models and
+    # has no date (#kiro-cli-internal-software-builders, 2026-10-25).
+    #
+    # History: Astra GA'd on Bedrock 2026-09-08; until 2026-09-30 BOTH Bedrock
+    # surfaces were shut for the shared Caminus accounts (Mantle 401-SCP-DENY in
+    # every region, the documented `bedrock_provider = "runtime"` switch
+    # 403-SCP-DENY / 404), while the control passed. GPT-6 Sol and Luna launched
+    # 2026-09-22 and rode Bedrock for personal accounts first (BYOA, see
+    # byoa.config.toml). Exit 0 = some gpt-6 row answered; the row that matters
+    # now is Astra's -- an OK there is the flip still being watched for.
     set --local codex "$HOME/.toolbox/bin/codex"
     set --local prompt 'Reply exactly OK. Do not call tools.'
     set --local dry_run false
@@ -24,13 +32,19 @@ function astra-probe --description 'Probe GPT-6 family model IDs and regions thr
         return 127
     end
 
+    # All rows ride `--profile astra` for its Mantle provider table; the region
+    # is overridden per row. The us-east-2 row is the trap, kept on purpose:
+    # it must read 404-NOT-VISIBLE while the us-east-1 row above it reads OK.
     set --local probes \
-        'control|openai.gpt-5.6-sol|us-east-2' \
+        'control|openai.gpt-5.6-sol|us-east-1' \
         'verified-id|openai.gpt-6-astra|us-east-1' \
         'verified-id|openai.gpt-6-astra|us-east-2' \
         'verified-id|openai.gpt-6-astra|us-west-2' \
-        'verified-id|openai.gpt-6-sol|us-east-2' \
-        'verified-id|openai.gpt-6-luna|us-east-2' \
+        'verified-id|openai.gpt-6-sol|us-east-1' \
+        'verified-id|openai.gpt-6-luna|us-east-1' \
+        'verified-id|openai.gpt-6.1-sol|us-east-1' \
+        'verified-id|openai.gpt-6.1-terra|us-east-1' \
+        'region-trap|openai.gpt-6.1-sol|us-east-2' \
         'global-cris|global.openai.gpt-6-astra|us-east-1'
     set --local timeout_command
     if command --query timeout
@@ -68,9 +82,11 @@ function astra-probe --description 'Probe GPT-6 family model IDs and regions thr
         set --local joined (string join '\n' -- $output)
         set --local result "exit-$exit_code"
 
-        if string match --quiet --regex '"agent_message".*"text":"OK"' "$joined"
+        # Match the prefix only: the 6.1 models like to answer "OK." or
+        # "OK\n", which a closing-quote anchor turned into a false exit-0 row.
+        if string match --quiet --regex '"agent_message".*"text":"OK' "$joined"
             set result OK
-            if string match --quiet '*gpt-6*' "$model"
+            if string match --quiet '*gpt-6*' "$model"; and test "$kind" != region-trap
                 set astra_available true
             end
         else if string match --quiet '*does not exist*' "$joined"
@@ -78,7 +94,7 @@ function astra-probe --description 'Probe GPT-6 family model IDs and regions thr
         else if string match --quiet '*not available for this account*' "$joined"
             set result 401-NOT-ENTITLED
         else if string match --quiet '*explicit deny*' "$joined"
-            set result 401-SCP-DENY
+            set result 403-SCP-DENY
         else if string match --quiet '*failed to create temporary file for AWS config*' "$joined"
             set result SANDBOX-BLOCKED
         else if test $exit_code -eq 124
