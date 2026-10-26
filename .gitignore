@@ -40,9 +40,11 @@
 **/claude/jobs/
 **/claude/mcp-needs-auth-cache.json
 **/claude/model-watch/
+**/claude/org-commits/
 **/claude/pane-watch/
 **/claude/paste-cache/
 **/claude/science-commits/
+**/claude/state/
 **/claude/urgent/
 **/codex/
 !default/codex/
@@ -54,12 +56,16 @@ default/codex/*
 !default/codex/astra-runtime-probe.sh
 **/kiro/.cli_bash_history
 **/kiro/agents/
+**/kiro/cloud-cache/
 **/kiro/logs/
+**/kiro/memories/
 **/kiro/session-index/
 **/kiro/sessions/
 **/kiro/settings/*.lock
+**/kiro/settings/aim-creds-agent-permissions-state.json
 **/kiro/settings/feed_state.json
 **/kiro/settings/survey_state.json
+**/kiro/workspace-roots/
 
 # Per-tool state under ~/.config. Only the entries this repo deliberately carries
 # are tracked, so state directories are named rather than covered by a wildcard --
