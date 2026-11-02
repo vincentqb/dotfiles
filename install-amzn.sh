@@ -36,6 +36,7 @@ toolbox install arcc-cli
 aim mcp install arcc-mcp
 
 aim agents install ChorusAIM
+aim mcp install bunsho-mcp
 
 aim skills install AmazonSharePointMCP
 aim mcp install amazon-sharepoint-mcp
