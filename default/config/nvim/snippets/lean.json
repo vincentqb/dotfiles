@@ -1,0 +1,82 @@
+{
+  "Theorem": {
+    "prefix": "theorem",
+    "body": [
+      "theorem ${1:name} ${2:(n : Nat)} : ${3:n = n} := by",
+      "  ${0:rfl}"
+    ],
+    "description": "Theorem with a tactic proof"
+  },
+  "Lemma": {
+    "prefix": "lemma",
+    "body": [
+      "theorem ${1:name} ${2:(n : Nat)} : ${3:n = n} := by",
+      "  ${0:rfl}"
+    ],
+    "description": "Lemma with a tactic proof (declared with theorem)"
+  },
+  "Example": {
+    "prefix": "example",
+    "body": [
+      "example : ${1:True} := by",
+      "  ${0:sorry}"
+    ],
+    "description": "Anonymous example with a tactic proof"
+  },
+  "Definition": {
+    "prefix": "def",
+    "body": [
+      "def ${1:name} ${2:(n : Nat)} : ${3:Nat} :=",
+      "  ${0:n}"
+    ],
+    "description": "Definition"
+  },
+  "Tactic proof": {
+    "prefix": "by",
+    "body": [
+      "by",
+      "  ${0:sorry}"
+    ],
+    "description": "Tactic proof block"
+  },
+  "Local fact": {
+    "prefix": "have",
+    "body": [
+      "have ${1:h} : ${2:True} := by",
+      "  ${3:sorry}",
+      "$0"
+    ],
+    "description": "Introduce and prove a local fact"
+  },
+  "Calculation": {
+    "prefix": "calc",
+    "body": [
+      "calc",
+      "  ${1:a} = ${2:b} := by ${3:sorry}",
+      "  _ = ${4:c} := by ${0:sorry}"
+    ],
+    "description": "Chained equality proof"
+  },
+  "Namespace": {
+    "prefix": "namespace",
+    "body": [
+      "namespace ${1:Name}",
+      "",
+      "$0",
+      "",
+      "end $1"
+    ],
+    "description": "Namespace with a matching end"
+  },
+  "Section": {
+    "prefix": "section",
+    "body": [
+      "section ${1:Name}",
+      "",
+      "$0",
+      "",
+      "end $1"
+    ],
+    "description": "Section with a matching end"
+  }
+}

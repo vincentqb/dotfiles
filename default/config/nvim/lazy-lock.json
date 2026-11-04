@@ -6,6 +6,7 @@
   "dracula": { "branch": "master", "commit": "e7817b4baccfb3529f709ac048c621f35cdbc5b3" },
   "gitsigns.nvim": { "branch": "main", "commit": "851a051e2bd2caba97e23314c68d69f1b1cf5d19" },
   "lazy.nvim": { "branch": "main", "commit": "306a05526ada86a7b30af95c5cc81ffba93fef97" },
+  "lean.nvim": { "branch": "main", "commit": "108592ebb16d57cbf84d994183327fe643dfa730" },
   "linediff.vim": { "branch": "main", "commit": "c3780609769a93f4f59421b6324355f37e0ee6c5" },
   "lualine.nvim": { "branch": "master", "commit": "221ce6b2d999187044529f49da6554a92f740a96" },
   "nvim-lspconfig": { "branch": "master", "commit": "db68de3575fff9dd9bb78b34c8371759ed35fe34" },

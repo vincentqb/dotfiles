@@ -54,6 +54,13 @@ return {
     'neovim/nvim-lspconfig',
     event = { 'BufReadPre', 'BufNewFile' },
   },
+  {
+    'Julian/lean.nvim',
+    event = { 'BufReadPre *.lean', 'BufNewFile *.lean' },
+    init = function()
+      require('config.lean')
+    end,
+  },
 
   -- Completion (replaces the entire nvim-cmp stack)
   {
