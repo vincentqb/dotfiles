@@ -19,7 +19,6 @@ nvim --headless "+Lazy! sync" +qa
 # Fish as default shell
 sudo chsh "$USER" -s "$(which fish)"
 
-# Cargo + texlab (not in homebrew-core for Linux)
+# Cargo toolchain
 curl https://sh.rustup.rs -sSf | sh -s -- -y
-~/.cargo/bin/cargo install --locked --git https://github.com/latex-lsp/texlab
 ~/.cargo/bin/cargo install-update -a

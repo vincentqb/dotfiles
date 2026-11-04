@@ -41,13 +41,44 @@ local on_attach = function(client, bufnr)
   end
 end
 
+-- Keep the servers' own attach handlers for source/header and TeX commands.
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = vim.api.nvim_create_augroup('LspKeymaps', { clear = true }),
+  callback = function(args)
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if client then
+      on_attach(client, args.buf)
+    end
+  end,
+})
+
 -- Completion capabilities from blink.cmp
 local capabilities = require('blink.cmp').get_lsp_capabilities()
 
-local servers = { 'texlab', 'ruff', 'ty' }
+-- clangd supplies completion, diagnostics and clang-format; enable clang-tidy.
+vim.lsp.config('clangd', {
+  cmd = { 'clangd', '--background-index', '--clang-tidy' },
+})
+
+-- texlab runs ChkTeX for diagnostics and latexindent for F4 formatting.
+vim.lsp.config('texlab', {
+  settings = {
+    texlab = {
+      chktex = {
+        onOpenAndSave = true,
+        onEdit = true,
+      },
+      latexFormatter = 'latexindent',
+      latexindent = {
+        modifyLineBreaks = false,
+      },
+    },
+  },
+})
+
+local servers = { 'clangd', 'texlab', 'ruff', 'ty' }
 for _, lsp in ipairs(servers) do
   vim.lsp.config(lsp, {
-    on_attach = on_attach,
     capabilities = capabilities,
   })
   vim.lsp.enable(lsp)
@@ -56,6 +87,5 @@ end
 -- lean.nvim provides and enables leanls when a Lean file is opened.
 -- Use the same completion and navigation defaults as the other servers.
 vim.lsp.config('leanls', {
-  on_attach = on_attach,
   capabilities = capabilities,
 })

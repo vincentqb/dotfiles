@@ -50,6 +50,9 @@ brew "glibc"
 brew "python@3.14"  # uv's default interpreter, via python-preference = "system"
 brew "ruff"
 
+# C / C++ tooling
+brew "llvm"        # clangd, clang-tidy and clang-format
+
 # AI tooling
 tap "anomalyco/tap"             # OpenCode (custom tap, always up to date)
 brew "anomalyco/tap/opencode"
@@ -65,7 +68,9 @@ brew "slirp4netns"
 # Docs / writing
 brew "biber"        # biblatex bibliographies
 brew "pandoc"
-brew "texlive"
+brew "texlive"      # includes ChkTeX and latexmk
+brew "texlab"
+brew "latexindent"
 brew "librsvg"
 
 # Shell scripting
