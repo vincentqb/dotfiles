@@ -10,10 +10,11 @@ fish_add_path /home/linuxbrew/.linuxbrew/bin/
 # Install fisher + plugins declared in default/config/fish/fish_plugins
 curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source; and fisher install jorgebucaran/fisher
 fisher update
-set -U async_prompt_functions _pure_prompt_git
 
-# Pure prompt: red symbol on error is enough; hide the exit-status number
-set -U pure_show_exit_status false
+# Kiro's Fish integration currently only adds ~/.local/bin, already on PATH.
+# These legacy Fig hooks launch the CLI twice in every shell and prompt worker.
+# Fish provides completions and autosuggestions itself.
+rm -f "$__fish_config_dir/conf.d/00_fig_pre.fish" "$__fish_config_dir/conf.d/99_fig_post.fish"
 
 # Return to default keybindings
 fish_default_key_bindings

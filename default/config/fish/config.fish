@@ -29,6 +29,9 @@ set -gx CLAUDE_CODE_USE_BEDROCK "1"
 # plugin file).
 set -g pure_show_exit_status true
 set -g pure_separate_prompt_on_error true
+# Render the prompt immediately and update only its Git segment in the
+# background. Keep this in the config so fresh installs need no universal state.
+set -g async_prompt_functions _pure_prompt_git
 
 # >>> vscode python
 if set -q VSCODE_FISH_ACTIVATE
@@ -39,6 +42,10 @@ end
 # Added by AIM CLI
 set -gx PATH "/local/home/quennv/.aim/mcp-servers" $PATH
 alias finch='sudo HOME=/home/quennv DOCKER_CONFIG=/home/quennv/.docker finch'
+
+# Kiro's Fish init currently only adds this directory; avoid launching the CLI
+# from the obsolete Fig startup hooks (removed by install-fish.fish).
+fish_add_path --global --append --path ~/.local/bin
 
 # Keep Amazon toolbox builds ahead of Homebrew on PATH.
 #
