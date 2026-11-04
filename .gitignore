@@ -82,9 +82,10 @@ default/codex/*
 
 # Generated, not authored: fisher installs conf.d and completions from
 # fish_plugins, rustup and Fig drop their own, and fish_config writes the frozen
-# theme and key bindings. Keep authored startup overrides, but ignore generated
-# output, on the same footing as tmux/plugins and functions/_*.fish above.
+# theme and key bindings. Keep authored startup and completion overrides, but
+# ignore generated output, like tmux/plugins and functions/_*.fish above.
 **/config/fish/functions/fisher.fish
-**/config/fish/completions/
+**/config/fish/completions/*
+!default/config/fish/completions/git.fish
 **/config/fish/conf.d/*
 !default/config/fish/conf.d/00-dotfiles.fish
