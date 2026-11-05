@@ -11,6 +11,7 @@ ENV["PATH"] = "#{ENV.fetch("HOMEBREW_PREFIX", "/home/linuxbrew/.linuxbrew")}/bin
 brew "coreutils"
 brew "fish"
 brew "tmux"
+brew "trzsz-go"    # SSH uploads/downloads from a remote shell, including tmux
 brew "ansifilter"   # tmux-logging
 brew "util-linux"
 cask "kitty"

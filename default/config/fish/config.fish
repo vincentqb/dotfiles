@@ -8,7 +8,8 @@ if status is-interactive
     abbr vim "nvim -O"
     abbr vimdiff "nvim -d"
     # abbr view "nvim -RO"
-    abbr s "kitty +kitten ssh"
+    # s is an autoloaded function; transfer setup runs only when connecting.
+    abbr --erase s
     abbr icat "kitty +kitten icat"
     abbr lz "eza -lm --no-user --no-permissions --time-style long-iso -s modified -r --grid --color=always"
     abbr pcp "rsync -ahrz --info=progress2"
