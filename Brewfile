@@ -14,6 +14,7 @@ brew "tmux"
 brew "trzsz-go"    # SSH uploads/downloads from a remote shell, including tmux
 brew "ansifilter"   # tmux-logging
 brew "util-linux"
+brew "trzsz-go"
 cask "kitty"
 cask "ghostty"
 cask "warp"
