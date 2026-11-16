@@ -1,5 +1,6 @@
 {
   "awsCredentialExport": "\"/home/quennv/.toolbox/bin/claude\" default-credential-export",
+  "preferredNotifChannel": "terminal_bell",
   "env": {
     "AWS_REGION": "us-west-2"
   },
