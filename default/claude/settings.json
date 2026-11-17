@@ -1,6 +1,5 @@
 {
   "awsCredentialExport": "\"/home/quennv/.toolbox/bin/claude\" default-credential-export",
-  "preferredNotifChannel": "terminal_bell",
   "env": {
     "AWS_REGION": "us-west-2",
     "CLAUDE_CODE_EFFORT_LEVEL": "max"
@@ -231,7 +230,11 @@
     "claude-opus-5-5": "global.anthropic.claude-opus-5-5",
     "claude-sonnet-5-5[1m]": "global.anthropic.claude-sonnet-5-5[1m]",
     "claude-sonnet-5-5": "global.anthropic.claude-sonnet-5-5",
-    "claude-haiku-5-5": "global.anthropic.claude-haiku-5-5"
+    "claude-haiku-5-5": "global.anthropic.claude-haiku-5-5",
+    "claude-sonnet-4-5-20250929": "global.anthropic.claude-sonnet-5-5",
+    "claude-sonnet-4-5-20250929[1m]": "global.anthropic.claude-sonnet-5-5[1m]",
+    "claude-fable-5-1": "global.anthropic.claude-fable-5[1m]",
+    "claude-fable-5-1[1m]": "global.anthropic.claude-fable-5[1m]"
   },
   "hooks": {
     "PreToolUse": [
@@ -303,7 +306,9 @@
     "AtlasAICapabilities-all@aim": true,
     "ChorusAIM-all@aim": true,
     "AmazonSharePointMCP-all@aim": true,
-    "StoreGenAiCapabilities-stores@aim": true
+    "StoreGenAiCapabilities-stores@aim": true,
+    "AmazonBuilderCoreAIAgents-runtime-configuration-assistant@aim": true,
+    "aim-usage-telemetry@aim": true
   },
   "extraKnownMarketplaces": {
     "aim": {
@@ -323,6 +328,7 @@
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
+  "preferredNotifChannel": "terminal_bell",
   "skipAutoPermissionPrompt": true,
   "autoMode": {
     "allow": [
