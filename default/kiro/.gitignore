@@ -10,6 +10,13 @@
 /settings/survey_state.json
 !/steering/
 !/hooks/
+# Written by managers, not us: AIM installs steering/amazon-builder/ from its
+# packages' context/ and hooks/aim-*.json, and `arcc setup` writes steering/arcc/
+# and hooks/arcc-*.kiro.hook.
+/steering/amazon-builder/
+/steering/arcc/
+/hooks/aim-*
+/hooks/arcc-*
 !/skills
 # agents/ is AIM-managed drops. An excluded directory can't be re-included, so
 # re-include the directory, then exclude its contents.

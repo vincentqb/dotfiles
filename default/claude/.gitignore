@@ -7,6 +7,10 @@
 !/settings-byoa.json
 !/statusline-command.sh
 !/rules/
+# Written by managers, not us: the claude-code toolbox wrapper and AIM write the
+# *-do-not-delete.md rules, and `arcc setup` writes arcc-governance.md.
+/rules/*-do-not-delete.md
+/rules/arcc-governance.md
 !/hooks/
 !/skills
 # agents/ is mostly AIM-managed drops. An excluded directory can't be

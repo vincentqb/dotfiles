@@ -72,3 +72,14 @@ set -l k ~/.local/share/kitty-ssh-kitten/kitty/bin/kitten
 $k transfer ./report.pdf Downloads/
 $k transfer --direction=upload Downloads/input.csv ./
 ```
+
+Agent tools (Claude Code, Codex, Kiro)
+
+`~/.claude`, `~/.codex` and `~/.kiro` link to `default/claude`, `default/codex`
+and `default/kiro`, where the tools write their live state. Each directory's
+`.gitignore` is an allowlist: it ignores everything and re-includes only the
+files we author. Files that AIM installs are not tracked; `aim-manifest.txt`
+records what it installed. Reinstall it with
+```
+grep -v '^#' ~/dotfiles/aim-manifest.txt | grep . | xargs -L1 aim
+```

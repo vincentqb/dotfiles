@@ -1,0 +1,82 @@
+# What AIM installed, as `aim` arguments, one install per line. Like the
+# Brewfile, this is the recipe: the files AIM writes under ~/.claude, ~/.codex,
+# ~/.kiro and ~/.aim are not tracked. Reinstall everything with
+#
+#     grep -v '^#' aim-manifest.txt | grep . | xargs -L1 aim
+#
+# Recorded 2026-11-17 from `aim agents list`, `aim plugins list`,
+# `aim skills list` and `aim mcp list --installed`. Version sets are the
+# sources AIM reported, without the event id, so a reinstall takes the latest.
+# AIM installs its own aim-usage-telemetry plugin; a disabled local plugin,
+# local-InventoryTransferServiceAgentAIM-all, is left out.
+#
+# Not AIM: `toolbox install arcc-cli` then `arcc setup` writes
+# ~/.claude/rules/arcc-governance.md, and the claude-code toolbox wrapper writes
+# ~/.claude/rules/amazon-{builder-context,production-safety}-do-not-delete.md.
+
+# Agent packages (Kiro agents under ~/.kiro/agents).
+agents install AIChampionKit -vs AIChampionKit/mainline
+agents install AmazonBuilderCoreAIAgents -vs AmazonBuilderCoreContext/development
+agents install AtlasAICapabilities -vs AtlasKGAI/development
+agents install ChorusAIM -vs AWSFerriteVS/development
+agents install InventoryTransferServiceAgentAIM -vs InventoryTransferServiceAgent/development
+agents install IRRGenAICapabilities -vs IRRGenAI/development
+agents install MeshClawAICapabilities -vs MeshClaw/development
+agents install OptimusPrimeKiro -vs OptimusPrimeKiro/development
+agents install StoreGenAICapabilities -vs StoreGenAICapabilities/development
+agents install StoreGenAiCapabilities -vs StoresAiCapabilities/mainline
+
+# Plugins (Claude Code and Codex), one install per package.
+plugins install AmazonBuilderCoreAIAgents -vs AmazonBuilderCoreContext/development
+plugins install AmazonSharePointMCP -vs live
+plugins install AtlasAICapabilities -vs AtlasKGAI/development
+plugins install ChorusAIM -vs AWSFerriteVS/development
+plugins install IRRGenAICapabilities -vs IRRGenAI/development
+plugins install InventoryTransferServiceAgentAIM -vs InventoryTransferServiceAgent/development
+plugins install MeshClawAICapabilities -vs MeshClaw/development
+plugins install OptimusPrimeKiro -vs OptimusPrimeKiro/development
+plugins install StoreGenAICapabilities -vs StoreGenAICapabilities/development
+plugins install StoreGenAiCapabilities -vs StoresAiCapabilities/mainline
+
+# Skill packages.
+skills install AmazonSharePointMCP -vs live
+skills install IRRGenAICapabilities -vs IRRGenAI/development
+skills install StoreGenAICapabilities -vs StoreGenAICapabilities/development
+skills install Unveil -vs Unveil/development
+
+# MCP servers.
+mcp install ai-community-slack-mcp
+mcp install amazon-meetings-mcp
+mcp install amazon-quick-mcp
+mcp install amazon-sharepoint-mcp
+mcp install andes-mcp
+mcp install apd-aura-mcp
+mcp install arcc-mcp
+mcp install aws-outlook-mcp
+mcp install builder-mcp
+mcp install bunsho-mcp
+mcp install chorus-mcp
+mcp install coe-mcp
+mcp install cr-guide-mcp
+mcp install cradle-mcp
+mcp install datanet-mcp
+mcp install design-inspector-mcp
+mcp install dsai-mcp
+mcp install enterprise-asana-mcp
+mcp install genai-power-users-mcp
+mcp install local-chorus-mcp
+mcp install mcm-local-mcp
+mcp install nova-memory-mcp
+mcp install nova-memory-runtime-mcp
+mcp install npm:@playwright/mcp
+mcp install optimus-prime-mcp
+mcp install pippin-mcp
+mcp install playwright-proxy-mcp
+mcp install quicksight-mcp
+mcp install sagasu-search-mcp
+mcp install sage-plus-service-mcp
+mcp install security-issues-mcp
+mcp install slack-mcp
+mcp install software-builder-insights-prod-mcp
+mcp install spec-studio-mcp
+mcp install venue-mcp
