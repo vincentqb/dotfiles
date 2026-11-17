@@ -37,10 +37,6 @@
       "command" : "amazon-sharepoint-mcp",
       "args" : [ ]
     },
-    "playwright-mcp" : {
-      "command" : "/home/quennv/.toolbox/bin/meshclaw",
-      "args" : [ "mcp-playwright-proxy", "--config", "/home/quennv/.meshclaw/playwright-config.json" ]
-    },
     "software-builder-insights-prod-mcp" : {
       "command" : "software-builder-insights-prod-mcp",
       "args" : [ ]
@@ -49,17 +45,21 @@
       "command" : "enterprise-asana-mcp",
       "args" : [ ]
     },
+    "zulipchat" : {
+      "command" : "uvx",
+      "args" : [ "zulipchat-mcp", "--zulip-config-file", "~/.zuliprc" ]
+    },
+    "bunsho-mcp" : {
+      "command" : "bunsho-mcp",
+      "args" : [ ]
+    },
     "creds-agent" : {
       "command" : "aim",
       "args" : [ "mcp", "start-server", "local-creds-agent-mcp" ],
       "env" : {
         "AIM_CREDS_AGENT_URL_KIRO" : "${AIM_CREDS_AGENT_URL}",
-        "AIM_CREDS_AGENT_INJECTION" : "c1e45a7c-dd1d-4655-b3f8-fdb1c2c9b26d"
+        "AIM_CREDS_AGENT_INJECTION" : "d5143ba1-f3fe-4cdb-875f-f5bdb4d6ecc0"
       }
-    },
-    "zulipchat" : {
-      "command" : "uvx",
-      "args" : [ "zulipchat-mcp", "--zulip-config-file", "~/.zuliprc" ]
     }
   }
 }

@@ -62,6 +62,8 @@ aim mcp start-server flywheel-mcp
 aim agents install AIChampionKit
 aim mcp install enterprise-asana-mcp
 
+aim skills install Unveil
+
 # Zulip (zulipchat-mcp from PyPI, run through uvx). Needs ~/.zuliprc: Zulip
 # Settings > Personal > Account & privacy > API key > download zuliprc. Kiro reads
 # it from default/kiro/settings/mcp.json; Codex and Claude keep theirs outside the

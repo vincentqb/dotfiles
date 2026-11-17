@@ -164,6 +164,10 @@
     "enterprise-asana-mcp" : {
       "type" : "local",
       "command" : [ "enterprise-asana-mcp" ]
+    },
+    "bunsho-mcp" : {
+      "type" : "local",
+      "command" : [ "bunsho-mcp" ]
     }
   }
 }
