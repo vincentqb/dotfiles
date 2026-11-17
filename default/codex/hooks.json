@@ -1,0 +1,1 @@
+{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$HOME/.claude/hooks/terminal-progress.sh busy"}]}],"Stop":[{"hooks":[{"type":"command","command":"$HOME/.claude/hooks/terminal-progress.sh idle; echo {}","timeout":5}]}]}}

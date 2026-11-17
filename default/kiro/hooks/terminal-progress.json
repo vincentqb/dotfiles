@@ -1,0 +1,25 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "terminal-progress-busy",
+      "description": "Declare busy (OSC 9;4;3) on the terminal when a prompt is submitted.",
+      "trigger": "UserPromptSubmit",
+      "timeout": 5,
+      "action": {
+        "type": "command",
+        "command": "$HOME/.claude/hooks/terminal-progress.sh busy"
+      }
+    },
+    {
+      "name": "terminal-progress-idle",
+      "description": "Declare idle (OSC 9;4;0) on the terminal when the agent stops.",
+      "trigger": "Stop",
+      "timeout": 5,
+      "action": {
+        "type": "command",
+        "command": "$HOME/.claude/hooks/terminal-progress.sh idle"
+      }
+    }
+  ]
+}
