@@ -26,46 +26,8 @@
 **/config/gh/hosts.yml
 **/config/grasp-mcp/*.cookies
 
-# Agent state: caches, queues, logs, transcripts and watch dirs that tools write
-# while running. Tracking any of them makes `git status` useless and every commit
-# a diff of someone else's bookkeeping -- kiro/sessions alone is 36k files.
-**/claude/.amzn/
-**/claude/.claude/
-**/claude/.last-cleanup
-**/claude/.setup-state
-**/claude/cache/
-**/claude/daemon/
-**/claude/daemon.log
-**/claude/debug/
-**/claude/jobs/
-**/claude/mcp-needs-auth-cache.json
-**/claude/model-watch/
-**/claude/org-commits/
-**/claude/pane-watch/
-**/claude/paste-cache/
-**/claude/science-commits/
-**/claude/state/
-**/claude/urgent/
-**/codex/
-!default/codex/
-default/codex/*
-!default/codex/astra.config.toml
-!default/codex/terra.config.toml
-!default/codex/luna.config.toml
-!default/codex/byoa.config.toml
-!default/codex/astra-runtime-probe.sh
-**/kiro/.cli_bash_history
-**/kiro/agents/
-**/kiro/cloud-cache/
-**/kiro/logs/
-**/kiro/memories/
-**/kiro/session-index/
-**/kiro/sessions/
-**/kiro/settings/*.lock
-**/kiro/settings/aim-creds-agent-permissions-state.json
-**/kiro/settings/feed_state.json
-**/kiro/settings/survey_state.json
-**/kiro/workspace-roots/
+# claude, codex and kiro hold live tool state, so each carries its own allowlist
+# .gitignore that tracks only authored files.
 
 # Per-tool state under ~/.config. Only the entries this repo deliberately carries
 # are tracked, so state directories are named rather than covered by a wildcard --

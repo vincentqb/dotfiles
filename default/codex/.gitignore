@@ -1,0 +1,8 @@
+# Allowlist. ~/.codex is this directory, and Codex writes its live state here:
+# sqlite databases, sessions, logs, history and config.toml. Ignore everything,
+# then re-include only what we author.
+/*
+!/.gitignore
+!/*.config.toml
+!/astra-runtime-probe.sh
+!/hooks.json

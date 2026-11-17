@@ -1,0 +1,18 @@
+# Allowlist. ~/.kiro is this directory, and Kiro writes its live state here:
+# sessions (36k files), logs, memories, caches, crew and AIM-managed agents.
+# Ignore everything, then re-include only what we author.
+/*
+!/.gitignore
+!/settings/
+/settings/*.lock
+/settings/aim-creds-agent-permissions-state.json
+/settings/feed_state.json
+/settings/survey_state.json
+!/steering/
+!/hooks/
+!/skills
+# agents/ is AIM-managed drops. An excluded directory can't be re-included, so
+# re-include the directory, then exclude its contents.
+!/agents/
+/agents/*
+!/agents/quennv-*

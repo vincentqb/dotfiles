@@ -1,14 +1,17 @@
-history.jsonl
-# agents/ is mostly AIM-managed drops; track only the ones we author.
-# Needs the `agents/*` form — an excluded *directory* can't be re-included.
-agents/*
-!agents/parallel-writer.md
-backups
-briefs
-file-history
-plugins
-projects
-session-env
-sessions
-shell-snapshots
-tasks
+# Allowlist. ~/.claude is this directory, and Claude Code writes its live state
+# here: transcripts, caches, plugins, history and credentials. Ignore everything,
+# then re-include only what we author, so a new state file is ignored by default.
+/*
+!/.gitignore
+!/settings.json
+!/settings-byoa.json
+!/statusline-command.sh
+!/rules/
+!/hooks/
+!/skills
+# agents/ is mostly AIM-managed drops. An excluded directory can't be
+# re-included, so re-include the directory, then exclude its contents.
+!/agents/
+/agents/*
+!/agents/parallel-writer.md
+!/agents/quennv-*
