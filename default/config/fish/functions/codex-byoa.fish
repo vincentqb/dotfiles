@@ -1,4 +1,4 @@
-function codex-byoa --description 'Codex on the GPT-6 family (6.1 Sol default, Terra, Luna, Astra) through the BYOA Bedrock rail (IPC-PCB-Science)'
+function codex-byoa --description 'Codex on the GPT-6 family (Astra default, 6.1 Sol, Terra, Luna) through the BYOA Bedrock rail (IPC-PCB-Science)'
     # Why a wrapper and not just `codex --profile byoa`: the profile file's
     # `model_provider = "amazon-bedrock-runtime"` does NOT survive config
     # layering — bare `--profile byoa` still routed to Mantle and died with the
@@ -24,9 +24,9 @@ function codex-byoa --description 'Codex on the GPT-6 family (6.1 Sol default, T
     # is only NEEDED for Astra now; everything else here costs the team money
     # that the subscription would absorb.
     #
-    #   codex-byoa                               # GPT-6.1 Sol (byoa.config.toml default)
+    #   codex-byoa                               # GPT-6 Astra (byoa.config.toml default), the one Mantle still denies
+    #   codex-byoa -m us.openai.gpt-6.1-sol
     #   codex-byoa -m us.openai.gpt-6.1-terra    # verified 2026-10-26, launch day
-    #   codex-byoa -m us.openai.gpt-6-astra      # the one Mantle still denies
     #   codex-byoa -m us.openai.gpt-6-luna
     # ⚠ Turns bill IPC-PCB-Science (471112940283), not the builder subscription.
     "$HOME/.toolbox/bin/codex" \

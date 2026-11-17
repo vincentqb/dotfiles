@@ -9,10 +9,10 @@
 # (observed 2026-09-24). The wrapper adds
 #   -c 'model_provider="amazon-bedrock-runtime"'
 # which outranks every layer; the provider table below then applies.
-#   codex-byoa                               # GPT-6.1 Sol (default)
+#   codex-byoa                               # GPT-6 Astra (default)
+#   codex-byoa -m us.openai.gpt-6.1-sol
 #   codex-byoa -m us.openai.gpt-6.1-terra
 #   codex-byoa -m us.openai.gpt-6-luna
-#   codex-byoa -m us.openai.gpt-6-astra
 #
 # WORKING since 2026-09-24, verified live end-to-end: aws profile
 # `ipc-pcb-science` (Conduit account IPC-PCB-Science, 471112940283, role
@@ -30,12 +30,12 @@
 # gpt-6.1-terra, gpt-6-sol and gpt-6-luna since 2026-09-30 -- in us-east-1
 # ONLY -- so this rail now buys exactly two things: Astra (still SCP-denied on
 # Mantle) and Kimi K3 (Converse-only, via l3m). For Sol/Terra/Luna prefer plain
-# `codex`, which the subscription absorbs.
+# `codex`, which the subscription absorbs. Hence the default is now Astra.
 #
 # Kimi K3 is Converse-only and cannot ride codex's Responses wire; drive it
 # through l3m (registry alias `kimi`) under this same aws profile.
 # Health-check the account entitlement with `byoa-probe`.
-model = "global.openai.gpt-6.1-sol"
+model = "global.openai.gpt-6-astra"
 model_provider = "amazon-bedrock-runtime"
 model_reasoning_effort = "max"
 
@@ -73,4 +73,10 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [projects."/local/home/quennv/dot.py"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/inbox-by-gmail-clone"]
+trust_level = "trusted"
+
+[projects."/local/home/quennv/lean-manifests"]
 trust_level = "trusted"
