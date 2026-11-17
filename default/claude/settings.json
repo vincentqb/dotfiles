@@ -2,7 +2,8 @@
   "awsCredentialExport": "\"/home/quennv/.toolbox/bin/claude\" default-credential-export",
   "preferredNotifChannel": "terminal_bell",
   "env": {
-    "AWS_REGION": "us-west-2"
+    "AWS_REGION": "us-west-2",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max"
   },
   "includeCoAuthoredBy": false,
   "permissions": {
@@ -319,7 +320,6 @@
     }
   },
   "outputStyle": "Concise",
-  "effortLevel": "xhigh",
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
