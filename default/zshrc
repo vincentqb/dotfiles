@@ -271,3 +271,15 @@ for _c in cp mv rm; do unalias $_c 2>/dev/null; done; unset _c
 cp() { if [[ -t 0 ]]; then command cp -i "$@"; else command cp "$@"; fi; }
 mv() { if [[ -t 0 ]]; then command mv -i "$@"; else command mv "$@"; fi; }
 rm() { if [[ -t 0 ]]; then command rm -i "$@"; else command rm "$@"; fi; }
+
+# linger: sessions that need you (⚑ ⣿ ✗ ?), counted on the right of the prompt.
+linger_attention_sample() {
+  local last_status=$?
+  linger_attention=
+  (( $+commands[linger] )) && linger_attention=$(command linger ls --summary 2>/dev/null)
+  return $last_status
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd linger_attention_sample
+setopt prompt_subst
+RPROMPT+='${linger_attention}'
