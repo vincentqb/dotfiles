@@ -3,7 +3,10 @@
 # vendored palette is needed (it matches ../kitty/dracula.conf exactly).
 theme = Dracula
 
-font-family = Menlo
+# DejaVu Sans Mono looks like Menlo, which Apple made from it, and covers more of
+# Unicode; JuliaMono fills in math and symbols it lacks, such as long arrows.
+font-family = DejaVu Sans Mono
+font-family = JuliaMono
 font-size = 14
 
 command = /opt/homebrew/bin/fish --login

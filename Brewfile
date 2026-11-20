@@ -9,6 +9,8 @@ brew "trzsz-go"
 cask "kitty"
 cask "ghostty"
 cask "warp"
+cask "font-dejavu"      # DejaVu Sans Mono, the font Menlo was made from, with wider coverage
+cask "font-juliamono"   # fallback for math and symbols DejaVu lacks
 
 # CLI core
 brew "bat"
