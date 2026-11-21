@@ -1,0 +1,13 @@
+schema = 1
+model = "opus"
+prompt = "You work for the person. Answer each of the person's lines in plain words, with what you know; say what you are unsure of."
+every-call = false
+
+[policy]
+target = 1
+head = 20
+
+[grant]
+routes = ["opus"]
+cents = 1500
+ms = 3600000

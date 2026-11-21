@@ -1,0 +1,13 @@
+schema = 1
+model = "answer"
+prompt = "You answer the one open line of the person's, the newest; every earlier line is answered already and is not yours to answer again. Write your answer exactly in the format the line asks for, with nothing before or after it."
+every-call = false
+
+[policy]
+target = 1
+head = 20
+
+[grant]
+routes = ["answer"]
+cents = 300
+ms = 900000

@@ -1,0 +1,35 @@
+schema = 1
+session = "summarize"
+person-clients = []
+tick = 1000
+reading = { base = 500, per-char = 2 }
+
+[containment]
+unshare = "/usr/bin/unshare"
+sh = "/bin/sh"
+timeout = "/usr/bin/timeout"
+curl = "/usr/bin/curl"
+home = "/home/quennv"
+bwrap = "/home/linuxbrew/.linuxbrew/bin/bwrap"
+visible = []
+
+[hosts.model]
+pinned = ["192.0.2.1"]
+
+[routes.answer]
+transport = { kind = "bedrock", region = "us-west-2", model = "us.anthropic.claude-haiku-4-5-20251001-v1:0", program = "/home/linuxbrew/.linuxbrew/bin/aws", profile = "l3m-bedrock", env = ["AWS_CONFIG_FILE=/home/quennv/.sbox-session/a126fb1b-5874-459c-ab7d-724ba2a78614/config", "AWS_SHARED_CREDENTIALS_FILE=/home/quennv/.sbox-session/a126fb1b-5874-459c-ab7d-724ba2a78614/creds"], thinking = "off" }
+dialect = "bedrock-converse"
+host = "model"
+secret = "route-key"
+cents = 30
+window = { tokens = 200000, overhead = 1000 }
+checks = ["no-secret"]
+
+[routes.opus]
+transport = { kind = "bedrock", region = "us-west-2", model = "us.anthropic.claude-opus-5-5", program = "/home/linuxbrew/.linuxbrew/bin/aws", profile = "l3m-bedrock", env = ["AWS_CONFIG_FILE=/home/quennv/.sbox-session/a126fb1b-5874-459c-ab7d-724ba2a78614/config", "AWS_SHARED_CREDENTIALS_FILE=/home/quennv/.sbox-session/a126fb1b-5874-459c-ab7d-724ba2a78614/creds"], effort = "max", thinking = "adaptive" }
+dialect = "bedrock-converse"
+host = "model"
+secret = "route-key"
+cents = 150
+window = { tokens = 200000, overhead = 1000 }
+checks = ["no-secret"]

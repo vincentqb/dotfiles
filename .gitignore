@@ -51,3 +51,5 @@
 !default/config/fish/completions/git.fish
 **/config/fish/conf.d/*
 !default/config/fish/conf.d/00-dotfiles.fish
+
+**/config/vera/secrets/
